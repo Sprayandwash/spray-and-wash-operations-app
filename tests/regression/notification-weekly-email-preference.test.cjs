@@ -23,11 +23,12 @@ test('NOTIFY-WEEKLY-001: a signed-in employee can independently change only thei
   assert.doesNotMatch(preferenceAction, /RESEND_API_KEY|api\.resend\.com|sendStagingTestEmail/);
 });
 
-test('NOTIFY-WEEKLY-002: the account panel presents an optional weekly task email separately from phone push', () => {
+test('NOTIFY-WEEKLY-002: the account panel presents employee weekly-email opt-in separately from phone push', () => {
   assert.match(client, /Weekly task email/);
   assert.match(client, /Enable weekly task email/);
   assert.match(client, /setWeeklyEmailPreference\(true\)/);
   assert.match(client, /No email is sent when you have no open tasks/);
-  assert.match(client, /Routine email delivery is not enabled yet/);
-  assert.match(client, /functionCall\('set_weekly_email_preference'/);
+  assert.match(client, /weekly employee email is allowed by Admin/);
+  assert.match(client, /employeeCall\('set_weekly_email_preference'/);
+  assert.doesNotMatch(client, /RESEND_API_KEY|api\.resend\.com/);
 });
