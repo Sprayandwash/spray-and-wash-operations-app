@@ -9,7 +9,6 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const shortTime = value => String(value || '').slice(0,5);
   const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const dayName = value => days[Number(value || 1) - 1] || 'Mon';
   const base64UrlToUint8Array = value => {
     const padded = `${value}${'='.repeat((4 - (value.length % 4)) % 4)}`.replace(/-/g, '+').replace(/_/g, '/');
     return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
@@ -31,7 +30,10 @@
     if (!currentUser) return setPanel('<h3>Job reminders</h3><p class="muted">Sign in to manage reminders and weekly email.</p>');
     if (!latestStatus) return setPanel('<h3>Job reminders</h3><p class="muted">Checking notification availability…</p>');
     const weeklyEnabled = latestStatus.weekly_email_enabled === true;
-    const weeklyControl = `<div class="pushSettings"><h3>Weekly task email</h3><p class="muted">${weeklyEnabled?'Enabled for your own open-task summary.':'Optional. Receive only your own open tasks when weekly employee email is allowed by Admin.'}</p><div class="row"><button class="primary" onclick="setWeeklyEmailPreference(true)" ${weeklyEnabled?'disabled':''}>Enable weekly task email</button>${weeklyEnabled?'<button onclick="setWeeklyEmailPreference(false)">Disable</button>':''}</div></div>`;
+    const weeklyCopy = weeklyEnabled
+      ? 'Enabled for your own open-task summary. No email is sent when you have no open tasks.'
+      : 'Optional. Receive only your own open tasks when weekly employee email is allowed by Admin. No email is sent when you have no open tasks.';
+    const weeklyControl = `<div class="pushSettings"><h3>Weekly task email</h3><p class="muted">${weeklyCopy}</p><div class="row"><button class="primary" onclick="setWeeklyEmailPreference(true)" ${weeklyEnabled?'disabled':''}>Enable weekly task email</button>${weeklyEnabled?'<button onclick="setWeeklyEmailPreference(false)">Disable</button>':''}</div></div>`;
     if (!supported()) return setPanel(`<h3>Job reminders</h3><p class="muted">Push reminders need the installed Spray &amp; Wash app on a supported Android browser.</p>${weeklyControl}`);
     if (!latestStatus.vapid_public_key) return setPanel(`<h3>Job reminders</h3><p class="muted">Push reminders are being prepared and cannot be enabled yet.</p>${weeklyControl}`);
     if (Notification.permission === 'denied') return setPanel(`<h3>Job reminders</h3><p class="dangerBox">Notifications are blocked for this app. Enable them in browser or Android settings, then return here.</p>${weeklyControl}`);
