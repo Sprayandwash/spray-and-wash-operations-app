@@ -21,8 +21,9 @@ test('NOTIFY-ENROL-001: push enrolment is opt-in and uses the authenticated noti
 
 test('NOTIFY-ENROL-002: the client has no direct push-provider delivery path', () => {
   const enrolment = read('push-notifications.js');
-  assert.doesNotMatch(enrolment, /web-push|fetch\([^)]*push/i);
-  assert.match(enrolment, /Routine reminders remain disabled\./);
+  assert.doesNotMatch(enrolment, /web-push|sendNotification|api\.resend\.com|RESEND_API_KEY|fetch\([^)]*push/i);
+  assert.match(enrolment, /No provider send is initiated from this browser file/);
+  assert.match(enrolment, /notification-control/);
 });
 
 test('NOTIFY-DELIVERY-001: a staging test is constrained to the authenticated staging administrator device', () => {
