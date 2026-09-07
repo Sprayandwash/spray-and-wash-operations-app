@@ -33,6 +33,9 @@ This is a compact, append-only index of meaningful Admin test runs and fixes. It
 
 | 2 Sep 2026 | Controlled Android staging push test | 9B | Passed | One manual staging push was accepted by the provider and visibly received on the enrolled Android PWA device. One notification and one push-delivery record were created. Email, SMS, schedules and production were excluded. See [detailed record](history/step-9b/2026-09-02-staging-push-delivery.md). |
 
+| 7 Sep 2026 | Production and Staging scheduler audit | — | Confirmed inert | Read-only query found both environments' notification-scheduler cron jobs `active`, running every 15 minutes, with no committed migration or workflow creating either. Delivery confirmed off in both environments via settings row and backend kill-switch. See [detailed record](history/2026-09-07-production-scheduler-audit.md). |
+| 7 Sep 2026 | Scheduler job definitions formalized in docs | — | Documented | Added a committed reference of the exact live `cron.job` command text for all four Staging and Production notification-scheduler jobs, plus two read-only GitHub Actions workflows that compare live state against it on demand. No job was created, altered, or removed. See [reference](history/2026-09-07-scheduler-job-definitions-reference.md). |
+
 ## Recording rule
 
 Add one short row for each meaningful controlled run, staging build, read-only review, PR merge, or confirmed new defect. Add a detailed file under `history/step-9b/` only for Step 9B runs.
