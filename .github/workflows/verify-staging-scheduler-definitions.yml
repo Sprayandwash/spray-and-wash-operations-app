@@ -1,0 +1,66 @@
+name: Verify staging scheduler definitions
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-staging-scheduler-definitions
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      STAGING_PROJECT_REF: tsnmbvezrweciaitkquf
+      PRODUCTION_PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - name: Validate staging-only read-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN:-}" || { echo 'Missing SUPABASE_ACCESS_TOKEN.' >&2; exit 1; }
+          test "$STAGING_PROJECT_REF" != "$PRODUCTION_PROJECT_REF" || { echo 'SAFETY STOP: production target.' >&2; exit 1; }
+
+      - name: Query live cron.job state (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql="select jobid, jobname, schedule, active, command from cron.job where jobname like 'spray-and-wash%' order by jobname;"
+          status="$(curl --silent --show-error --output live.json --write-out '%{http_code}' --request POST "https://api.supabase.com/v1/projects/$STAGING_PROJECT_REF/database/query" --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --header "Content-Type: application/json" --data "$(jq -n --arg query "$sql" '{query:$query}')")"
+          test "$status" = "201" || { jq -r '.message // .error // "Query failed"' live.json; exit 1; }
+          cat live.json
+
+      - name: Compare against committed reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            (map(select(.jobname=="spray-and-wash-routine-task-push-staging")) | length == 1) and
+            (map(select(.jobname=="spray-and-wash-weekly-routine-staging")) | length == 1) and
+            (map(select(.jobname=="spray-and-wash-routine-task-push-staging"))[0].schedule == "*/15 * * * *") and
+            (map(select(.jobname=="spray-and-wash-weekly-routine-staging"))[0].schedule == "*/15 * * * *") and
+            (map(select(.jobname=="spray-and-wash-routine-task-push-staging"))[0].command | contains("notification-scheduler") and contains("task_push_scheduler_secret")) and
+            (map(select(.jobname=="spray-and-wash-weekly-routine-staging"))[0].command | contains("notification-scheduler") and contains("weekly_routine_scheduler_secret"))
+          ' live.json >/dev/null || {
+            echo 'DRIFT DETECTED: live staging cron.job rows do not match docs/testing/history/2026-09-07-scheduler-job-definitions-reference.md' >&2
+            exit 1
+          }
+
+      - name: Publish result
+        if: always()
+        run: |
+          {
+            echo '## Staging scheduler definitions verified'
+            echo '- Read-only query only. No job was created, altered, or removed.'
+            echo '- Compared live cron.job rows against docs/testing/history/2026-09-07-scheduler-job-definitions-reference.md.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove transient files
+        if: always()
+        run: rm -f live.json
