@@ -2,7 +2,9 @@
 
 ## Current readiness
 
-The technical push and weekly-email paths have been verified in isolated Staging. The recurring scheduler routes are now permanently installed and run every 15 minutes in Staging and Production, but provider delivery remains disabled by the independent backend emergency flags and the Admin master setting defaults to OFF.
+The technical push and weekly-email paths have been verified in isolated Staging. The recurring scheduler routes run every 15 minutes in both Staging and Production — confirmed live by direct read-only query on 7 September 2026, see the [production scheduler audit](../testing/history/2026-09-07-production-scheduler-audit.md). Provider delivery remains disabled by the independent backend emergency flags, and the Admin master setting defaults to OFF.
+
+**Audit note:** the Production and Staging cron jobs were not created by any migration or GitHub Actions workflow committed to this repository. The audit record above has the full finding and the gap this leaves in the change history.
 
 The permanent operational controls live in **Admin → Settings → Notifications**. Administrators can set the master state, assignment delay, due-soon lead time and send time, overdue send time and cadence, allowed push days/hours, Admin weekly-email schedule, and employee weekly-email allowance/schedule.
 
