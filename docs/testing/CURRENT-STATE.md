@@ -27,9 +27,13 @@ The permanent `testing-history` branch remains the archive route for its existin
 
 For this notification programme, proceed autonomously through ordinary design, build, automated test, no-send Staging verification, documentation and recovery work. Do not stop for routine approval until the next external-send **Step 9B** is fully prepared. At that point, report the exact proposed recipient, channel and safeguards and wait for explicit Step 9B approval.
 
+## Production scheduler audit (7 September 2026)
+
+A read-only query confirmed that both the Production and Staging notification-scheduler cron jobs are live and `active`, running every 15 minutes in each environment. Neither environment's active cron job was created by a migration or workflow committed to this repository — see the [production scheduler audit](history/2026-09-07-production-scheduler-audit.md) for the full finding. Delivery itself remains confirmed inert in both environments: the Admin settings row and the independent backend kill-switch are both off, and Production shows 0 enrolled push devices.
+
 ## Next safe action
 
-For any new app change, start at **Step 1 — Define change**, identify the affected journeys, run the relevant automated checks, then complete read-only Staging review where applicable. The controlled Staging delivery phase has now proven one Android PWA push end-to-end through both the direct dispatcher and the inactive database scheduler route. The scheduler remains inactive and routine delivery flags remain off. Any routine assignment, due-soon, overdue or weekly-email delivery design remains a separate approved phase; production must not be used until its controls have been reviewed.
+For any new app change, start at **Step 1 — Define change**, identify the affected journeys, run the relevant automated checks, then complete read-only Staging review where applicable. The controlled Staging delivery phase has now proven one Android PWA push end-to-end through both the direct dispatcher and the database scheduler route. The scheduler is running on schedule in both environments but routine delivery flags remain off. Any routine assignment, due-soon, overdue or weekly-email delivery design remains a separate approved phase; production delivery must not be enabled until its controls have been reviewed and employees are enrolled.
 
 ## Safety boundaries
 
@@ -41,6 +45,7 @@ For any new app change, start at **Step 1 — Define change**, identify the affe
 
 ## Related records
 
+- [Production scheduler audit](history/2026-09-07-production-scheduler-audit.md)
 - [Run ledger](RUN-LEDGER.md)
 - [Recovery guide](RECOVERY-GUIDE.md)
 - [Access and recovery handover](ACCESS-AND-RECOVERY-HANDOVER.md)
