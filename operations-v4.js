@@ -456,6 +456,7 @@
     window.openVehicleChecksModule = openVehicleChecksModule;
     window.openOpsManagementModule = openOpsManagementModule;
     window.openTrainingModule = openTrainingModule;
+    window.showOperations = showOperations;
     window.openAdminModule = openAdminModule;
     window.openLegacyUserTools = openLegacyUserTools;
     window.openHeightQualifications = openHeightQualifications;
