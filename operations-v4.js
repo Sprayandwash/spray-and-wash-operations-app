@@ -79,6 +79,11 @@
     prefillVehicleCheckId: '',
     trainingContractors: [],
     trainingCourses: [],
+    trainingPeople: [],
+    trainingMatrix: [],
+    trainingRecords: [],
+    trainingRecordFiles: [],
+    trainingSyncSources: [],
     trainingDataLoaded: false,
     trainingContractorFormOpen: false,
     editingContractorId: '',
@@ -188,7 +193,7 @@
   }
   function isManagementView(view){ return ['management-dashboard','assets','history','tasks','schedules'].includes(view) || ['vehicles','washing','maintenance'].includes(view); }
   function isAdminView(view){ return ['admin-users','admin-app-settings','admin-settings'].includes(view); }
-  function isTrainingView(view){ return ['training-dashboard','training-catalog','training-contractors'].includes(view); }
+  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-catalog','training-contractors'].includes(view); }
   function displayStatusLabel(value){
     const v = String(value || '—');
     if(v === 'Pass') return 'Completed OK';
@@ -767,12 +772,22 @@
     if(trainingDataLoading) return;
     trainingDataLoading = true;
     try{
-      const [contractors, courses] = await Promise.all([
+      const [contractors, courses, people, matrix, records, files, syncSources] = await Promise.all([
         loadTable('operations_contractors','*',{column:'company_name'}),
-        loadTable('operations_training_courses','*',{column:'name'})
+        loadTable('operations_training_courses','*',{column:'name'}),
+        loadTable('operations_training_people','*',{column:'full_name'}),
+        loadTable('operations_training_matrix','*'),
+        loadTable('operations_training_records','*'),
+        loadTable('operations_training_record_files','id,record_id'),
+        loadTable('operations_training_sync_sources','*')
       ]);
       state.trainingContractors = contractors;
       state.trainingCourses = courses;
+      state.trainingPeople = people;
+      state.trainingMatrix = matrix;
+      state.trainingRecords = records;
+      state.trainingRecordFiles = files;
+      state.trainingSyncSources = syncSources;
       state.trainingDataLoaded = true;
     }catch(e){
       console.warn('Training data unavailable:', e.message);
@@ -786,11 +801,116 @@
   function trainingDashboardHtml(){
     const courseCount = state.trainingCourses.length;
     const contractorCount = state.trainingContractors.length;
-    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog and Contractors register are live. The training matrix, employee records and reporting are being added in the next phases.</p></div>
+    const peopleCount = state.trainingPeople.filter(p => p.active !== false).length;
+    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog, Contractors register and Training Matrix are live. Employee records, evidence uploads and reporting are being added in the next phases.</p></div>
       <div class="ops-branch-grid">
+        ${moduleCard('Training Matrix', `${peopleCount} ${peopleCount===1?'person':'people'} × ${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-matrix')")}
         ${moduleCard('Course Catalog', `${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-catalog')")}
         ${moduleCard('Contractors', `${contractorCount} contractor${contractorCount===1?'':'s'}`, "showOperations('training-contractors')")}
       </div>`;
+  }
+
+  function trainingMatrixEntry(personId, courseId){
+    return state.trainingMatrix.find(m => String(m.person_id) === String(personId) && String(m.course_id) === String(courseId));
+  }
+
+  function trainingLatestRecord(personId, courseId){
+    const records = state.trainingRecords.filter(r => String(r.person_id) === String(personId) && String(r.course_id) === String(courseId));
+    if(!records.length) return null;
+    return records.slice().sort((a,b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')))[0];
+  }
+
+  function trainingRecordEvidenceCount(recordId){
+    return state.trainingRecordFiles.filter(f => String(f.record_id) === String(recordId)).length;
+  }
+
+  function trainingSyncSourceLabel(sourceKey){
+    const src = state.trainingSyncSources.find(s => s.source_key === sourceKey);
+    return src ? src.description : sourceKey;
+  }
+
+  function trainingCellStatus(record, compulsory){
+    if(!record) return compulsory ? {label:'Missing', pillClass:'ops-bad'} : {label:'Not recorded', pillClass:'ops-muted'};
+    if(record.status && record.status !== 'Completed') return {label: record.status, pillClass:'ops-warn'};
+    if(!record.expiry_date) return {label:'Compliant', pillClass:'ops-ok'};
+    const days = daysUntil(record.expiry_date);
+    if(days === null) return {label:'Compliant', pillClass:'ops-ok'};
+    if(days < 0) return {label:'Expired', pillClass:'ops-bad'};
+    if(days <= 30) return {label:`Expires in ${days}d`, pillClass:'ops-warn'};
+    return {label:'Compliant', pillClass:'ops-ok'};
+  }
+
+  function trainingMatrixHtml(){
+    const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
+    const courses = state.trainingCourses.filter(c => c.active !== false).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    if(!people.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">No people to show yet. Employee accounts sync in automatically; subcontractor people are added in a follow-up phase.</p></div>`;
+    if(!courses.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">Add an active course to the Course Catalog first.</p></div>`;
+    const headerCells = courses.map(c => `<th>${esc(c.name)}<br><span class="ops-subtle">${esc(c.category)}</span>${c.sitewise_category ? ` <span class="ops-role-chip">${esc(c.sitewise_category)}</span>` : ''}</th>`).join('');
+    const rows = people.map(p => {
+      const contractor = p.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(p.contractor_id)) : null;
+      const personTypeLabel = p.person_type === 'employee' ? 'Employee' : p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor';
+      const cells = courses.map(c => {
+        const entry = trainingMatrixEntry(p.id, c.id);
+        const applicable = !!entry?.applicable;
+        const compulsory = !!entry?.compulsory;
+        const record = applicable ? trainingLatestRecord(p.id, c.id) : null;
+        const evidenceCount = record ? trainingRecordEvidenceCount(record.id) : 0;
+        const status = applicable ? trainingCellStatus(record, compulsory) : null;
+        const detailBits = [];
+        if(record){
+          if(evidenceCount) detailBits.push(`${evidenceCount} file${evidenceCount===1?'':'s'}`);
+          if(record.notes) detailBits.push('notes');
+          if(record.source_key) detailBits.push('synced');
+        }
+        const detailText = detailBits.join(' · ');
+        const tooltipBits = [];
+        if(record){
+          if(record.completed_date) tooltipBits.push(`Completed ${nzDate(record.completed_date)}`);
+          if(record.expiry_date) tooltipBits.push(`Expires ${nzDate(record.expiry_date)}`);
+          if(record.provider_or_trainer) tooltipBits.push(`Provider: ${record.provider_or_trainer}`);
+          if(record.notes) tooltipBits.push(`Notes: ${record.notes}`);
+          if(record.source_key) tooltipBits.push(`Synced from: ${trainingSyncSourceLabel(record.source_key)}`);
+          tooltipBits.push(`Updated ${nzDate(record.updated_at)}`);
+        }
+        const tooltip = esc(tooltipBits.join(' · '));
+        return `<td class="ops-matrix-cell">
+          <label class="ops-check"><input type="checkbox" data-ops-matrix-applicable data-person="${p.id}" data-course="${c.id}" ${applicable?'checked':''}> Applies</label>
+          ${applicable ? `<label class="ops-check"><input type="checkbox" data-ops-matrix-compulsory data-person="${p.id}" data-course="${c.id}" ${compulsory?'checked':''}> Compulsory</label>` : ''}
+          ${status ? `<div title="${tooltip}"><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span>${detailText ? `<div class="ops-subtle">${esc(detailText)}</div>` : ''}</div>` : ''}
+        </td>`;
+      }).join('');
+      return `<tr><td><strong>${esc(p.full_name)}</strong><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
+    }).join('');
+    return `<div class="ops-card"><div class="ops-section-title"><h3>Training Matrix</h3><span class="ops-subtle">${people.length} ${people.length===1?'person':'people'} × ${courses.length} course${courses.length===1?'':'s'}</span></div>
+      <p class="ops-subtle">Tick "Applies" for each qualification that's relevant to a person, then mark "Compulsory" for the ones they must hold. Status, expiry and evidence come from their training records, added in a follow-up phase.</p>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th>${headerCells}</tr>${rows}</table></div>
+    </div>`;
+  }
+
+  async function setTrainingMatrixCell(personId, courseId, patch){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can edit the training matrix.');
+    const existing = trainingMatrixEntry(personId, courseId);
+    if(existing){
+      const r = await state.sb.from('operations_training_matrix').update({...patch, set_by: state.user.id, set_at: new Date().toISOString()}).eq('id', existing.id).select().single();
+      if(r.error) return alert('Could not update the training matrix: '+r.error.message);
+      Object.assign(existing, r.data);
+    } else {
+      const row = {person_id: personId, course_id: courseId, applicable: true, compulsory: false, ...patch, set_by: state.user.id};
+      const r = await state.sb.from('operations_training_matrix').insert(row).select().single();
+      if(r.error) return alert('Could not update the training matrix: '+r.error.message);
+      state.trainingMatrix.push(r.data);
+    }
+    render();
+  }
+
+  async function toggleTrainingMatrixApplicable(personId, courseId, applicable){
+    const patch = {applicable};
+    if(!applicable) patch.compulsory = false;
+    await setTrainingMatrixCell(personId, courseId, patch);
+  }
+
+  async function toggleTrainingMatrixCompulsory(personId, courseId, compulsory){
+    await setTrainingMatrixCell(personId, courseId, {compulsory});
   }
 
   function trainingCourseFormHtml(){
@@ -1246,6 +1366,7 @@
         ${navButton('admin-settings','Backup')}` : '';
     const trainingNav = isTraining ? `
         ${navButton('training-dashboard','Dashboard')}
+        ${navButton('training-matrix','Matrix')}
         ${navButton('training-catalog','Course Catalog')}
         ${navButton('training-contractors','Contractors')}` : '';
     const staffNav = isVehicle || isSharedTasks ? '' : (isAdminModule ? adminNav : isTraining ? trainingNav : managementNav);
@@ -1275,6 +1396,7 @@
     if(isTrainingView(state.currentView)){
       if(!canUseTraining()) return `<div class="ops-card"><h3>Training access required</h3><p>This module is only available to Admin or Training manager users.</p></div>`;
       if(!state.trainingDataLoaded) return `<div class="ops-card"><h3>Loading training data…</h3></div>`;
+      if(state.currentView === 'training-matrix') return trainingMatrixHtml();
       if(state.currentView === 'training-catalog') return trainingCatalogHtml();
       if(state.currentView === 'training-contractors') return trainingContractorsHtml();
       return trainingDashboardHtml();
@@ -3459,6 +3581,8 @@
     document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', () => toggleTrainingContractorActive(b.dataset.opsToggleContractorActive)));
     document.querySelectorAll('[data-ops-edit-course]').forEach(b => b.addEventListener('click', () => { state.editingCourseId=b.dataset.opsEditCourse; state.trainingCourseFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-toggle-course-active]').forEach(b => b.addEventListener('click', () => toggleTrainingCourseActive(b.dataset.opsToggleCourseActive)));
+    document.querySelectorAll('[data-ops-matrix-applicable]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixApplicable(cb.dataset.person, cb.dataset.course, cb.checked)));
+    document.querySelectorAll('[data-ops-matrix-compulsory]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixCompulsory(cb.dataset.person, cb.dataset.course, cb.checked)));
     byId('opsTrainingContractorForm')?.addEventListener('submit', saveTrainingContractor);
     byId('opsTrainingCourseForm')?.addEventListener('submit', saveTrainingCourse);
     ['certFilterType','certFilterStatus','certFilterResult','certFilterDue'].forEach(id => byId(id)?.addEventListener('change', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); }));
