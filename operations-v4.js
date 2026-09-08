@@ -89,6 +89,10 @@
     editingContractorId: '',
     trainingCourseFormOpen: false,
     editingCourseId: '',
+    trainingViewPersonId: '',
+    trainingRecordFormOpen: false,
+    editingRecordId: '',
+    trainingRecordFormCourseId: '',
     lastError: ''
   };
 
@@ -100,6 +104,7 @@
   function nowIso(){ return new Date().toISOString(); }
   function nzDate(value){ if(!value) return '—'; const raw=String(value); if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){const [y,m,d]=raw.split('-');return `${d}/${m}/${y}`;} const dt=new Date(raw); return Number.isNaN(dt.getTime()) ? esc(value) : dt.toLocaleDateString('en-NZ',{timeZone:APP_TIME_ZONE}); }
   function addDays(dateStr, days){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCDate(dt.getUTCDate()+Number(days||0)); return dt.toISOString().slice(0,10); }
+  function addMonths(dateStr, months){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCMonth(dt.getUTCMonth()+Number(months||0)); return dt.toISOString().slice(0,10); }
   function daysUntil(dateStr){ if(!dateStr) return null; const d = new Date(dateStr + 'T00:00:00'); const n = new Date(today() + 'T00:00:00'); return Math.ceil((d - n) / 86400000); }
   function optionList(values, selected){ return values.map(v => `<option value="${esc(v)}" ${String(v)===String(selected)?'selected':''}>${esc(v)}</option>`).join(''); }
   function normalizeRego(value){ return String(value || '').toUpperCase().replace(/\s+/g,'').trim(); }
@@ -193,7 +198,7 @@
   }
   function isManagementView(view){ return ['management-dashboard','assets','history','tasks','schedules'].includes(view) || ['vehicles','washing','maintenance'].includes(view); }
   function isAdminView(view){ return ['admin-users','admin-app-settings','admin-settings'].includes(view); }
-  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-catalog','training-contractors'].includes(view); }
+  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-person','training-catalog','training-contractors'].includes(view); }
   function displayStatusLabel(value){
     const v = String(value || '—');
     if(v === 'Pass') return 'Completed OK';
@@ -880,7 +885,7 @@
           ${status ? `<div title="${tooltip}"><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span>${detailText ? `<div class="ops-subtle">${esc(detailText)}</div>` : ''}</div>` : ''}
         </td>`;
       }).join('');
-      return `<tr><td><strong>${esc(p.full_name)}</strong><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
+      return `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.full_name)}</button><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
     }).join('');
     return `<div class="ops-card"><div class="ops-section-title"><h3>Training Matrix</h3><span class="ops-subtle">${people.length} ${people.length===1?'person':'people'} × ${courses.length} course${courses.length===1?'':'s'}</span></div>
       <p class="ops-subtle">Tick "Applies" for each qualification that's relevant to a person, then mark "Compulsory" for the ones they must hold. Status, expiry and evidence come from their training records, added in a follow-up phase.</p>
@@ -912,6 +917,113 @@
 
   async function toggleTrainingMatrixCompulsory(personId, courseId, compulsory){
     await setTrainingMatrixCell(personId, courseId, {compulsory});
+  }
+
+  function openTrainingPerson(personId){
+    state.trainingViewPersonId = personId;
+    state.trainingRecordFormOpen = false;
+    state.editingRecordId = '';
+    state.trainingRecordFormCourseId = '';
+    showOperations('training-person');
+  }
+
+  function trainingRecordRowHtml(r){
+    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${esc(r.status || 'Completed')}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button></td></tr>`;
+  }
+
+  function trainingRecordFormHtml(person, course){
+    const editing = state.trainingRecords.find(r => String(r.id) === String(state.editingRecordId));
+    return `<form id="opsTrainingRecordForm" class="ops-form" data-record-id="${editing ? editing.id : ''}" data-person-id="${person.id}" data-course-id="${course.id}">
+      <label>Status<select id="opsRecordStatus">
+        <option value="Completed" ${(!editing||editing.status==='Completed')?'selected':''}>Completed</option>
+        <option value="In progress" ${editing?.status==='In progress'?'selected':''}>In progress</option>
+        <option value="Failed" ${editing?.status==='Failed'?'selected':''}>Failed</option>
+      </select></label>
+      <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${editing?.completed_date || today()}"></label>
+      <label>Expiry date<input id="opsRecordExpiryDate" type="date" value="${editing?.expiry_date || ''}" placeholder="${course.validity_period_months ? 'Auto if left blank' : 'No expiry'}"></label>
+      <label>Provider / trainer<input id="opsRecordProvider" value="${esc(editing?.provider_or_trainer || '')}"></label>
+      <label>Reference number<input id="opsRecordReference" value="${esc(editing?.reference_number || '')}"></label>
+      <label class="ops-span-2">Notes<textarea id="opsRecordNotes">${esc(editing?.notes || '')}</textarea></label>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add record'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingRecordEditor">Cancel</button></div>
+    </form>`;
+  }
+
+  function trainingPersonCourseSectionHtml(person, course){
+    const records = state.trainingRecords.filter(r => String(r.person_id) === String(person.id) && String(r.course_id) === String(course.id)).slice().sort((a,b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')));
+    const latest = records[0] || null;
+    const matrixEntry = trainingMatrixEntry(person.id, course.id);
+    const compulsory = !!matrixEntry?.compulsory;
+    const status = trainingCellStatus(latest, compulsory);
+    const rows = records.map(r => trainingRecordRowHtml(r)).join('') || `<tr><td colspan="6" class="ops-subtle">No records yet.</td></tr>`;
+    const formOpen = state.trainingRecordFormOpen && String(state.trainingRecordFormCourseId) === String(course.id);
+    return `<div class="ops-card">
+      <div class="ops-section-title"><h3>${esc(course.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}</h3><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></div>
+      <p class="ops-subtle">${esc(course.category)}${course.nzqa_code ? ` · NZQA ${esc(course.nzqa_code)}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
+      ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
+    </div>`;
+  }
+
+  function trainingPersonHtml(){
+    const person = state.trainingPeople.find(p => String(p.id) === String(state.trainingViewPersonId));
+    if(!person) return `<div class="ops-card"><h3>Person not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-matrix')">← Back to Matrix</button></div>`;
+    const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
+    const personTypeLabel = person.person_type === 'employee' ? 'Employee' : person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
+    const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
+    const courses = state.trainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    const sections = courses.length ? courses.map(c => trainingPersonCourseSectionHtml(person, c)).join('') : `<div class="ops-card"><p class="ops-subtle">No courses are marked as applicable for ${esc(person.full_name)} yet. Set that up in the <a href="#" onclick="showOperations('training-matrix');return false;">Training Matrix</a>.</p></div>`;
+    return `<div class="ops-card">
+      <button class="ops-btn ghost" type="button" onclick="showOperations('training-matrix')">← Back to Matrix</button>
+      <h3>${esc(person.full_name)}</h3>
+      <p class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}${person.active === false ? ' · Inactive' : ''}</p>
+    </div>
+    ${sections}`;
+  }
+
+  async function saveTrainingRecord(e){
+    e.preventDefault();
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can edit training records.');
+    const form = e.target;
+    const id = form.dataset.recordId;
+    const personId = form.dataset.personId;
+    const courseId = form.dataset.courseId;
+    const course = state.trainingCourses.find(c => String(c.id) === String(courseId));
+    const completedDate = byId('opsRecordCompletedDate').value || null;
+    let expiryDate = byId('opsRecordExpiryDate').value || null;
+    if(!expiryDate && completedDate && course?.validity_period_months){
+      expiryDate = addMonths(completedDate, course.validity_period_months);
+    }
+    const row = {
+      person_id: personId,
+      course_id: courseId,
+      status: byId('opsRecordStatus').value,
+      completed_date: completedDate,
+      expiry_date: expiryDate,
+      provider_or_trainer: byId('opsRecordProvider').value.trim() || null,
+      reference_number: byId('opsRecordReference').value.trim() || null,
+      notes: byId('opsRecordNotes').value.trim() || null
+    };
+    const r = id
+      ? await state.sb.from('operations_training_records').update(row).eq('id', id).select().single()
+      : await state.sb.from('operations_training_records').insert({...row, created_by: state.user.id}).select().single();
+    if(r.error) return alert('Could not save the training record: '+r.error.message);
+    const idx = state.trainingRecords.findIndex(x => String(x.id) === String(r.data.id));
+    if(idx >= 0) state.trainingRecords[idx] = r.data; else state.trainingRecords.push(r.data);
+    state.trainingRecordFormOpen = false;
+    state.editingRecordId = '';
+    state.trainingRecordFormCourseId = '';
+    render();
+  }
+
+  async function deleteTrainingRecord(id){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can delete training records.');
+    const record = state.trainingRecords.find(r => String(r.id) === String(id));
+    if(!record) return;
+    if(!confirm('Delete this training record? This cannot be undone.')) return;
+    const r = await state.sb.from('operations_training_records').delete().eq('id', id);
+    if(r.error) return alert('Could not delete the record: '+r.error.message);
+    state.trainingRecords = state.trainingRecords.filter(x => String(x.id) !== String(id));
+    render();
   }
 
   function trainingCourseFormHtml(){
@@ -1398,6 +1510,7 @@
       if(!canUseTraining()) return `<div class="ops-card"><h3>Training access required</h3><p>This module is only available to Admin or Training manager users.</p></div>`;
       if(!state.trainingDataLoaded) return `<div class="ops-card"><h3>Loading training data…</h3></div>`;
       if(state.currentView === 'training-matrix') return trainingMatrixHtml();
+      if(state.currentView === 'training-person') return trainingPersonHtml();
       if(state.currentView === 'training-catalog') return trainingCatalogHtml();
       if(state.currentView === 'training-contractors') return trainingContractorsHtml();
       return trainingDashboardHtml();
@@ -3584,6 +3697,11 @@
     document.querySelectorAll('[data-ops-toggle-course-active]').forEach(b => b.addEventListener('click', () => toggleTrainingCourseActive(b.dataset.opsToggleCourseActive)));
     document.querySelectorAll('[data-ops-matrix-applicable]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixApplicable(cb.dataset.person, cb.dataset.course, cb.checked)));
     document.querySelectorAll('[data-ops-matrix-compulsory]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixCompulsory(cb.dataset.person, cb.dataset.course, cb.checked)));
+    document.querySelectorAll('[data-ops-open-person]').forEach(b => b.addEventListener('click', () => openTrainingPerson(b.dataset.opsOpenPerson)));
+    document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; render(); }));
+    document.querySelectorAll('[data-ops-edit-record]').forEach(b => b.addEventListener('click', () => { const rec=state.trainingRecords.find(r=>String(r.id)===String(b.dataset.opsEditRecord)); if(!rec) return; state.editingRecordId=rec.id; state.trainingRecordFormCourseId=rec.course_id; state.trainingRecordFormOpen=true; render(); }));
+    document.querySelectorAll('[data-ops-delete-record]').forEach(b => b.addEventListener('click', () => deleteTrainingRecord(b.dataset.opsDeleteRecord)));
+    byId('opsTrainingRecordForm')?.addEventListener('submit', saveTrainingRecord);
     byId('opsTrainingContractorForm')?.addEventListener('submit', saveTrainingContractor);
     byId('opsTrainingCourseForm')?.addEventListener('submit', saveTrainingCourse);
     ['certFilterType','certFilterStatus','certFilterResult','certFilterDue'].forEach(id => byId(id)?.addEventListener('change', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); }));
@@ -3657,6 +3775,7 @@
     if(action === 'closeTrainingContractorEditor'){ state.trainingContractorFormOpen=false; state.editingContractorId=''; render(); }
     if(action === 'openTrainingCourseEditor'){ state.trainingCourseFormOpen=true; state.editingCourseId=''; render(); }
     if(action === 'closeTrainingCourseEditor'){ state.trainingCourseFormOpen=false; state.editingCourseId=''; render(); }
+    if(action === 'closeTrainingRecordEditor'){ state.trainingRecordFormOpen=false; state.editingRecordId=''; state.trainingRecordFormCourseId=''; render(); }
   }
 
 
