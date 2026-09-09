@@ -8,6 +8,7 @@
 
   const VERSION = '4.0.82';
   const PHOTO_BUCKET = 'inspection-photos';
+  const TRAINING_EVIDENCE_BUCKET = 'training-evidence';
   const TASK_STATUSES = ['Open','In Progress','Waiting on Parts','Waiting on Someone','Completed','Deferred'];
   const PRIORITIES = ['Low','Medium','High','Critical'];
   const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP' };
@@ -40,6 +41,7 @@
     maintenanceLog: [],
     maintenanceLogItems: [],
     maintenanceUsers: [],
+    heightUsers: [],
     pendingUsers: [],
     actualUsers: [],
     actualUserRoles: [],
@@ -79,11 +81,28 @@
     prefillVehicleCheckId: '',
     trainingContractors: [],
     trainingCourses: [],
+    trainingPeople: [],
+    trainingMatrix: [],
+    trainingRecords: [],
+    trainingRecordFiles: [],
+    trainingSyncSources: [],
     trainingDataLoaded: false,
     trainingContractorFormOpen: false,
     editingContractorId: '',
+    trainingPersonFormOpen: false,
+    editingTrainingPersonId: '',
     trainingCourseFormOpen: false,
     editingCourseId: '',
+    trainingViewPersonId: '',
+    trainingRecordFormOpen: false,
+    editingRecordId: '',
+    trainingRecordFormCourseId: '',
+    myTrainingLoaded: false,
+    myTrainingPerson: null,
+    myTrainingCourses: [],
+    myTrainingMatrix: [],
+    myTrainingRecords: [],
+    myTrainingRecordFiles: [],
     lastError: ''
   };
 
@@ -95,7 +114,22 @@
   function nowIso(){ return new Date().toISOString(); }
   function nzDate(value){ if(!value) return '—'; const raw=String(value); if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){const [y,m,d]=raw.split('-');return `${d}/${m}/${y}`;} const dt=new Date(raw); return Number.isNaN(dt.getTime()) ? esc(value) : dt.toLocaleDateString('en-NZ',{timeZone:APP_TIME_ZONE}); }
   function addDays(dateStr, days){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCDate(dt.getUTCDate()+Number(days||0)); return dt.toISOString().slice(0,10); }
+  function addMonths(dateStr, months){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCMonth(dt.getUTCMonth()+Number(months||0)); return dt.toISOString().slice(0,10); }
   function daysUntil(dateStr){ if(!dateStr) return null; const d = new Date(dateStr + 'T00:00:00'); const n = new Date(today() + 'T00:00:00'); return Math.ceil((d - n) / 86400000); }
+  function experienceSince(dateStr){
+    if(!dateStr) return null;
+    const start = new Date(dateStr + 'T00:00:00');
+    const now = new Date(today() + 'T00:00:00');
+    if(Number.isNaN(start.getTime()) || start > now) return null;
+    let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    if(now.getDate() < start.getDate()) months--;
+    if(months < 0) months = 0;
+    const years = Math.floor(months / 12);
+    const remMonths = months % 12;
+    if(years === 0) return `${remMonths} ${remMonths === 1 ? 'month' : 'months'}`;
+    if(remMonths === 0) return `${years} ${years === 1 ? 'year' : 'years'}`;
+    return `${years} ${years === 1 ? 'yr' : 'yrs'} ${remMonths} ${remMonths === 1 ? 'mo' : 'mos'}`;
+  }
   function optionList(values, selected){ return values.map(v => `<option value="${esc(v)}" ${String(v)===String(selected)?'selected':''}>${esc(v)}</option>`).join(''); }
   function normalizeRego(value){ return String(value || '').toUpperCase().replace(/\s+/g,'').trim(); }
   function machineryType(item){
@@ -188,7 +222,7 @@
   }
   function isManagementView(view){ return ['management-dashboard','assets','history','tasks','schedules'].includes(view) || ['vehicles','washing','maintenance'].includes(view); }
   function isAdminView(view){ return ['admin-users','admin-app-settings','admin-settings'].includes(view); }
-  function isTrainingView(view){ return ['training-dashboard','training-catalog','training-contractors'].includes(view); }
+  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-person','training-catalog','training-contractors'].includes(view); }
   function displayStatusLabel(value){
     const v = String(value || '—');
     if(v === 'Pass') return 'Completed OK';
@@ -456,10 +490,12 @@
     window.openVehicleChecksModule = openVehicleChecksModule;
     window.openOpsManagementModule = openOpsManagementModule;
     window.openTrainingModule = openTrainingModule;
+    window.openMyTrainingModule = openMyTrainingModule;
     window.showOperations = showOperations;
     window.openAdminModule = openAdminModule;
     window.openLegacyUserTools = openLegacyUserTools;
     window.openHeightQualifications = openHeightQualifications;
+    window.generateTrainingRegister = generateTrainingRegister;
     setupLogoHomeClick();
     if(originalShowTab){
       window.showTab = function(id){
@@ -768,12 +804,22 @@
     if(trainingDataLoading) return;
     trainingDataLoading = true;
     try{
-      const [contractors, courses] = await Promise.all([
+      const [contractors, courses, people, matrix, records, files, syncSources] = await Promise.all([
         loadTable('operations_contractors','*',{column:'company_name'}),
-        loadTable('operations_training_courses','*',{column:'name'})
+        loadTable('operations_training_courses','*',{column:'name'}),
+        loadTable('operations_training_people','*',{column:'full_name'}),
+        loadTable('operations_training_matrix','*'),
+        loadTable('operations_training_records','*'),
+        loadTable('operations_training_record_files','*'),
+        loadTable('operations_training_sync_sources','*')
       ]);
       state.trainingContractors = contractors;
       state.trainingCourses = courses;
+      state.trainingPeople = people;
+      state.trainingMatrix = matrix;
+      state.trainingRecords = records;
+      state.trainingRecordFiles = files;
+      state.trainingSyncSources = syncSources;
       state.trainingDataLoaded = true;
     }catch(e){
       console.warn('Training data unavailable:', e.message);
@@ -784,14 +830,515 @@
     }
   }
 
+  function openMyTrainingModule(){
+    if(!state.user) return alert('Sign in first.');
+    state.currentModule = 'my-training';
+    setTopTabsMode('none');
+    showOperations('my-training');
+    loadMyTrainingData();
+  }
+
+  let myTrainingDataLoading = false;
+  async function loadMyTrainingData(force){
+    if(!state.sb || !state.user) return;
+    if(state.myTrainingLoaded && !force){ render(); return; }
+    if(myTrainingDataLoading) return;
+    myTrainingDataLoading = true;
+    try{
+      const [people, courses, matrix, records, files] = await Promise.all([
+        loadTable('operations_training_people','*'),
+        loadTable('operations_training_courses','*',{column:'name'}),
+        loadTable('operations_training_matrix','*'),
+        loadTable('operations_training_records','*'),
+        loadTable('operations_training_record_files','*')
+      ]);
+      const person = people.find(p => String(p.user_id) === String(state.user.id)) || null;
+      state.myTrainingPerson = person;
+      state.myTrainingCourses = courses;
+      state.myTrainingMatrix = person ? matrix.filter(m => String(m.person_id) === String(person.id)) : [];
+      state.myTrainingRecords = person ? records.filter(r => String(r.person_id) === String(person.id)) : [];
+      const myRecordIds = state.myTrainingRecords.map(r => String(r.id));
+      state.myTrainingRecordFiles = person ? files.filter(f => myRecordIds.includes(String(f.record_id))) : [];
+      state.myTrainingLoaded = true;
+    }catch(e){
+      console.warn('My Training data unavailable:', e.message);
+      state.lastError = 'Your training records could not be loaded: '+e.message;
+    }finally{
+      myTrainingDataLoading = false;
+      render();
+    }
+  }
+
+  function myTrainingMatrixEntry(courseId){
+    return state.myTrainingMatrix.find(m => String(m.course_id) === String(courseId));
+  }
+
+  function myTrainingLatestRecord(courseId){
+    const records = state.myTrainingRecords.filter(r => String(r.course_id) === String(courseId));
+    if(!records.length) return null;
+    return records.slice().sort((a,b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')))[0];
+  }
+
+  const TRAINING_EVIDENCE_MAX_BYTES = 15 * 1024 * 1024;
+
+  async function uploadEvidenceFile(personId, recordId, file){
+    if(file.size > TRAINING_EVIDENCE_MAX_BYTES){ alert(`"${file.name}" is larger than 15MB and was not uploaded.`); return null; }
+    const clean = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${personId}/${recordId}/${Date.now()}-${clean}`;
+    const up = await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).upload(path, file, { cacheControl:'3600', upsert:false, contentType:file.type || 'application/octet-stream' });
+    if(up.error){ alert('Evidence upload failed: '+up.error.message); return null; }
+    const r = await state.sb.from('operations_training_record_files').insert({ record_id: recordId, storage_path: path, file_name: file.name, file_size_bytes: file.size, uploaded_by: state.user.id }).select().single();
+    if(r.error){ alert('Evidence could not be saved: '+r.error.message); await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).remove([path]); return null; }
+    return r.data;
+  }
+
+  async function addTrainingEvidenceAdmin(recordId, files){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can attach evidence here.');
+    const record = state.trainingRecords.find(r => String(r.id) === String(recordId));
+    if(!record) return;
+    if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment. Evidence is managed there.');
+    for(const file of files){
+      const row = await uploadEvidenceFile(record.person_id, recordId, file);
+      if(row) state.trainingRecordFiles.push(row);
+    }
+    render();
+  }
+
+  async function addMyTrainingEvidence(recordId, files){
+    const person = state.myTrainingPerson;
+    const record = state.myTrainingRecords.find(r => String(r.id) === String(recordId));
+    if(!person || !record) return;
+    if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment. Evidence is managed there.');
+    for(const file of files){
+      const row = await uploadEvidenceFile(person.id, recordId, file);
+      if(row) state.myTrainingRecordFiles.push(row);
+    }
+    render();
+  }
+
+  async function deleteTrainingEvidence(fileId){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can remove evidence.');
+    const file = state.trainingRecordFiles.find(f => String(f.id) === String(fileId));
+    if(!file) return;
+    if(!confirm('Remove this evidence file? This cannot be undone.')) return;
+    await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).remove([file.storage_path]);
+    const r = await state.sb.from('operations_training_record_files').delete().eq('id', fileId);
+    if(r.error) return alert('Could not remove the file record: '+r.error.message);
+    state.trainingRecordFiles = state.trainingRecordFiles.filter(f => String(f.id) !== String(fileId));
+    render();
+  }
+
+  async function openTrainingEvidence(fileId){
+    const file = state.trainingRecordFiles.find(f => String(f.id) === String(fileId)) || state.myTrainingRecordFiles.find(f => String(f.id) === String(fileId));
+    if(!file) return alert('File not found.');
+    const r = await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).createSignedUrl(file.storage_path, 300);
+    if(r.error) return alert('Could not open file: '+r.error.message);
+    window.open(r.data.signedUrl, '_blank');
+  }
+
+  function trainingEvidenceListHtml(files, canDelete){
+    if(!files.length) return `<span class="ops-subtle">No files uploaded yet.</span>`;
+    return files.map(f => `<button class="ops-btn ghost" type="button" data-ops-view-evidence="${f.id}">${esc(f.file_name)}</button>${canDelete ? ` <button class="ops-btn ghost" type="button" data-ops-delete-evidence="${f.id}">Remove</button>` : ''}`).join(' ');
+  }
+
+  function trainingEvidenceUploadHtml(recordId){
+    return `<label class="ops-btn ghost ops-photo-button">Camera<input type="file" accept="image/*,application/pdf" capture="environment" data-ops-evidence-input="${recordId}"></label>
+      <label class="ops-btn ghost ops-photo-button">Gallery<input type="file" accept="image/*,application/pdf" multiple data-ops-evidence-input="${recordId}"></label>`;
+  }
+
+  function myTrainingHtml(){
+    if(!state.myTrainingLoaded) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">Loading your training records…</p></div>`;
+    const person = state.myTrainingPerson;
+    if(!person) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">No training profile is linked to your account yet. Ask your manager to add you to the Training Matrix.</p></div>`;
+    const applicableCourseIds = state.myTrainingMatrix.filter(m => m.applicable).map(m => String(m.course_id));
+    const courses = state.myTrainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    const rows = courses.length ? courses.map(c => {
+      const entry = myTrainingMatrixEntry(c.id);
+      const compulsory = !!entry?.compulsory;
+      const record = myTrainingLatestRecord(c.id);
+      const status = trainingCellStatus(record, compulsory);
+      const expiryText = record ? (record.expiry_date ? nzDate(record.expiry_date) : 'No expiry') : '—';
+      const files = record ? state.myTrainingRecordFiles.filter(f => String(f.record_id) === String(record.id)) : [];
+      const synced = record?.source_key === 'height_inspector_qualifications';
+      const evidenceCell = record
+        ? (synced ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Synced from Height Equipment.</span>` : `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}`)
+        : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
+      const experienceText = record?.first_qualified_date ? (experienceSince(record.first_qualified_date) || '—') : '—';
+      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td><td>${experienceText}</td></tr>
+      <tr><td colspan="4" class="ops-subtle">Evidence: ${evidenceCell}</td></tr>`;
+    }).join('') : `<tr><td colspan="4" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
+    return `<div class="ops-card">
+      <h3>My Training</h3>
+      <p class="ops-subtle">${esc(person.full_name)} · a read-only view of your training status. Contact your manager to update a record.</p>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Qualification</th><th>Expiry</th><th>Status</th><th>Experience</th></tr>${rows}</table></div>
+    </div>`;
+  }
+
   function trainingDashboardHtml(){
     const courseCount = state.trainingCourses.length;
     const contractorCount = state.trainingContractors.length;
-    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog and Contractors register are live. The training matrix, employee records and reporting are being added in the next phases.</p></div>
+    const peopleCount = state.trainingPeople.filter(p => p.active !== false).length;
+    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog, Contractors register, Training Matrix, individual training records with evidence and the printable Training &amp; Competency Register are live.</p></div>
       <div class="ops-branch-grid">
+        ${moduleCard('Training Matrix', `${peopleCount} ${peopleCount===1?'person':'people'} × ${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-matrix')")}
         ${moduleCard('Course Catalog', `${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-catalog')")}
         ${moduleCard('Contractors', `${contractorCount} contractor${contractorCount===1?'':'s'}`, "showOperations('training-contractors')")}
+        ${moduleCard('Training & Competency Register', 'Printable register for SiteWise', "generateTrainingRegister()")}
       </div>`;
+  }
+
+  function trainingMatrixEntry(personId, courseId){
+    return state.trainingMatrix.find(m => String(m.person_id) === String(personId) && String(m.course_id) === String(courseId));
+  }
+
+  function trainingLatestRecord(personId, courseId){
+    const records = state.trainingRecords.filter(r => String(r.person_id) === String(personId) && String(r.course_id) === String(courseId));
+    if(!records.length) return null;
+    return records.slice().sort((a,b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')))[0];
+  }
+
+  function trainingRecordEvidenceCount(recordId){
+    return state.trainingRecordFiles.filter(f => String(f.record_id) === String(recordId)).length;
+  }
+
+  function trainingSyncSourceLabel(sourceKey){
+    const src = state.trainingSyncSources.find(s => s.source_key === sourceKey);
+    return src ? src.description : sourceKey;
+  }
+
+  function trainingCellStatus(record, compulsory){
+    if(!record) return compulsory ? {label:'Missing', pillClass:'ops-bad'} : {label:'Not recorded', pillClass:'ops-muted'};
+    if(record.status && record.status !== 'Completed') return {label: record.status, pillClass:'ops-warn'};
+    if(!record.expiry_date) return {label:'Compliant', pillClass:'ops-ok'};
+    const days = daysUntil(record.expiry_date);
+    if(days === null) return {label:'Compliant', pillClass:'ops-ok'};
+    if(days < 0) return {label:'Expired', pillClass:'ops-bad'};
+    if(days <= 30) return {label:`Expires in ${days}d`, pillClass:'ops-warn'};
+    return {label:'Compliant', pillClass:'ops-ok'};
+  }
+
+  function contractorTrainingStatus(contractorId){
+    const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractorId) && p.active !== false);
+    const courses = state.trainingCourses.filter(c => c.active !== false);
+    const items = [];
+    people.forEach(p => {
+      courses.forEach(c => {
+        const entry = trainingMatrixEntry(p.id, c.id);
+        if(!entry?.applicable || !entry?.compulsory) return;
+        const record = trainingLatestRecord(p.id, c.id);
+        const status = trainingCellStatus(record, true);
+        items.push({personId: p.id, personName: p.full_name, courseId: c.id, courseName: c.name, label: status.label, pillClass: status.pillClass});
+      });
+    });
+    if(!items.length) return {status: 'not_set_up', warnExpiringSoon: false, items};
+    const hasFail = items.some(i => i.pillClass === 'ops-bad');
+    const hasWarn = items.some(i => i.pillClass === 'ops-warn');
+    return {status: hasFail ? 'fail' : 'pass', warnExpiringSoon: !hasFail && hasWarn, items};
+  }
+
+  function contractorTrainingSignalHtml(contractorId){
+    const result = contractorTrainingStatus(contractorId);
+    if(result.status === 'not_set_up') return `<span class="ops-pill ops-muted">Not set up</span><div class="ops-subtle">No compulsory courses set for this contractor's people yet.</div>`;
+    if(result.status === 'fail'){
+      const failing = result.items.filter(i => i.pillClass === 'ops-bad').map(i => `${esc(i.courseName)} — ${esc(i.personName)} (${esc(i.label)})`);
+      return `<span class="ops-pill ops-bad">Fail</span><div class="ops-subtle">${failing.join('<br>')}</div>`;
+    }
+    const warningItems = result.items.filter(i => i.pillClass === 'ops-warn').map(i => `${esc(i.courseName)} — ${esc(i.personName)}`);
+    const warning = result.warnExpiringSoon ? `<div class="ops-subtle">Renewal due soon: ${warningItems.join(', ')}</div>` : '';
+    return `<span class="ops-pill ops-ok">Pass</span>${warning}`;
+  }
+
+  function trainingRegisterBuildData(){
+    const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => {
+      const rank = t => t === 'employee' ? 0 : 1;
+      const ra = rank(a.person_type), rb = rank(b.person_type);
+      if(ra !== rb) return ra - rb;
+      return String(a.full_name).localeCompare(String(b.full_name));
+    });
+    const courses = state.trainingCourses.filter(c => c.active !== false);
+    const higherLevelCandidates = [];
+    const peopleRows = people.map(person => {
+      const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
+      const roleLabel = person.person_type === 'employee' ? 'Employee' : contractor ? `${contractor.company_name} (${person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor'})` : (person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker');
+      const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
+      const personCourses = courses.filter(c => applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+      const entries = personCourses.map(c => {
+        const matrixEntry = trainingMatrixEntry(person.id, c.id);
+        const record = trainingLatestRecord(person.id, c.id);
+        const status = trainingCellStatus(record, !!matrixEntry?.compulsory);
+        const entry = { courseName: c.name, category: c.category, compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, statusLabel: status.label, pillClass: status.pillClass };
+        if(c.higher_level_learning && (status.pillClass === 'ops-ok' || status.pillClass === 'ops-warn')){
+          higherLevelCandidates.push({ personName: person.full_name, roleLabel, courseName: c.name, category: c.category, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, provider: record?.provider_or_trainer || null, reference: record?.reference_number || null, statusLabel: status.label, pillClass: status.pillClass });
+        }
+        return entry;
+      });
+      return { name: person.full_name, roleLabel, entries };
+    });
+    const example = higherLevelCandidates.find(c => c.pillClass === 'ops-ok') || higherLevelCandidates.find(c => c.pillClass === 'ops-warn') || null;
+    const allEntries = peopleRows.flatMap(p => p.entries);
+    const summary = {
+      peopleCount: people.length,
+      recordCount: allEntries.length,
+      compliant: allEntries.filter(e => e.pillClass === 'ops-ok').length,
+      expiringSoon: allEntries.filter(e => e.pillClass === 'ops-warn').length,
+      missingOrExpired: allEntries.filter(e => e.pillClass === 'ops-bad').length,
+      notRecorded: allEntries.filter(e => e.pillClass === 'ops-muted').length
+    };
+    return { peopleRows, summary, example };
+  }
+
+  function trainingRegisterPillClass(pillClass){
+    return pillClass === 'ops-ok' ? 'ok' : pillClass === 'ops-warn' ? 'warn' : pillClass === 'ops-bad' ? 'bad' : 'muted';
+  }
+
+  function trainingRegisterCss(){
+    return `@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#0f766e;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #0f766e;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#0f766e}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #0f766e;border-radius:12px;padding:14px 16px;margin:16px 0;background:#f0fdfa}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
+  }
+
+  function trainingRegisterDocHtml(){
+    const data = trainingRegisterBuildData();
+    const rows = data.peopleRows.map(p => {
+      if(!p.entries.length){
+        return `<tr><td>${esc(p.name)}</td><td>${esc(p.roleLabel)}</td><td colspan="4" class="muted">No compulsory or applicable courses assigned yet.</td></tr>`;
+      }
+      return p.entries.map((e,i) => `<tr>${i===0 ? `<td rowspan="${p.entries.length}">${esc(p.name)}</td><td rowspan="${p.entries.length}">${esc(p.roleLabel)}</td>` : ''}<td>${esc(e.courseName)}${e.compulsory ? ' <span class="pill bad">Compulsory</span>' : ''}${e.higherLevel ? ' <span class="pill ok">Higher-level</span>' : ''}<br><span class="muted">${esc(e.category)}</span></td><td>${nzDate(e.completedDate)}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td><span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></td></tr>`).join('');
+    }).join('');
+    const example = data.example;
+    const exampleBlock = example ? `<div class="example"><h2>Example: current training at Level 3 or above</h2><div class="grid"><div class="label">Person</div><div class="value">${esc(example.personName)} <span class="muted">(${esc(example.roleLabel)})</span></div><div class="label">Course</div><div class="value">${esc(example.courseName)} <span class="muted">— ${esc(example.category)}</span></div><div class="label">Completed</div><div class="value">${nzDate(example.completedDate)}</div><div class="label">Expiry</div><div class="value">${example.expiryDate ? nzDate(example.expiryDate) : 'No expiry'}</div>${example.provider ? `<div class="label">Provider</div><div class="value">${esc(example.provider)}</div>` : ''}${example.reference ? `<div class="label">Reference</div><div class="value">${esc(example.reference)}</div>` : ''}</div></div>` : `<div class="example warn"><h2>Example: current training at Level 3 or above</h2><p>No course is currently both marked as "Higher-level learning (SiteWise)" and compliant for anyone in the register. Tick a course as higher-level in the Course Catalog and record a completed training entry to generate this example automatically.</p></div>`;
+    const summary = data.summary;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Training &amp; Competency Register</title><style>${trainingRegisterCss()}</style></head><body>
+      <div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>
+      <div class="page">
+        <div class="head"><div class="brand">Spray &amp; Wash Ltd</div><div class="title">Training &amp; Competency Register</div><div class="muted">All active employees and contractor people · Generated ${new Date().toLocaleString('en-NZ')}</div></div>
+        <div class="summary">
+          <div><strong>${summary.peopleCount}</strong><span>People covered</span></div>
+          <div><strong>${summary.recordCount}</strong><span>Course requirements tracked</span></div>
+          <div><strong>${summary.compliant}</strong><span>Compliant</span></div>
+          <div><strong>${summary.expiringSoon}</strong><span>Expiring within 30 days</span></div>
+          <div><strong>${summary.missingOrExpired}</strong><span>Missing / expired</span></div>
+        </div>
+        ${exampleBlock}
+        <table><thead><tr><th>Name</th><th>Role / Company</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="footer">This register lists every active employee and contractor/subcontractor person recorded in Spray &amp; Wash Operations, with their applicable training and current compliance status. Generated automatically from live records.</div>
+      </div>
+    </body></html>`;
+  }
+
+  async function generateTrainingRegister(){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can generate the register.');
+    if(!state.trainingDataLoaded) await loadTrainingData(true);
+    const html = trainingRegisterDocHtml();
+    const w = window.open('', '_blank');
+    if(w){ w.document.open(); w.document.write(html); w.document.close(); }
+    else {
+      const blob = new Blob([html], {type:'text/html'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'spray-wash-training-competency-register.html';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+  }
+
+  function trainingMatrixHtml(){
+    const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
+    const courses = state.trainingCourses.filter(c => c.active !== false).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    if(!people.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">No people to show yet. Employee accounts sync in automatically; add subcontractor or sole trader people on the Contractors tab.</p></div>`;
+    if(!courses.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">Add an active course to the Course Catalog first.</p></div>`;
+    const headerCells = courses.map(c => `<th>${esc(c.name)}<br><span class="ops-subtle">${esc(c.category)}</span>${c.sitewise_category ? ` <span class="ops-role-chip">${esc(c.sitewise_category)}</span>` : ''}${c.higher_level_learning ? ` <span class="ops-pill ops-ok">Higher-level</span>` : ''}</th>`).join('');
+    const rows = people.map(p => {
+      const contractor = p.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(p.contractor_id)) : null;
+      const personTypeLabel = p.person_type === 'employee' ? 'Employee' : p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor';
+      const cells = courses.map(c => {
+        const entry = trainingMatrixEntry(p.id, c.id);
+        const applicable = !!entry?.applicable;
+        const compulsory = !!entry?.compulsory;
+        const record = applicable ? trainingLatestRecord(p.id, c.id) : null;
+        const evidenceCount = record ? trainingRecordEvidenceCount(record.id) : 0;
+        const status = applicable ? trainingCellStatus(record, compulsory) : null;
+        const detailBits = [];
+        if(record){
+          if(evidenceCount) detailBits.push(`${evidenceCount} file${evidenceCount===1?'':'s'}`);
+          if(record.notes) detailBits.push('notes');
+          if(record.source_key) detailBits.push('synced');
+        }
+        const detailText = detailBits.join(' · ');
+        const tooltipBits = [];
+        if(record){
+          if(record.completed_date) tooltipBits.push(`Completed ${nzDate(record.completed_date)}`);
+          if(record.expiry_date) tooltipBits.push(`Expires ${nzDate(record.expiry_date)}`);
+          if(record.provider_or_trainer) tooltipBits.push(`Provider: ${record.provider_or_trainer}`);
+          if(record.notes) tooltipBits.push(`Notes: ${record.notes}`);
+          if(record.source_key) tooltipBits.push(`Synced from: ${trainingSyncSourceLabel(record.source_key)}`);
+          tooltipBits.push(`Updated ${nzDate(record.updated_at)}`);
+        }
+        const tooltip = esc(tooltipBits.join(' · '));
+        return `<td class="ops-matrix-cell">
+          <label class="ops-check"><input type="checkbox" data-ops-matrix-applicable data-person="${p.id}" data-course="${c.id}" ${applicable?'checked':''}> Applies</label>
+          ${applicable ? `<label class="ops-check"><input type="checkbox" data-ops-matrix-compulsory data-person="${p.id}" data-course="${c.id}" ${compulsory?'checked':''}> Compulsory</label>` : ''}
+          ${status ? `<div title="${tooltip}"><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span>${detailText ? `<div class="ops-subtle">${esc(detailText)}</div>` : ''}</div>` : ''}
+        </td>`;
+      }).join('');
+      return `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.full_name)}</button><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
+    }).join('');
+    return `<div class="ops-card"><div class="ops-section-title"><h3>Training Matrix</h3><span class="ops-subtle">${people.length} ${people.length===1?'person':'people'} × ${courses.length} course${courses.length===1?'':'s'}</span></div>
+      <p class="ops-subtle">Tick "Applies" for each qualification that's relevant to a person, then mark "Compulsory" for the ones they must hold. Status, expiry and evidence come from their training records, added in a follow-up phase.</p>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th>${headerCells}</tr>${rows}</table></div>
+    </div>`;
+  }
+
+  async function setTrainingMatrixCell(personId, courseId, patch){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can edit the training matrix.');
+    const existing = trainingMatrixEntry(personId, courseId);
+    if(existing){
+      const r = await state.sb.from('operations_training_matrix').update({...patch, set_by: state.user.id, set_at: new Date().toISOString()}).eq('id', existing.id).select().single();
+      if(r.error) return alert('Could not update the training matrix: '+r.error.message);
+      Object.assign(existing, r.data);
+    } else {
+      const row = {person_id: personId, course_id: courseId, applicable: true, compulsory: false, ...patch, set_by: state.user.id};
+      const r = await state.sb.from('operations_training_matrix').insert(row).select().single();
+      if(r.error) return alert('Could not update the training matrix: '+r.error.message);
+      state.trainingMatrix.push(r.data);
+    }
+    render();
+  }
+
+  async function toggleTrainingMatrixApplicable(personId, courseId, applicable){
+    const patch = {applicable};
+    if(!applicable) patch.compulsory = false;
+    await setTrainingMatrixCell(personId, courseId, patch);
+  }
+
+  async function toggleTrainingMatrixCompulsory(personId, courseId, compulsory){
+    await setTrainingMatrixCell(personId, courseId, {compulsory});
+  }
+
+  function openTrainingPerson(personId){
+    state.trainingViewPersonId = personId;
+    state.trainingRecordFormOpen = false;
+    state.editingRecordId = '';
+    state.trainingRecordFormCourseId = '';
+    showOperations('training-person');
+  }
+
+  function trainingRecordRowHtml(r){
+    const files = state.trainingRecordFiles.filter(f => String(f.record_id) === String(r.id));
+    const synced = r.source_key === 'height_inspector_qualifications';
+    const statusCell = `${esc(r.status || 'Completed')}${synced ? ' <span class="ops-pill ops-muted">Synced from Height Equipment</span>' : ''}`;
+    const actionsCell = synced
+      ? `<span class="ops-subtle">Managed in Height Equipment</span>`
+      : `<button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button>`;
+    const evidenceBody = synced
+      ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Evidence syncs automatically from Height Equipment.</span>`
+      : `${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(r.id)}`;
+    const experienceText = r.first_qualified_date ? `${experienceSince(r.first_qualified_date) || '—'} <span class="ops-subtle">(since ${nzDate(r.first_qualified_date)})</span>` : '—';
+    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${statusCell}</td><td>${experienceText}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td>${actionsCell}</td></tr>
+    <tr><td colspan="7" class="ops-subtle">Evidence: ${evidenceBody}</td></tr>`;
+  }
+
+  function trainingRecordFormHtml(person, course){
+    const editing = state.trainingRecords.find(r => String(r.id) === String(state.editingRecordId));
+    const priorFirstQualified = state.trainingRecords
+      .filter(r => String(r.person_id) === String(person.id) && String(r.course_id) === String(course.id) && String(r.id) !== String(editing?.id || '') && r.first_qualified_date)
+      .slice().sort((a, b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')))[0]?.first_qualified_date || '';
+    const firstQualifiedValue = editing ? (editing.first_qualified_date || '') : priorFirstQualified;
+    return `<form id="opsTrainingRecordForm" class="ops-form" data-record-id="${editing ? editing.id : ''}" data-person-id="${person.id}" data-course-id="${course.id}">
+      <label>Status<select id="opsRecordStatus">
+        <option value="Completed" ${(!editing||editing.status==='Completed')?'selected':''}>Completed</option>
+        <option value="In progress" ${editing?.status==='In progress'?'selected':''}>In progress</option>
+        <option value="Failed" ${editing?.status==='Failed'?'selected':''}>Failed</option>
+      </select></label>
+      <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${editing?.completed_date || today()}"></label>
+      <label>First qualified / trained<input id="opsRecordFirstQualified" type="date" value="${firstQualifiedValue}"></label>
+      <p class="ops-span-2 ops-subtle">The original date this person was first qualified or trained in this area. Experience is calculated from this date automatically, so you only need to set it once - it carries forward to future refresher records for this course.</p>
+      <label>Expiry date<input id="opsRecordExpiryDate" type="date" value="${editing?.expiry_date || ''}" placeholder="${course.validity_period_months ? 'Auto if left blank' : 'No expiry'}"></label>
+      <label>Provider / trainer<input id="opsRecordProvider" value="${esc(editing?.provider_or_trainer || '')}"></label>
+      <label>Reference number<input id="opsRecordReference" value="${esc(editing?.reference_number || '')}"></label>
+      <label class="ops-span-2">Notes<textarea id="opsRecordNotes">${esc(editing?.notes || '')}</textarea></label>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add record'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingRecordEditor">Cancel</button></div>
+    </form>`;
+  }
+
+  function trainingPersonCourseSectionHtml(person, course){
+    const records = state.trainingRecords.filter(r => String(r.person_id) === String(person.id) && String(r.course_id) === String(course.id)).slice().sort((a,b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')));
+    const latest = records[0] || null;
+    const matrixEntry = trainingMatrixEntry(person.id, course.id);
+    const compulsory = !!matrixEntry?.compulsory;
+    const status = trainingCellStatus(latest, compulsory);
+    const rows = records.map(r => trainingRecordRowHtml(r)).join('') || `<tr><td colspan="7" class="ops-subtle">No records yet.</td></tr>`;
+    const formOpen = state.trainingRecordFormOpen && String(state.trainingRecordFormCourseId) === String(course.id);
+    return `<div class="ops-card">
+      <div class="ops-section-title"><h3>${esc(course.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}</h3><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></div>
+      <p class="ops-subtle">${esc(course.category)}${course.nzqa_code ? ` · NZQA ${esc(course.nzqa_code)}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
+      ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Experience</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
+    </div>`;
+  }
+
+  function trainingPersonHtml(){
+    const person = state.trainingPeople.find(p => String(p.id) === String(state.trainingViewPersonId));
+    if(!person) return `<div class="ops-card"><h3>Person not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-matrix')">← Back to Matrix</button></div>`;
+    const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
+    const personTypeLabel = person.person_type === 'employee' ? 'Employee' : person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
+    const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
+    const courses = state.trainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    const sections = courses.length ? courses.map(c => trainingPersonCourseSectionHtml(person, c)).join('') : `<div class="ops-card"><p class="ops-subtle">No courses are marked as applicable for ${esc(person.full_name)} yet. Set that up in the <a href="#" onclick="showOperations('training-matrix');return false;">Training Matrix</a>.</p></div>`;
+    return `<div class="ops-card">
+      <button class="ops-btn ghost" type="button" onclick="showOperations('training-matrix')">← Back to Matrix</button>
+      <h3>${esc(person.full_name)}</h3>
+      <p class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}${person.active === false ? ' · Inactive' : ''}</p>
+    </div>
+    ${sections}`;
+  }
+
+  async function saveTrainingRecord(e){
+    e.preventDefault();
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can edit training records.');
+    const form = e.target;
+    const id = form.dataset.recordId;
+    const existingRecord = id ? state.trainingRecords.find(x => String(x.id) === String(id)) : null;
+    if(existingRecord?.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment and can only be edited there.');
+    const personId = form.dataset.personId;
+    const courseId = form.dataset.courseId;
+    const course = state.trainingCourses.find(c => String(c.id) === String(courseId));
+    const completedDate = byId('opsRecordCompletedDate').value || null;
+    let expiryDate = byId('opsRecordExpiryDate').value || null;
+    if(!expiryDate && completedDate && course?.validity_period_months){
+      expiryDate = addMonths(completedDate, course.validity_period_months);
+    }
+    const row = {
+      person_id: personId,
+      course_id: courseId,
+      status: byId('opsRecordStatus').value,
+      completed_date: completedDate,
+      first_qualified_date: byId('opsRecordFirstQualified').value || null,
+      expiry_date: expiryDate,
+      provider_or_trainer: byId('opsRecordProvider').value.trim() || null,
+      reference_number: byId('opsRecordReference').value.trim() || null,
+      notes: byId('opsRecordNotes').value.trim() || null
+    };
+    const r = id
+      ? await state.sb.from('operations_training_records').update(row).eq('id', id).select().single()
+      : await state.sb.from('operations_training_records').insert({...row, created_by: state.user.id}).select().single();
+    if(r.error) return alert('Could not save the training record: '+r.error.message);
+    const idx = state.trainingRecords.findIndex(x => String(x.id) === String(r.data.id));
+    if(idx >= 0) state.trainingRecords[idx] = r.data; else state.trainingRecords.push(r.data);
+    state.trainingRecordFormOpen = false;
+    state.editingRecordId = '';
+    state.trainingRecordFormCourseId = '';
+    render();
+  }
+
+  async function deleteTrainingRecord(id){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can delete training records.');
+    const record = state.trainingRecords.find(r => String(r.id) === String(id));
+    if(!record) return;
+    if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment and can only be deleted there.');
+    if(!confirm('Delete this training record? This cannot be undone.')) return;
+    const r = await state.sb.from('operations_training_records').delete().eq('id', id);
+    if(r.error) return alert('Could not delete the record: '+r.error.message);
+    state.trainingRecords = state.trainingRecords.filter(x => String(x.id) !== String(id));
+    render();
   }
 
   function trainingCourseFormHtml(){
@@ -803,6 +1350,8 @@
       <label>NZQA code<input id="opsCourseNzqaCode" value="${esc(editing?.nzqa_code || '')}"></label>
       <label>Validity (months)<input id="opsCourseValidity" type="number" min="0" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"></label>
       <label class="ops-span-2">Description<textarea id="opsCourseDescription">${esc(editing?.description || '')}</textarea></label>
+      <label class="ops-check"><input id="opsCourseHigherLevel" type="checkbox" ${editing?.higher_level_learning ? 'checked' : ''}> Higher-level learning (SiteWise)</label>
+      <p class="ops-span-2 ops-subtle">Tick this for courses SiteWise counts as "higher-level learning" evidence for their Training question - e.g. MEWP, harness systems, confined space, driver licence endorsements, first aid (unit standard 6400), NZQA level 3 or above, trade qualifications.</p>
       <label class="ops-check"><input id="opsCourseActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
     </form>`;
@@ -810,7 +1359,7 @@
 
   function trainingCatalogHtml(){
     const courses = state.trainingCourses.slice().sort((a,b) => String(a.name).localeCompare(String(b.name)));
-    const rows = courses.map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.description ? `<br><span class="ops-subtle">${esc(c.description)}</span>` : ''}</td><td>${esc(c.category || '')}</td><td>${esc(c.provider || '—')}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-course="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-course-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    const rows = courses.map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.higher_level_learning ? ' <span class="ops-pill ops-ok">Higher-level</span>' : ''}${c.description ? `<br><span class="ops-subtle">${esc(c.description)}</span>` : ''}</td><td>${esc(c.category || '')}</td><td>${esc(c.provider || '—')}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-course="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-course-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen ? trainingCourseFormHtml() : ''}
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Category</th><th>Provider</th><th>Validity</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
@@ -829,6 +1378,7 @@
       nzqa_code: byId('opsCourseNzqaCode').value.trim() || null,
       validity_period_months: byId('opsCourseValidity').value ? Number(byId('opsCourseValidity').value) : null,
       description: byId('opsCourseDescription').value.trim() || null,
+      higher_level_learning: byId('opsCourseHigherLevel').checked,
       active: byId('opsCourseActive').checked
     };
     if(!row.name) return alert('Course name is required.');
@@ -869,11 +1419,78 @@
 
   function trainingContractorsHtml(){
     const contractors = state.trainingContractors.slice().sort((a,b) => String(a.company_name).localeCompare(String(b.company_name)));
-    const rows = contractors.map(c => `<tr><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-contractor="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No contractors yet.</td></tr>';
+    const rows = contractors.map(c => `<tr><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-contractor="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No contractors yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
       ${state.trainingContractorFormOpen ? trainingContractorFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+      <p class="ops-subtle">The Training column is a pass/fail signal for this contractor's people against their compulsory training requirements — the single check an HSE review of this contractor's system will draw on.</p>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Training</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+    </div>
+    ${trainingSubcontractorPeopleHtml()}`;
+  }
+
+  function trainingPersonFormHtml(){
+    const editing = state.trainingPeople.find(p => String(p.id) === String(state.editingTrainingPersonId));
+    const contractors = state.trainingContractors.filter(c => c.active !== false || String(c.id) === String(editing?.contractor_id || ''));
+    const contractorOptions = contractors.map(c => `<option value="${c.id}" ${String(editing?.contractor_id || '') === String(c.id) ? 'selected' : ''}>${esc(c.company_name)} (${c.contractor_type === 'sole_trader' ? 'Sole trader' : 'Company'})</option>`).join('');
+    return `<form id="opsTrainingPersonForm" class="ops-form" data-person-id="${editing ? editing.id : ''}">
+      <label>Contractor *<select id="opsPersonContractorId" required ${contractors.length ? '' : 'disabled'}>
+        <option value="">Select a contractor…</option>
+        ${contractorOptions}
+      </select></label>
+      <label>Full name *<input id="opsPersonFullName" required value="${esc(editing?.full_name || '')}"></label>
+      <label class="ops-check"><input id="opsPersonActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
+      <p class="ops-span-2 ops-subtle">Person type (sole trader or subcontractor worker) is set automatically from the contractor's type above. Add the contractor first if it isn't listed.</p>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit" ${contractors.length ? '' : 'disabled'}>${editing ? 'Save changes' : 'Add person'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingPersonEditor">Cancel</button></div>
+    </form>`;
+  }
+
+  function trainingSubcontractorPeopleHtml(){
+    const people = state.trainingPeople.filter(p => p.person_type !== 'employee').slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
+    const activeContractorCount = state.trainingContractors.filter(c => c.active !== false).length;
+    const rows = people.map(p => {
+      const contractor = state.trainingContractors.find(c => String(c.id) === String(p.contractor_id));
+      const typeLabel = p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
+      return `<tr><td><strong>${esc(p.full_name)}</strong></td><td>${typeLabel}</td><td>${esc(contractor?.company_name || '—')}</td><td>${p.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-open-person="${p.id}">View training</button> <button class="ops-btn ghost" type="button" data-ops-edit-training-person="${p.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-training-person-active="${p.id}">${p.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="ops-subtle">No subcontractor or sole trader people added yet.</td></tr>';
+    return `<div class="ops-card"><div class="ops-section-title"><h3>Subcontractor &amp; Sole Trader People</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingPersonEditor" ${activeContractorCount ? '' : 'disabled'}>+ Add person</button></div>
+      <p class="ops-subtle">Individual workers linked to a contractor above, so their training records and evidence can be tracked the same way as employees. ${activeContractorCount ? '' : 'Add an active contractor above first.'}</p>
+      ${state.trainingPersonFormOpen ? trainingPersonFormHtml() : ''}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Type</th><th>Contractor</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
     </div>`;
+  }
+
+  async function saveTrainingPerson(e){
+    e.preventDefault();
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can add subcontractor people.');
+    const form = e.target;
+    const id = form.dataset.personId;
+    const contractorId = byId('opsPersonContractorId').value;
+    const contractor = state.trainingContractors.find(c => String(c.id) === String(contractorId));
+    if(!contractor) return alert('Select a contractor first.');
+    const row = {
+      person_type: contractor.contractor_type === 'sole_trader' ? 'sole_trader' : 'subcontractor_worker',
+      contractor_id: contractor.id,
+      full_name: byId('opsPersonFullName').value.trim(),
+      active: byId('opsPersonActive').checked
+    };
+    if(!row.full_name) return alert('Full name is required.');
+    const r = id
+      ? await state.sb.from('operations_training_people').update(row).eq('id', id)
+      : await state.sb.from('operations_training_people').insert({...row, created_by: state.user.id});
+    if(r.error) return alert('Could not save person: '+r.error.message);
+    state.trainingPersonFormOpen = false;
+    state.editingTrainingPersonId = '';
+    await loadTrainingData(true);
+  }
+
+  async function toggleTrainingPersonActive(id){
+    const person = state.trainingPeople.find(p => String(p.id) === String(id));
+    if(!person) return;
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can change this.');
+    if(person.active && !confirm(`Deactivate "${person.full_name}"?`)) return;
+    const r = await state.sb.from('operations_training_people').update({active: !person.active}).eq('id', id);
+    if(r.error) return alert('Could not update: '+r.error.message);
+    await loadTrainingData(true);
   }
 
   async function saveTrainingContractor(e){
@@ -936,7 +1553,9 @@
       if(canUseManagement()) cards.push(moduleCard('Maintenance', '', 'openOpsManagementModule()'));
       if(canUseTraining()) cards.push(moduleCard('Training', '', 'openTrainingModule()'));
       if(isAdmin()) cards.push(moduleCard('Admin', '', 'openAdminModule()'));
-      if(!cards.length) cards.push(`<div class="ops-card"><h3>No app access yet</h3><p class="ops-subtle">Your account needs an assigned role before modules will appear.</p></div>`);
+      const hasRoleCards = cards.length > 0;
+      cards.push(moduleCard('My Training', '', 'openMyTrainingModule()'));
+      if(!hasRoleCards) cards.push(`<div class="ops-card"><h3>No other access yet</h3><p class="ops-subtle">Your account needs an assigned role before other modules will appear. You can still check your training status above.</p></div>`);
     }
     const attention=appAttentionItems();
     const filtered=state.homeAttentionFilter==='all'?attention:attention.filter(item=>item.group===state.homeAttentionFilter);
@@ -1208,6 +1827,13 @@
           catch(e){ console.warn('Maintenance user names unavailable:', e.message); state.maintenanceUsers = state.profile ? [state.profile] : []; }
         }
       } else state.maintenanceUsers = [];
+      if(canUseHeight()){
+        if(isAdmin()) state.heightUsers = state.actualUsers.slice();
+        else {
+          try { state.heightUsers = await loadTable('profiles','*'); }
+          catch(e){ console.warn('Height equipment user names unavailable:', e.message); state.heightUsers = state.profile ? [state.profile] : []; }
+        }
+      } else state.heightUsers = [];
       try { state.qualifications = await loadTable('height_inspector_qualifications','*',{column:'expiry_date'}); }
       catch(e){ console.warn('Height inspector qualifications table unavailable:', e.message); state.qualifications = []; }
       render();
@@ -1234,6 +1860,7 @@
     const isVehicle = state.currentView === 'vehicle-checks';
     const isAdminModule = isAdminView(state.currentView);
     const isSharedTasks = state.currentView === 'app-tasks';
+    const isMyTraining = state.currentView === 'my-training';
     const isTraining = isTrainingView(state.currentView);
     const managementNav = canUseManagement() && !isVehicle && !isAdminModule && !isSharedTasks && !isTraining ? `
         ${navButton('management-dashboard','Dashboard')}
@@ -1247,11 +1874,12 @@
         ${navButton('admin-settings','Backup')}` : '';
     const trainingNav = isTraining ? `
         ${navButton('training-dashboard','Dashboard')}
+        ${navButton('training-matrix','Matrix')}
         ${navButton('training-catalog','Course Catalog')}
         ${navButton('training-contractors','Contractors')}` : '';
-    const staffNav = isVehicle || isSharedTasks ? '' : (isAdminModule ? adminNav : isTraining ? trainingNav : managementNav);
-    const title = isVehicle ? 'Vehicle Checks' : isAdminModule ? 'Admin' : isSharedTasks ? 'Tasks' : isTraining ? 'Training' : 'Maintenance';
-    const note = isVehicle || isSharedTasks ? '' : isAdminModule ? 'Users, permissions, app settings and backups' : isTraining ? 'Courses, certifications and contractor records' : '';
+    const staffNav = isVehicle || isSharedTasks || isMyTraining ? '' : (isAdminModule ? adminNav : isTraining ? trainingNav : managementNav);
+    const title = isVehicle ? 'Vehicle Checks' : isAdminModule ? 'Admin' : isSharedTasks ? 'Tasks' : isMyTraining ? 'My Training' : isTraining ? 'Training' : 'Maintenance';
+    const note = isVehicle || isSharedTasks ? '' : isAdminModule ? 'Users, permissions, app settings and backups' : isMyTraining ? 'Your qualifications and status' : isTraining ? 'Courses, certifications and contractor records' : '';
     return `
       <div class="ops-header">
         <div class="ops-module-title">
@@ -1273,9 +1901,12 @@
       if(!canAccessSharedTasks()) return `<div class="ops-card"><h3>No task access</h3><p>Your account does not have access to shared tasks.</p></div>`;
       return tasksHtml(true);
     }
+    if(state.currentView === 'my-training') return myTrainingHtml();
     if(isTrainingView(state.currentView)){
       if(!canUseTraining()) return `<div class="ops-card"><h3>Training access required</h3><p>This module is only available to Admin or Training manager users.</p></div>`;
       if(!state.trainingDataLoaded) return `<div class="ops-card"><h3>Loading training data…</h3></div>`;
+      if(state.currentView === 'training-matrix') return trainingMatrixHtml();
+      if(state.currentView === 'training-person') return trainingPersonHtml();
       if(state.currentView === 'training-catalog') return trainingCatalogHtml();
       if(state.currentView === 'training-contractors') return trainingContractorsHtml();
       return trainingDashboardHtml();
@@ -3460,8 +4091,27 @@
     document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', () => toggleTrainingContractorActive(b.dataset.opsToggleContractorActive)));
     document.querySelectorAll('[data-ops-edit-course]').forEach(b => b.addEventListener('click', () => { state.editingCourseId=b.dataset.opsEditCourse; state.trainingCourseFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-toggle-course-active]').forEach(b => b.addEventListener('click', () => toggleTrainingCourseActive(b.dataset.opsToggleCourseActive)));
+    document.querySelectorAll('[data-ops-edit-training-person]').forEach(b => b.addEventListener('click', () => { state.editingTrainingPersonId=b.dataset.opsEditTrainingPerson; state.trainingPersonFormOpen=true; render(); }));
+    document.querySelectorAll('[data-ops-toggle-training-person-active]').forEach(b => b.addEventListener('click', () => toggleTrainingPersonActive(b.dataset.opsToggleTrainingPersonActive)));
+    document.querySelectorAll('[data-ops-matrix-applicable]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixApplicable(cb.dataset.person, cb.dataset.course, cb.checked)));
+    document.querySelectorAll('[data-ops-matrix-compulsory]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixCompulsory(cb.dataset.person, cb.dataset.course, cb.checked)));
+    document.querySelectorAll('[data-ops-open-person]').forEach(b => b.addEventListener('click', () => openTrainingPerson(b.dataset.opsOpenPerson)));
+    document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; render(); }));
+    document.querySelectorAll('[data-ops-edit-record]').forEach(b => b.addEventListener('click', () => { const rec=state.trainingRecords.find(r=>String(r.id)===String(b.dataset.opsEditRecord)); if(!rec) return; state.editingRecordId=rec.id; state.trainingRecordFormCourseId=rec.course_id; state.trainingRecordFormOpen=true; render(); }));
+    document.querySelectorAll('[data-ops-delete-record]').forEach(b => b.addEventListener('click', () => deleteTrainingRecord(b.dataset.opsDeleteRecord)));
+    document.querySelectorAll('[data-ops-evidence-input]').forEach(input => input.addEventListener('change', () => {
+      const files = Array.from(input.files || []);
+      if(!files.length) return;
+      const recordId = input.dataset.opsEvidenceInput;
+      if(state.currentView === 'my-training') addMyTrainingEvidence(recordId, files); else addTrainingEvidenceAdmin(recordId, files);
+      input.value = '';
+    }));
+    document.querySelectorAll('[data-ops-view-evidence]').forEach(b => b.addEventListener('click', () => openTrainingEvidence(b.dataset.opsViewEvidence)));
+    document.querySelectorAll('[data-ops-delete-evidence]').forEach(b => b.addEventListener('click', () => deleteTrainingEvidence(b.dataset.opsDeleteEvidence)));
+    byId('opsTrainingRecordForm')?.addEventListener('submit', saveTrainingRecord);
     byId('opsTrainingContractorForm')?.addEventListener('submit', saveTrainingContractor);
     byId('opsTrainingCourseForm')?.addEventListener('submit', saveTrainingCourse);
+    byId('opsTrainingPersonForm')?.addEventListener('submit', saveTrainingPerson);
     ['certFilterType','certFilterStatus','certFilterResult','certFilterDue'].forEach(id => byId(id)?.addEventListener('change', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); }));
     byId('certFilterSearch')?.addEventListener('input', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); });
     byId('certFilterClear')?.addEventListener('click', () => { state.certFilterType=''; state.certFilterStatus=''; state.certFilterResult=''; state.certFilterDue=''; state.certFilterSearch=''; state.certSelectedIds = new Set(); renderCertificateFilterSelector(); });
@@ -3533,6 +4183,9 @@
     if(action === 'closeTrainingContractorEditor'){ state.trainingContractorFormOpen=false; state.editingContractorId=''; render(); }
     if(action === 'openTrainingCourseEditor'){ state.trainingCourseFormOpen=true; state.editingCourseId=''; render(); }
     if(action === 'closeTrainingCourseEditor'){ state.trainingCourseFormOpen=false; state.editingCourseId=''; render(); }
+    if(action === 'openTrainingPersonEditor'){ state.trainingPersonFormOpen=true; state.editingTrainingPersonId=''; render(); }
+    if(action === 'closeTrainingPersonEditor'){ state.trainingPersonFormOpen=false; state.editingTrainingPersonId=''; render(); }
+    if(action === 'closeTrainingRecordEditor'){ state.trainingRecordFormOpen=false; state.editingRecordId=''; state.trainingRecordFormCourseId=''; render(); }
   }
 
 
@@ -3868,7 +4521,7 @@
     installShortCertificateNumberPatch();
     installCertificateV405Patch();
     initSupabase().catch(err => { state.lastError = err.message; render(); });
-    window.SWOperationsV4 = { refresh: loadAll, show: showOperations, state, openQualificationFile, generateQualificationCertificate, handleDashboardShortcut, openNewHeightInspectionV415, openAppAttention, openAttentionItem };
+    window.SWOperationsV4 = { refresh: loadAll, show: showOperations, state, openQualificationFile, generateQualificationCertificate, handleDashboardShortcut, openNewHeightInspectionV415, openAppAttention, openAttentionItem, contractorTrainingStatus };
     setupLogoHomeClick();
   }
 
@@ -5914,9 +6567,15 @@
 
   function qualificationFormHtml(record = null) {
     const editing = Boolean(record);
+    const linkedId = record?.inspector_user_id ? String(record.inspector_user_id) : '';
+    const userOptions = (state().heightUsers || []).slice()
+      .sort((a, b) => String(a.display_name || a.email || '').localeCompare(String(b.display_name || b.email || '')))
+      .map(u => `<option value="${esc(u.user_id)}" ${String(u.user_id) === linkedId ? 'selected' : ''}>${esc(u.display_name || u.email || u.user_id)}</option>`).join('');
     return `<form id="heightQualForm" class="ops-form">
       <label>Inspector name *<input id="heightQualName" required placeholder="e.g. Brendan Harris" value="${esc(record?.inspector_name || '')}"></label>
       <label>Email<input id="heightQualEmail" type="email" placeholder="name@example.com" value="${esc(record?.email || '')}"></label>
+      <label>Link to employee account<select id="heightQualUserId"><option value="">— Not linked —</option>${userOptions}</select></label>
+      <p class="ops-span-2 ops-subtle">Linking an account syncs this qualification into that employee&#39;s Training record automatically.</p>
       <label>Qualification type *<input id="heightQualType" required placeholder="e.g. Height Safety Inspector" value="${esc(record?.qualification_type || '')}"></label>
       <label>Provider<input id="heightQualProvider" placeholder="Training provider" value="${esc(record?.provider || '')}"></label>
       <label>Reference / certificate number<input id="heightQualRef" value="${esc(record?.reference_number || '')}"></label>
@@ -5937,7 +6596,7 @@
       <details ${editing?'open':''}>
         <summary>Saved Inspectors</summary>
         <div class="sw429-qual-body">${active.length ? `<div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>Inspector</th><th>Qualification</th><th>Provider</th><th>Reference</th><th>Expiry</th><th>File status</th><th>Actions</th></tr></thead><tbody>${active.map(row => `<tr>
-          <td>${esc(titleCase(row.inspector_name))}<br><span class="ops-subtle">${esc(row.email || '')}</span></td>
+          <td>${esc(titleCase(row.inspector_name))}<br><span class="ops-subtle">${esc(row.email || '')}</span><br><span class="ops-pill ${row.inspector_user_id ? 'ops-ok' : 'ops-muted'}">${row.inspector_user_id ? 'Linked to account' : 'Not linked'}</span></td>
           <td>${esc(row.qualification_type || '—')}</td>
           <td>${esc(row.provider || '—')}</td>
           <td>${esc(row.reference_number || '—')}</td>
@@ -5991,6 +6650,7 @@
       const row = {
         inspector_name: titleCase($('heightQualName')?.value),
         email: String($('heightQualEmail')?.value || '').trim().toLowerCase() || null,
+        inspector_user_id: $('heightQualUserId')?.value || null,
         qualification_type: String($('heightQualType')?.value || '').trim(),
         provider: String($('heightQualProvider')?.value || '').trim() || null,
         reference_number: String($('heightQualRef')?.value || '').trim() || null,
