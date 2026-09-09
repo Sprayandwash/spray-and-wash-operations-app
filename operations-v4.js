@@ -8,6 +8,7 @@
 
   const VERSION = '4.0.82';
   const PHOTO_BUCKET = 'inspection-photos';
+  const TRAINING_EVIDENCE_BUCKET = 'training-evidence';
   const TASK_STATUSES = ['Open','In Progress','Waiting on Parts','Waiting on Someone','Completed','Deferred'];
   const PRIORITIES = ['Low','Medium','High','Critical'];
   const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP' };
@@ -98,6 +99,7 @@
     myTrainingCourses: [],
     myTrainingMatrix: [],
     myTrainingRecords: [],
+    myTrainingRecordFiles: [],
     lastError: ''
   };
 
@@ -790,7 +792,7 @@
         loadTable('operations_training_people','*',{column:'full_name'}),
         loadTable('operations_training_matrix','*'),
         loadTable('operations_training_records','*'),
-        loadTable('operations_training_record_files','id,record_id'),
+        loadTable('operations_training_record_files','*'),
         loadTable('operations_training_sync_sources','*')
       ]);
       state.trainingContractors = contractors;
@@ -825,17 +827,20 @@
     if(myTrainingDataLoading) return;
     myTrainingDataLoading = true;
     try{
-      const [people, courses, matrix, records] = await Promise.all([
+      const [people, courses, matrix, records, files] = await Promise.all([
         loadTable('operations_training_people','*'),
         loadTable('operations_training_courses','*',{column:'name'}),
         loadTable('operations_training_matrix','*'),
-        loadTable('operations_training_records','*')
+        loadTable('operations_training_records','*'),
+        loadTable('operations_training_record_files','*')
       ]);
       const person = people.find(p => String(p.user_id) === String(state.user.id)) || null;
       state.myTrainingPerson = person;
       state.myTrainingCourses = courses;
       state.myTrainingMatrix = person ? matrix.filter(m => String(m.person_id) === String(person.id)) : [];
       state.myTrainingRecords = person ? records.filter(r => String(r.person_id) === String(person.id)) : [];
+      const myRecordIds = state.myTrainingRecords.map(r => String(r.id));
+      state.myTrainingRecordFiles = person ? files.filter(f => myRecordIds.includes(String(f.record_id))) : [];
       state.myTrainingLoaded = true;
     }catch(e){
       console.warn('My Training data unavailable:', e.message);
@@ -856,6 +861,71 @@
     return records.slice().sort((a,b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')))[0];
   }
 
+  const TRAINING_EVIDENCE_MAX_BYTES = 15 * 1024 * 1024;
+
+  async function uploadEvidenceFile(personId, recordId, file){
+    if(file.size > TRAINING_EVIDENCE_MAX_BYTES){ alert(`"${file.name}" is larger than 15MB and was not uploaded.`); return null; }
+    const clean = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${personId}/${recordId}/${Date.now()}-${clean}`;
+    const up = await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).upload(path, file, { cacheControl:'3600', upsert:false, contentType:file.type || 'application/octet-stream' });
+    if(up.error){ alert('Evidence upload failed: '+up.error.message); return null; }
+    const r = await state.sb.from('operations_training_record_files').insert({ record_id: recordId, storage_path: path, file_name: file.name, file_size_bytes: file.size, uploaded_by: state.user.id }).select().single();
+    if(r.error){ alert('Evidence could not be saved: '+r.error.message); await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).remove([path]); return null; }
+    return r.data;
+  }
+
+  async function addTrainingEvidenceAdmin(recordId, files){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can attach evidence here.');
+    const record = state.trainingRecords.find(r => String(r.id) === String(recordId));
+    if(!record) return;
+    for(const file of files){
+      const row = await uploadEvidenceFile(record.person_id, recordId, file);
+      if(row) state.trainingRecordFiles.push(row);
+    }
+    render();
+  }
+
+  async function addMyTrainingEvidence(recordId, files){
+    const person = state.myTrainingPerson;
+    const record = state.myTrainingRecords.find(r => String(r.id) === String(recordId));
+    if(!person || !record) return;
+    for(const file of files){
+      const row = await uploadEvidenceFile(person.id, recordId, file);
+      if(row) state.myTrainingRecordFiles.push(row);
+    }
+    render();
+  }
+
+  async function deleteTrainingEvidence(fileId){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can remove evidence.');
+    const file = state.trainingRecordFiles.find(f => String(f.id) === String(fileId));
+    if(!file) return;
+    if(!confirm('Remove this evidence file? This cannot be undone.')) return;
+    await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).remove([file.storage_path]);
+    const r = await state.sb.from('operations_training_record_files').delete().eq('id', fileId);
+    if(r.error) return alert('Could not remove the file record: '+r.error.message);
+    state.trainingRecordFiles = state.trainingRecordFiles.filter(f => String(f.id) !== String(fileId));
+    render();
+  }
+
+  async function openTrainingEvidence(fileId){
+    const file = state.trainingRecordFiles.find(f => String(f.id) === String(fileId)) || state.myTrainingRecordFiles.find(f => String(f.id) === String(fileId));
+    if(!file) return alert('File not found.');
+    const r = await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).createSignedUrl(file.storage_path, 300);
+    if(r.error) return alert('Could not open file: '+r.error.message);
+    window.open(r.data.signedUrl, '_blank');
+  }
+
+  function trainingEvidenceListHtml(files, canDelete){
+    if(!files.length) return `<span class="ops-subtle">No files uploaded yet.</span>`;
+    return files.map(f => `<button class="ops-btn ghost" type="button" data-ops-view-evidence="${f.id}">${esc(f.file_name)}</button>${canDelete ? ` <button class="ops-btn ghost" type="button" data-ops-delete-evidence="${f.id}">Remove</button>` : ''}`).join(' ');
+  }
+
+  function trainingEvidenceUploadHtml(recordId){
+    return `<label class="ops-btn ghost ops-photo-button">Camera<input type="file" accept="image/*,application/pdf" capture="environment" data-ops-evidence-input="${recordId}"></label>
+      <label class="ops-btn ghost ops-photo-button">Gallery<input type="file" accept="image/*,application/pdf" multiple data-ops-evidence-input="${recordId}"></label>`;
+  }
+
   function myTrainingHtml(){
     if(!state.myTrainingLoaded) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">Loading your training records…</p></div>`;
     const person = state.myTrainingPerson;
@@ -868,7 +938,10 @@
       const record = myTrainingLatestRecord(c.id);
       const status = trainingCellStatus(record, compulsory);
       const expiryText = record ? (record.expiry_date ? nzDate(record.expiry_date) : 'No expiry') : '—';
-      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td></tr>`;
+      const files = record ? state.myTrainingRecordFiles.filter(f => String(f.record_id) === String(record.id)) : [];
+      const evidenceCell = record ? `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}` : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
+      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td></tr>
+      <tr><td colspan="3" class="ops-subtle">Evidence: ${evidenceCell}</td></tr>`;
     }).join('') : `<tr><td colspan="3" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
     return `<div class="ops-card">
       <h3>My Training</h3>
@@ -1001,7 +1074,9 @@
   }
 
   function trainingRecordRowHtml(r){
-    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${esc(r.status || 'Completed')}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button></td></tr>`;
+    const files = state.trainingRecordFiles.filter(f => String(f.record_id) === String(r.id));
+    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${esc(r.status || 'Completed')}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button></td></tr>
+    <tr><td colspan="6" class="ops-subtle">Evidence: ${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(r.id)}</td></tr>`;
   }
 
   function trainingRecordFormHtml(person, course){
@@ -3778,6 +3853,15 @@
     document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; render(); }));
     document.querySelectorAll('[data-ops-edit-record]').forEach(b => b.addEventListener('click', () => { const rec=state.trainingRecords.find(r=>String(r.id)===String(b.dataset.opsEditRecord)); if(!rec) return; state.editingRecordId=rec.id; state.trainingRecordFormCourseId=rec.course_id; state.trainingRecordFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-delete-record]').forEach(b => b.addEventListener('click', () => deleteTrainingRecord(b.dataset.opsDeleteRecord)));
+    document.querySelectorAll('[data-ops-evidence-input]').forEach(input => input.addEventListener('change', () => {
+      const files = Array.from(input.files || []);
+      if(!files.length) return;
+      const recordId = input.dataset.opsEvidenceInput;
+      if(state.currentView === 'my-training') addMyTrainingEvidence(recordId, files); else addTrainingEvidenceAdmin(recordId, files);
+      input.value = '';
+    }));
+    document.querySelectorAll('[data-ops-view-evidence]').forEach(b => b.addEventListener('click', () => openTrainingEvidence(b.dataset.opsViewEvidence)));
+    document.querySelectorAll('[data-ops-delete-evidence]').forEach(b => b.addEventListener('click', () => deleteTrainingEvidence(b.dataset.opsDeleteEvidence)));
     byId('opsTrainingRecordForm')?.addEventListener('submit', saveTrainingRecord);
     byId('opsTrainingContractorForm')?.addEventListener('submit', saveTrainingContractor);
     byId('opsTrainingCourseForm')?.addEventListener('submit', saveTrainingCourse);
