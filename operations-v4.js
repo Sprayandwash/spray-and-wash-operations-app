@@ -89,6 +89,8 @@
     trainingDataLoaded: false,
     trainingContractorFormOpen: false,
     editingContractorId: '',
+    trainingPersonFormOpen: false,
+    editingTrainingPersonId: '',
     trainingCourseFormOpen: false,
     editingCourseId: '',
     trainingViewPersonId: '',
@@ -975,7 +977,7 @@
     const courseCount = state.trainingCourses.length;
     const contractorCount = state.trainingContractors.length;
     const peopleCount = state.trainingPeople.filter(p => p.active !== false).length;
-    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog, Contractors register and Training Matrix are live. Employee records, evidence uploads and reporting are being added in the next phases.</p></div>
+    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog, Contractors register, Training Matrix and individual training records with evidence are live. Reporting and SiteWise exports are being added in the next phases.</p></div>
       <div class="ops-branch-grid">
         ${moduleCard('Training Matrix', `${peopleCount} ${peopleCount===1?'person':'people'} × ${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-matrix')")}
         ${moduleCard('Course Catalog', `${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-catalog')")}
@@ -1016,7 +1018,7 @@
   function trainingMatrixHtml(){
     const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
     const courses = state.trainingCourses.filter(c => c.active !== false).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
-    if(!people.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">No people to show yet. Employee accounts sync in automatically; subcontractor people are added in a follow-up phase.</p></div>`;
+    if(!people.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">No people to show yet. Employee accounts sync in automatically; add subcontractor or sole trader people on the Contractors tab.</p></div>`;
     if(!courses.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">Add an active course to the Course Catalog first.</p></div>`;
     const headerCells = courses.map(c => `<th>${esc(c.name)}<br><span class="ops-subtle">${esc(c.category)}</span>${c.sitewise_category ? ` <span class="ops-role-chip">${esc(c.sitewise_category)}</span>` : ''}</th>`).join('');
     const rows = people.map(p => {
@@ -1293,7 +1295,73 @@
     return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
       ${state.trainingContractorFormOpen ? trainingContractorFormHtml() : ''}
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+    </div>
+    ${trainingSubcontractorPeopleHtml()}`;
+  }
+
+  function trainingPersonFormHtml(){
+    const editing = state.trainingPeople.find(p => String(p.id) === String(state.editingTrainingPersonId));
+    const contractors = state.trainingContractors.filter(c => c.active !== false || String(c.id) === String(editing?.contractor_id || ''));
+    const contractorOptions = contractors.map(c => `<option value="${c.id}" ${String(editing?.contractor_id || '') === String(c.id) ? 'selected' : ''}>${esc(c.company_name)} (${c.contractor_type === 'sole_trader' ? 'Sole trader' : 'Company'})</option>`).join('');
+    return `<form id="opsTrainingPersonForm" class="ops-form" data-person-id="${editing ? editing.id : ''}">
+      <label>Contractor *<select id="opsPersonContractorId" required ${contractors.length ? '' : 'disabled'}>
+        <option value="">Select a contractor…</option>
+        ${contractorOptions}
+      </select></label>
+      <label>Full name *<input id="opsPersonFullName" required value="${esc(editing?.full_name || '')}"></label>
+      <label class="ops-check"><input id="opsPersonActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
+      <p class="ops-span-2 ops-subtle">Person type (sole trader or subcontractor worker) is set automatically from the contractor's type above. Add the contractor first if it isn't listed.</p>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit" ${contractors.length ? '' : 'disabled'}>${editing ? 'Save changes' : 'Add person'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingPersonEditor">Cancel</button></div>
+    </form>`;
+  }
+
+  function trainingSubcontractorPeopleHtml(){
+    const people = state.trainingPeople.filter(p => p.person_type !== 'employee').slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
+    const activeContractorCount = state.trainingContractors.filter(c => c.active !== false).length;
+    const rows = people.map(p => {
+      const contractor = state.trainingContractors.find(c => String(c.id) === String(p.contractor_id));
+      const typeLabel = p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
+      return `<tr><td><strong>${esc(p.full_name)}</strong></td><td>${typeLabel}</td><td>${esc(contractor?.company_name || '—')}</td><td>${p.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-open-person="${p.id}">View training</button> <button class="ops-btn ghost" type="button" data-ops-edit-training-person="${p.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-training-person-active="${p.id}">${p.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="ops-subtle">No subcontractor or sole trader people added yet.</td></tr>';
+    return `<div class="ops-card"><div class="ops-section-title"><h3>Subcontractor &amp; Sole Trader People</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingPersonEditor" ${activeContractorCount ? '' : 'disabled'}>+ Add person</button></div>
+      <p class="ops-subtle">Individual workers linked to a contractor above, so their training records and evidence can be tracked the same way as employees. ${activeContractorCount ? '' : 'Add an active contractor above first.'}</p>
+      ${state.trainingPersonFormOpen ? trainingPersonFormHtml() : ''}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Type</th><th>Contractor</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
     </div>`;
+  }
+
+  async function saveTrainingPerson(e){
+    e.preventDefault();
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can add subcontractor people.');
+    const form = e.target;
+    const id = form.dataset.personId;
+    const contractorId = byId('opsPersonContractorId').value;
+    const contractor = state.trainingContractors.find(c => String(c.id) === String(contractorId));
+    if(!contractor) return alert('Select a contractor first.');
+    const row = {
+      person_type: contractor.contractor_type === 'sole_trader' ? 'sole_trader' : 'subcontractor_worker',
+      contractor_id: contractor.id,
+      full_name: byId('opsPersonFullName').value.trim(),
+      active: byId('opsPersonActive').checked
+    };
+    if(!row.full_name) return alert('Full name is required.');
+    const r = id
+      ? await state.sb.from('operations_training_people').update(row).eq('id', id)
+      : await state.sb.from('operations_training_people').insert({...row, created_by: state.user.id});
+    if(r.error) return alert('Could not save person: '+r.error.message);
+    state.trainingPersonFormOpen = false;
+    state.editingTrainingPersonId = '';
+    await loadTrainingData(true);
+  }
+
+  async function toggleTrainingPersonActive(id){
+    const person = state.trainingPeople.find(p => String(p.id) === String(id));
+    if(!person) return;
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can change this.');
+    if(person.active && !confirm(`Deactivate "${person.full_name}"?`)) return;
+    const r = await state.sb.from('operations_training_people').update({active: !person.active}).eq('id', id);
+    if(r.error) return alert('Could not update: '+r.error.message);
+    await loadTrainingData(true);
   }
 
   async function saveTrainingContractor(e){
@@ -3894,6 +3962,8 @@
     document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', () => toggleTrainingContractorActive(b.dataset.opsToggleContractorActive)));
     document.querySelectorAll('[data-ops-edit-course]').forEach(b => b.addEventListener('click', () => { state.editingCourseId=b.dataset.opsEditCourse; state.trainingCourseFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-toggle-course-active]').forEach(b => b.addEventListener('click', () => toggleTrainingCourseActive(b.dataset.opsToggleCourseActive)));
+    document.querySelectorAll('[data-ops-edit-training-person]').forEach(b => b.addEventListener('click', () => { state.editingTrainingPersonId=b.dataset.opsEditTrainingPerson; state.trainingPersonFormOpen=true; render(); }));
+    document.querySelectorAll('[data-ops-toggle-training-person-active]').forEach(b => b.addEventListener('click', () => toggleTrainingPersonActive(b.dataset.opsToggleTrainingPersonActive)));
     document.querySelectorAll('[data-ops-matrix-applicable]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixApplicable(cb.dataset.person, cb.dataset.course, cb.checked)));
     document.querySelectorAll('[data-ops-matrix-compulsory]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixCompulsory(cb.dataset.person, cb.dataset.course, cb.checked)));
     document.querySelectorAll('[data-ops-open-person]').forEach(b => b.addEventListener('click', () => openTrainingPerson(b.dataset.opsOpenPerson)));
@@ -3912,6 +3982,7 @@
     byId('opsTrainingRecordForm')?.addEventListener('submit', saveTrainingRecord);
     byId('opsTrainingContractorForm')?.addEventListener('submit', saveTrainingContractor);
     byId('opsTrainingCourseForm')?.addEventListener('submit', saveTrainingCourse);
+    byId('opsTrainingPersonForm')?.addEventListener('submit', saveTrainingPerson);
     ['certFilterType','certFilterStatus','certFilterResult','certFilterDue'].forEach(id => byId(id)?.addEventListener('change', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); }));
     byId('certFilterSearch')?.addEventListener('input', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); });
     byId('certFilterClear')?.addEventListener('click', () => { state.certFilterType=''; state.certFilterStatus=''; state.certFilterResult=''; state.certFilterDue=''; state.certFilterSearch=''; state.certSelectedIds = new Set(); renderCertificateFilterSelector(); });
@@ -3983,6 +4054,8 @@
     if(action === 'closeTrainingContractorEditor'){ state.trainingContractorFormOpen=false; state.editingContractorId=''; render(); }
     if(action === 'openTrainingCourseEditor'){ state.trainingCourseFormOpen=true; state.editingCourseId=''; render(); }
     if(action === 'closeTrainingCourseEditor'){ state.trainingCourseFormOpen=false; state.editingCourseId=''; render(); }
+    if(action === 'openTrainingPersonEditor'){ state.trainingPersonFormOpen=true; state.editingTrainingPersonId=''; render(); }
+    if(action === 'closeTrainingPersonEditor'){ state.trainingPersonFormOpen=false; state.editingTrainingPersonId=''; render(); }
     if(action === 'closeTrainingRecordEditor'){ state.trainingRecordFormOpen=false; state.editingRecordId=''; state.trainingRecordFormCourseId=''; render(); }
   }
 
