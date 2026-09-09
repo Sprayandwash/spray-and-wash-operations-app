@@ -1051,7 +1051,7 @@
     const courses = state.trainingCourses.filter(c => c.active !== false).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
     if(!people.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">No people to show yet. Employee accounts sync in automatically; add subcontractor or sole trader people on the Contractors tab.</p></div>`;
     if(!courses.length) return `<div class="ops-card"><h3>Training Matrix</h3><p class="ops-subtle">Add an active course to the Course Catalog first.</p></div>`;
-    const headerCells = courses.map(c => `<th>${esc(c.name)}<br><span class="ops-subtle">${esc(c.category)}</span>${c.sitewise_category ? ` <span class="ops-role-chip">${esc(c.sitewise_category)}</span>` : ''}</th>`).join('');
+    const headerCells = courses.map(c => `<th>${esc(c.name)}<br><span class="ops-subtle">${esc(c.category)}</span>${c.sitewise_category ? ` <span class="ops-role-chip">${esc(c.sitewise_category)}</span>` : ''}${c.higher_level_learning ? ` <span class="ops-pill ops-ok">Higher-level</span>` : ''}</th>`).join('');
     const rows = people.map(p => {
       const contractor = p.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(p.contractor_id)) : null;
       const personTypeLabel = p.person_type === 'employee' ? 'Employee' : p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor';
@@ -1256,6 +1256,8 @@
       <label>NZQA code<input id="opsCourseNzqaCode" value="${esc(editing?.nzqa_code || '')}"></label>
       <label>Validity (months)<input id="opsCourseValidity" type="number" min="0" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"></label>
       <label class="ops-span-2">Description<textarea id="opsCourseDescription">${esc(editing?.description || '')}</textarea></label>
+      <label class="ops-check"><input id="opsCourseHigherLevel" type="checkbox" ${editing?.higher_level_learning ? 'checked' : ''}> Higher-level learning (SiteWise)</label>
+      <p class="ops-span-2 ops-subtle">Tick this for courses SiteWise counts as "higher-level learning" evidence for their Training question - e.g. MEWP, harness systems, confined space, driver licence endorsements, first aid (unit standard 6400), NZQA level 3 or above, trade qualifications.</p>
       <label class="ops-check"><input id="opsCourseActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
     </form>`;
@@ -1263,7 +1265,7 @@
 
   function trainingCatalogHtml(){
     const courses = state.trainingCourses.slice().sort((a,b) => String(a.name).localeCompare(String(b.name)));
-    const rows = courses.map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.description ? `<br><span class="ops-subtle">${esc(c.description)}</span>` : ''}</td><td>${esc(c.category || '')}</td><td>${esc(c.provider || '—')}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-course="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-course-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    const rows = courses.map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.higher_level_learning ? ' <span class="ops-pill ops-ok">Higher-level</span>' : ''}${c.description ? `<br><span class="ops-subtle">${esc(c.description)}</span>` : ''}</td><td>${esc(c.category || '')}</td><td>${esc(c.provider || '—')}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-course="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-course-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen ? trainingCourseFormHtml() : ''}
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Category</th><th>Provider</th><th>Validity</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
@@ -1282,6 +1284,7 @@
       nzqa_code: byId('opsCourseNzqaCode').value.trim() || null,
       validity_period_months: byId('opsCourseValidity').value ? Number(byId('opsCourseValidity').value) : null,
       description: byId('opsCourseDescription').value.trim() || null,
+      higher_level_learning: byId('opsCourseHigherLevel').checked,
       active: byId('opsCourseActive').checked
     };
     if(!row.name) return alert('Course name is required.');
