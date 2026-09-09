@@ -17,7 +17,7 @@ function functionSource(name, occurrence='last'){
 }
 
 test('REG-046: Admin uses one canonical role definition and one Admin-only management route',()=>{
-  assert.match(app, /const ROLE_DEFS = \['Admin','Height equipment manager','Height equipment user','Maintenance manager','Vehicle inspector'\];/);
+  assert.match(app, /const ROLE_DEFS = \['Admin','Height equipment manager','Height equipment user','Maintenance manager','Vehicle inspector','Training manager'\];/);
   assert.equal((app.match(/const ROLE_DEFS =/g)||[]).length,1,'role definitions must have one canonical source');
   assert.match(functionSource('hideLegacyUserAdminControls'), /\['usersTabButton','adminTabButton'\]/);
   assert.match(functionSource('openAdminModule'), /if\(!isAdmin\(\)\) return alert\('Admin access is required\.'\);/);

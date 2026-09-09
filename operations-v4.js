@@ -13,7 +13,7 @@
   const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP' };
   const MACHINERY_TYPE_LABELS = { Engine:'Engine', Gearbox:'Reduction gearbox', Pump:'Pump' };
   const MACHINERY_SIDE_CODES = { Driver:'DS', Passenger:'PS' };
-  const ROLE_DEFS = ['Admin','Height equipment manager','Height equipment user','Maintenance manager','Vehicle inspector'];
+  const ROLE_DEFS = ['Admin','Height equipment manager','Height equipment user','Maintenance manager','Vehicle inspector','Training manager'];
   const REGRESSION_RULES = window.SWOperationsRules || {};
   const state = {
     sb: null,
@@ -77,6 +77,13 @@
     addingMaintenanceItem: false,
     homeAttentionFilter: 'all',
     prefillVehicleCheckId: '',
+    trainingContractors: [],
+    trainingCourses: [],
+    trainingDataLoaded: false,
+    trainingContractorFormOpen: false,
+    editingContractorId: '',
+    trainingCourseFormOpen: false,
+    editingCourseId: '',
     lastError: ''
   };
 
@@ -166,6 +173,7 @@
   }
   function openTasks(){ return state.tasks.filter(t => typeof REGRESSION_RULES.taskIsOpen==='function' ? REGRESSION_RULES.taskIsOpen(t) : !['Completed','Deferred'].includes(t.status)); }
   function canUseManagement(){ return hasAny(['Maintenance manager']); }
+  function canUseTraining(){ return hasAny(['Training manager']); }
   function canUseHeight(){ return hasAny(['Height equipment manager','Height equipment user']); }
   function canUseVehicleChecks(){ return hasAny(['Vehicle inspector']); }
   function isHeightReadOnly(){ return hasRole('Height equipment user')&&!hasRole('Height equipment manager'); }
@@ -180,6 +188,7 @@
   }
   function isManagementView(view){ return ['management-dashboard','assets','history','tasks','schedules'].includes(view) || ['vehicles','washing','maintenance'].includes(view); }
   function isAdminView(view){ return ['admin-users','admin-app-settings','admin-settings'].includes(view); }
+  function isTrainingView(view){ return ['training-dashboard','training-catalog','training-contractors'].includes(view); }
   function displayStatusLabel(value){
     const v = String(value || '—');
     if(v === 'Pass') return 'Completed OK';
@@ -446,6 +455,8 @@
     window.openHeightModule = openHeightModule;
     window.openVehicleChecksModule = openVehicleChecksModule;
     window.openOpsManagementModule = openOpsManagementModule;
+    window.openTrainingModule = openTrainingModule;
+    window.showOperations = showOperations;
     window.openAdminModule = openAdminModule;
     window.openLegacyUserTools = openLegacyUserTools;
     window.openHeightQualifications = openHeightQualifications;
@@ -741,6 +752,163 @@
     showOperations('management-dashboard');
   }
 
+  function openTrainingModule(){
+    if(!state.user) return alert('Sign in first.');
+    if(!canUseTraining()) return alert('Training requires Admin or Training manager access.');
+    state.currentModule = 'training';
+    setTopTabsMode('none');
+    showOperations('training-dashboard');
+    loadTrainingData();
+  }
+
+  let trainingDataLoading = false;
+  async function loadTrainingData(force){
+    if(!state.sb || !canUseTraining()) return;
+    if(state.trainingDataLoaded && !force){ render(); return; }
+    if(trainingDataLoading) return;
+    trainingDataLoading = true;
+    try{
+      const [contractors, courses] = await Promise.all([
+        loadTable('operations_contractors','*',{column:'company_name'}),
+        loadTable('operations_training_courses','*',{column:'name'})
+      ]);
+      state.trainingContractors = contractors;
+      state.trainingCourses = courses;
+      state.trainingDataLoaded = true;
+    }catch(e){
+      console.warn('Training data unavailable:', e.message);
+      state.lastError = 'Training data could not be loaded: '+e.message;
+    }finally{
+      trainingDataLoading = false;
+      render();
+    }
+  }
+
+  function trainingDashboardHtml(){
+    const courseCount = state.trainingCourses.length;
+    const contractorCount = state.trainingContractors.length;
+    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog and Contractors register are live. The training matrix, employee records and reporting are being added in the next phases.</p></div>
+      <div class="ops-branch-grid">
+        ${moduleCard('Course Catalog', `${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-catalog')")}
+        ${moduleCard('Contractors', `${contractorCount} contractor${contractorCount===1?'':'s'}`, "showOperations('training-contractors')")}
+      </div>`;
+  }
+
+  function trainingCourseFormHtml(){
+    const editing = state.trainingCourses.find(c => String(c.id) === String(state.editingCourseId));
+    return `<form id="opsTrainingCourseForm" class="ops-form" data-course-id="${editing ? editing.id : ''}">
+      <label>Course name *<input id="opsCourseName" required value="${esc(editing?.name || '')}"></label>
+      <label>Category<input id="opsCourseCategory" value="${esc(editing?.category || 'Certification')}" placeholder="e.g. Certification, Induction, Internal"></label>
+      <label>Provider<input id="opsCourseProvider" value="${esc(editing?.provider || '')}"></label>
+      <label>NZQA code<input id="opsCourseNzqaCode" value="${esc(editing?.nzqa_code || '')}"></label>
+      <label>Validity (months)<input id="opsCourseValidity" type="number" min="0" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"></label>
+      <label class="ops-span-2">Description<textarea id="opsCourseDescription">${esc(editing?.description || '')}</textarea></label>
+      <label class="ops-check"><input id="opsCourseActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
+    </form>`;
+  }
+
+  function trainingCatalogHtml(){
+    const courses = state.trainingCourses.slice().sort((a,b) => String(a.name).localeCompare(String(b.name)));
+    const rows = courses.map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.description ? `<br><span class="ops-subtle">${esc(c.description)}</span>` : ''}</td><td>${esc(c.category || '')}</td><td>${esc(c.provider || '—')}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-course="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-course-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
+      ${state.trainingCourseFormOpen ? trainingCourseFormHtml() : ''}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Category</th><th>Provider</th><th>Validity</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+    </div>`;
+  }
+
+  async function saveTrainingCourse(e){
+    e.preventDefault();
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can edit the course catalog.');
+    const form = e.target;
+    const id = form.dataset.courseId;
+    const row = {
+      name: byId('opsCourseName').value.trim(),
+      category: byId('opsCourseCategory').value.trim() || 'Certification',
+      provider: byId('opsCourseProvider').value.trim() || null,
+      nzqa_code: byId('opsCourseNzqaCode').value.trim() || null,
+      validity_period_months: byId('opsCourseValidity').value ? Number(byId('opsCourseValidity').value) : null,
+      description: byId('opsCourseDescription').value.trim() || null,
+      active: byId('opsCourseActive').checked
+    };
+    if(!row.name) return alert('Course name is required.');
+    const r = id
+      ? await state.sb.from('operations_training_courses').update(row).eq('id', id)
+      : await state.sb.from('operations_training_courses').insert({...row, created_by: state.user.id});
+    if(r.error) return alert('Could not save course: '+r.error.message);
+    state.trainingCourseFormOpen = false;
+    state.editingCourseId = '';
+    await loadTrainingData(true);
+  }
+
+  async function toggleTrainingCourseActive(id){
+    const course = state.trainingCourses.find(c => String(c.id) === String(id));
+    if(!course) return;
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can change the course catalog.');
+    if(course.active && !confirm(`Deactivate "${course.name}"? It stays on existing records but won't be offered for new ones.`)) return;
+    const r = await state.sb.from('operations_training_courses').update({active: !course.active}).eq('id', id);
+    if(r.error) return alert('Could not update course: '+r.error.message);
+    await loadTrainingData(true);
+  }
+
+  function trainingContractorFormHtml(){
+    const editing = state.trainingContractors.find(c => String(c.id) === String(state.editingContractorId));
+    return `<form id="opsTrainingContractorForm" class="ops-form" data-contractor-id="${editing ? editing.id : ''}">
+      <label>Company name *<input id="opsContractorName" required value="${esc(editing?.company_name || '')}"></label>
+      <label>Type *<select id="opsContractorType" required>
+        <option value="sole_trader" ${(!editing || editing.contractor_type==='sole_trader') ? 'selected' : ''}>Sole trader</option>
+        <option value="company" ${editing?.contractor_type==='company' ? 'selected' : ''}>Company</option>
+      </select></label>
+      <label>Contact name<input id="opsContractorContactName" value="${esc(editing?.contact_name || '')}"></label>
+      <label>Contact phone<input id="opsContractorContactPhone" value="${esc(editing?.contact_phone || '')}"></label>
+      <label>Contact email<input id="opsContractorContactEmail" type="email" value="${esc(editing?.contact_email || '')}"></label>
+      <label class="ops-check"><input id="opsContractorActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add contractor'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingContractorEditor">Cancel</button></div>
+    </form>`;
+  }
+
+  function trainingContractorsHtml(){
+    const contractors = state.trainingContractors.slice().sort((a,b) => String(a.company_name).localeCompare(String(b.company_name)));
+    const rows = contractors.map(c => `<tr><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-contractor="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No contractors yet.</td></tr>';
+    return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
+      ${state.trainingContractorFormOpen ? trainingContractorFormHtml() : ''}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+    </div>`;
+  }
+
+  async function saveTrainingContractor(e){
+    e.preventDefault();
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can edit contractors.');
+    const form = e.target;
+    const id = form.dataset.contractorId;
+    const row = {
+      company_name: byId('opsContractorName').value.trim(),
+      contractor_type: byId('opsContractorType').value,
+      contact_name: byId('opsContractorContactName').value.trim() || null,
+      contact_phone: byId('opsContractorContactPhone').value.trim() || null,
+      contact_email: byId('opsContractorContactEmail').value.trim() || null,
+      active: byId('opsContractorActive').checked
+    };
+    if(!row.company_name) return alert('Company name is required.');
+    const r = id
+      ? await state.sb.from('operations_contractors').update(row).eq('id', id)
+      : await state.sb.from('operations_contractors').insert({...row, created_by: state.user.id});
+    if(r.error) return alert('Could not save contractor: '+r.error.message);
+    state.trainingContractorFormOpen = false;
+    state.editingContractorId = '';
+    await loadTrainingData(true);
+  }
+
+  async function toggleTrainingContractorActive(id){
+    const contractor = state.trainingContractors.find(c => String(c.id) === String(id));
+    if(!contractor) return;
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can change contractors.');
+    if(contractor.active && !confirm(`Deactivate "${contractor.company_name}"?`)) return;
+    const r = await state.sb.from('operations_contractors').update({active: !contractor.active}).eq('id', id);
+    if(r.error) return alert('Could not update contractor: '+r.error.message);
+    await loadTrainingData(true);
+  }
+
   function openAdminModule(view){
     if(!state.user) return alert('Sign in first.');
     if(!isAdmin()) return alert('Admin access is required.');
@@ -766,6 +934,7 @@
       if(canUseHeight()) cards.push(moduleCard('Height Equipment', '', 'openHeightModule()'));
       if(canUseVehicleChecks()) cards.push(moduleCard('Vehicle Checks', '', 'openVehicleChecksModule()'));
       if(canUseManagement()) cards.push(moduleCard('Maintenance', '', 'openOpsManagementModule()'));
+      if(canUseTraining()) cards.push(moduleCard('Training', '', 'openTrainingModule()'));
       if(isAdmin()) cards.push(moduleCard('Admin', '', 'openAdminModule()'));
       if(!cards.length) cards.push(`<div class="ops-card"><h3>No app access yet</h3><p class="ops-subtle">Your account needs an assigned role before modules will appear.</p></div>`);
     }
@@ -876,6 +1045,7 @@
     if(state.currentView === 'guides') state.currentView = 'schedules';
     if(isAdminView(state.currentView) && !isAdmin()) state.currentView = 'vehicle-checks';
     if(isManagementView(state.currentView) && !canUseManagement()) state.currentView = 'vehicle-checks';
+    if(isTrainingView(state.currentView) && !canUseTraining()) state.currentView = 'vehicle-checks';
     setTopTabsMode('none');
     document.querySelectorAll('.tabpane').forEach(x => x.classList.add('hidden'));
     byId('operations')?.classList.remove('hidden');
@@ -1064,7 +1234,8 @@
     const isVehicle = state.currentView === 'vehicle-checks';
     const isAdminModule = isAdminView(state.currentView);
     const isSharedTasks = state.currentView === 'app-tasks';
-    const managementNav = canUseManagement() && !isVehicle && !isAdminModule && !isSharedTasks ? `
+    const isTraining = isTrainingView(state.currentView);
+    const managementNav = canUseManagement() && !isVehicle && !isAdminModule && !isSharedTasks && !isTraining ? `
         ${navButton('management-dashboard','Dashboard')}
         ${navButton('assets','Assets')}
         ${navButton('schedules','Maintenance items')}
@@ -1074,9 +1245,13 @@
         ${navButton('admin-users','Users & Permissions')}
         ${navButton('admin-app-settings','Settings')}
         ${navButton('admin-settings','Backup')}` : '';
-    const staffNav = isVehicle || isSharedTasks ? '' : (isAdminModule ? adminNav : managementNav);
-    const title = isVehicle ? 'Vehicle Checks' : isAdminModule ? 'Admin' : isSharedTasks ? 'Tasks' : 'Maintenance';
-    const note = isVehicle || isSharedTasks ? '' : isAdminModule ? 'Users, permissions, app settings and backups' : '';
+    const trainingNav = isTraining ? `
+        ${navButton('training-dashboard','Dashboard')}
+        ${navButton('training-catalog','Course Catalog')}
+        ${navButton('training-contractors','Contractors')}` : '';
+    const staffNav = isVehicle || isSharedTasks ? '' : (isAdminModule ? adminNav : isTraining ? trainingNav : managementNav);
+    const title = isVehicle ? 'Vehicle Checks' : isAdminModule ? 'Admin' : isSharedTasks ? 'Tasks' : isTraining ? 'Training' : 'Maintenance';
+    const note = isVehicle || isSharedTasks ? '' : isAdminModule ? 'Users, permissions, app settings and backups' : isTraining ? 'Courses, certifications and contractor records' : '';
     return `
       <div class="ops-header">
         <div class="ops-module-title">
@@ -1097,6 +1272,13 @@
     if(state.currentView === 'app-tasks'){
       if(!canAccessSharedTasks()) return `<div class="ops-card"><h3>No task access</h3><p>Your account does not have access to shared tasks.</p></div>`;
       return tasksHtml(true);
+    }
+    if(isTrainingView(state.currentView)){
+      if(!canUseTraining()) return `<div class="ops-card"><h3>Training access required</h3><p>This module is only available to Admin or Training manager users.</p></div>`;
+      if(!state.trainingDataLoaded) return `<div class="ops-card"><h3>Loading training data…</h3></div>`;
+      if(state.currentView === 'training-catalog') return trainingCatalogHtml();
+      if(state.currentView === 'training-contractors') return trainingContractorsHtml();
+      return trainingDashboardHtml();
     }
     if(!canView()) return `<div class="ops-card"><h3>No Operations access yet</h3><p>Your account needs Vehicle inspector, Maintenance manager or Admin access.</p></div>`;
     if(state.currentView === 'vehicle-checks') return periodicVehicleChecksHtml();
@@ -1575,7 +1757,8 @@
       'Height equipment manager':'Full access to the Height Equipment module.',
       'Height equipment user':'Read-only access to the Height Equipment register.',
       'Maintenance manager':'Full access to the Maintenance module.',
-      'Vehicle inspector':'Full access to Vehicle Checks.'
+      'Vehicle inspector':'Full access to Vehicle Checks.',
+      'Training manager':'Full access to the Training & Qualifications module.'
     }[role] || '';
   }
 
@@ -3273,6 +3456,12 @@
     document.querySelectorAll('[data-ops-cancel-user-edit]').forEach(b => b.addEventListener('click', () => { state.editingActualUserId=''; render(); }));
     document.querySelectorAll('[data-ops-save-user-roles]').forEach(b => b.addEventListener('click', () => saveActualUserRoles(b.dataset.opsSaveUserRoles)));
     document.querySelectorAll('[data-ops-create-schedule-task]').forEach(b => b.addEventListener('click', () => createTaskFromSchedule(b.dataset.opsCreateScheduleTask)));
+    document.querySelectorAll('[data-ops-edit-contractor]').forEach(b => b.addEventListener('click', () => { state.editingContractorId=b.dataset.opsEditContractor; state.trainingContractorFormOpen=true; render(); }));
+    document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', () => toggleTrainingContractorActive(b.dataset.opsToggleContractorActive)));
+    document.querySelectorAll('[data-ops-edit-course]').forEach(b => b.addEventListener('click', () => { state.editingCourseId=b.dataset.opsEditCourse; state.trainingCourseFormOpen=true; render(); }));
+    document.querySelectorAll('[data-ops-toggle-course-active]').forEach(b => b.addEventListener('click', () => toggleTrainingCourseActive(b.dataset.opsToggleCourseActive)));
+    byId('opsTrainingContractorForm')?.addEventListener('submit', saveTrainingContractor);
+    byId('opsTrainingCourseForm')?.addEventListener('submit', saveTrainingCourse);
     ['certFilterType','certFilterStatus','certFilterResult','certFilterDue'].forEach(id => byId(id)?.addEventListener('change', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); }));
     byId('certFilterSearch')?.addEventListener('input', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); });
     byId('certFilterClear')?.addEventListener('click', () => { state.certFilterType=''; state.certFilterStatus=''; state.certFilterResult=''; state.certFilterDue=''; state.certFilterSearch=''; state.certSelectedIds = new Set(); renderCertificateFilterSelector(); });
@@ -3340,6 +3529,10 @@
     if(action === 'pmSchedules'){ state.pmView='items'; render(); }
     if(action === 'pmTemplates'){ state.pmView='items'; render(); }
     if(action === 'pmCompleted'){ state.pmView='completed'; render(); }
+    if(action === 'openTrainingContractorEditor'){ state.trainingContractorFormOpen=true; state.editingContractorId=''; render(); }
+    if(action === 'closeTrainingContractorEditor'){ state.trainingContractorFormOpen=false; state.editingContractorId=''; render(); }
+    if(action === 'openTrainingCourseEditor'){ state.trainingCourseFormOpen=true; state.editingCourseId=''; render(); }
+    if(action === 'closeTrainingCourseEditor'){ state.trainingCourseFormOpen=false; state.editingCourseId=''; render(); }
   }
 
 
