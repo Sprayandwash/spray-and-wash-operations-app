@@ -879,6 +879,7 @@
     if(!canUseTraining()) return alert('Only Admin or Training manager users can attach evidence here.');
     const record = state.trainingRecords.find(r => String(r.id) === String(recordId));
     if(!record) return;
+    if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment. Evidence is managed there.');
     for(const file of files){
       const row = await uploadEvidenceFile(record.person_id, recordId, file);
       if(row) state.trainingRecordFiles.push(row);
@@ -890,6 +891,7 @@
     const person = state.myTrainingPerson;
     const record = state.myTrainingRecords.find(r => String(r.id) === String(recordId));
     if(!person || !record) return;
+    if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment. Evidence is managed there.');
     for(const file of files){
       const row = await uploadEvidenceFile(person.id, recordId, file);
       if(row) state.myTrainingRecordFiles.push(row);
@@ -940,8 +942,11 @@
       const status = trainingCellStatus(record, compulsory);
       const expiryText = record ? (record.expiry_date ? nzDate(record.expiry_date) : 'No expiry') : '—';
       const files = record ? state.myTrainingRecordFiles.filter(f => String(f.record_id) === String(record.id)) : [];
-      const evidenceCell = record ? `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}` : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
-      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td></tr>
+      const synced = record?.source_key === 'height_inspector_qualifications';
+      const evidenceCell = record
+        ? (synced ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Synced from Height Equipment.</span>` : `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}`)
+        : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
+      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td></tr>
       <tr><td colspan="3" class="ops-subtle">Evidence: ${evidenceCell}</td></tr>`;
     }).join('') : `<tr><td colspan="3" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
     return `<div class="ops-card">
@@ -1076,8 +1081,16 @@
 
   function trainingRecordRowHtml(r){
     const files = state.trainingRecordFiles.filter(f => String(f.record_id) === String(r.id));
-    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${esc(r.status || 'Completed')}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button></td></tr>
-    <tr><td colspan="6" class="ops-subtle">Evidence: ${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(r.id)}</td></tr>`;
+    const synced = r.source_key === 'height_inspector_qualifications';
+    const statusCell = `${esc(r.status || 'Completed')}${synced ? ' <span class="ops-pill ops-muted">Synced from Height Equipment</span>' : ''}`;
+    const actionsCell = synced
+      ? `<span class="ops-subtle">Managed in Height Equipment</span>`
+      : `<button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button>`;
+    const evidenceBody = synced
+      ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Evidence syncs automatically from Height Equipment.</span>`
+      : `${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(r.id)}`;
+    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${statusCell}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td>${actionsCell}</td></tr>
+    <tr><td colspan="6" class="ops-subtle">Evidence: ${evidenceBody}</td></tr>`;
   }
 
   function trainingRecordFormHtml(person, course){
@@ -1134,6 +1147,8 @@
     if(!canUseTraining()) return alert('Only Admin or Training manager users can edit training records.');
     const form = e.target;
     const id = form.dataset.recordId;
+    const existingRecord = id ? state.trainingRecords.find(x => String(x.id) === String(id)) : null;
+    if(existingRecord?.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment and can only be edited there.');
     const personId = form.dataset.personId;
     const courseId = form.dataset.courseId;
     const course = state.trainingCourses.find(c => String(c.id) === String(courseId));
@@ -1168,6 +1183,7 @@
     if(!canUseTraining()) return alert('Only Admin or Training manager users can delete training records.');
     const record = state.trainingRecords.find(r => String(r.id) === String(id));
     if(!record) return;
+    if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment and can only be deleted there.');
     if(!confirm('Delete this training record? This cannot be undone.')) return;
     const r = await state.sb.from('operations_training_records').delete().eq('id', id);
     if(r.error) return alert('Could not delete the record: '+r.error.message);
