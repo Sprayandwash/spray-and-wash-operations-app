@@ -114,6 +114,20 @@
   function addDays(dateStr, days){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCDate(dt.getUTCDate()+Number(days||0)); return dt.toISOString().slice(0,10); }
   function addMonths(dateStr, months){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCMonth(dt.getUTCMonth()+Number(months||0)); return dt.toISOString().slice(0,10); }
   function daysUntil(dateStr){ if(!dateStr) return null; const d = new Date(dateStr + 'T00:00:00'); const n = new Date(today() + 'T00:00:00'); return Math.ceil((d - n) / 86400000); }
+  function experienceSince(dateStr){
+    if(!dateStr) return null;
+    const start = new Date(dateStr + 'T00:00:00');
+    const now = new Date(today() + 'T00:00:00');
+    if(Number.isNaN(start.getTime()) || start > now) return null;
+    let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    if(now.getDate() < start.getDate()) months--;
+    if(months < 0) months = 0;
+    const years = Math.floor(months / 12);
+    const remMonths = months % 12;
+    if(years === 0) return `${remMonths} ${remMonths === 1 ? 'month' : 'months'}`;
+    if(remMonths === 0) return `${years} ${years === 1 ? 'year' : 'years'}`;
+    return `${years} ${years === 1 ? 'yr' : 'yrs'} ${remMonths} ${remMonths === 1 ? 'mo' : 'mos'}`;
+  }
   function optionList(values, selected){ return values.map(v => `<option value="${esc(v)}" ${String(v)===String(selected)?'selected':''}>${esc(v)}</option>`).join(''); }
   function normalizeRego(value){ return String(value || '').toUpperCase().replace(/\s+/g,'').trim(); }
   function machineryType(item){
@@ -946,13 +960,14 @@
       const evidenceCell = record
         ? (synced ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Synced from Height Equipment.</span>` : `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}`)
         : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
-      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td></tr>
-      <tr><td colspan="3" class="ops-subtle">Evidence: ${evidenceCell}</td></tr>`;
-    }).join('') : `<tr><td colspan="3" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
+      const experienceText = record?.first_qualified_date ? (experienceSince(record.first_qualified_date) || '—') : '—';
+      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td><td>${experienceText}</td></tr>
+      <tr><td colspan="4" class="ops-subtle">Evidence: ${evidenceCell}</td></tr>`;
+    }).join('') : `<tr><td colspan="4" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
     return `<div class="ops-card">
       <h3>My Training</h3>
       <p class="ops-subtle">${esc(person.full_name)} · a read-only view of your training status. Contact your manager to update a record.</p>
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Qualification</th><th>Expiry</th><th>Status</th></tr>${rows}</table></div>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Qualification</th><th>Expiry</th><th>Status</th><th>Experience</th></tr>${rows}</table></div>
     </div>`;
   }
 
@@ -1089,12 +1104,17 @@
     const evidenceBody = synced
       ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Evidence syncs automatically from Height Equipment.</span>`
       : `${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(r.id)}`;
-    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${statusCell}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td>${actionsCell}</td></tr>
-    <tr><td colspan="6" class="ops-subtle">Evidence: ${evidenceBody}</td></tr>`;
+    const experienceText = r.first_qualified_date ? `${experienceSince(r.first_qualified_date) || '—'} <span class="ops-subtle">(since ${nzDate(r.first_qualified_date)})</span>` : '—';
+    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${statusCell}</td><td>${experienceText}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td>${actionsCell}</td></tr>
+    <tr><td colspan="7" class="ops-subtle">Evidence: ${evidenceBody}</td></tr>`;
   }
 
   function trainingRecordFormHtml(person, course){
     const editing = state.trainingRecords.find(r => String(r.id) === String(state.editingRecordId));
+    const priorFirstQualified = state.trainingRecords
+      .filter(r => String(r.person_id) === String(person.id) && String(r.course_id) === String(course.id) && String(r.id) !== String(editing?.id || '') && r.first_qualified_date)
+      .slice().sort((a, b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')))[0]?.first_qualified_date || '';
+    const firstQualifiedValue = editing ? (editing.first_qualified_date || '') : priorFirstQualified;
     return `<form id="opsTrainingRecordForm" class="ops-form" data-record-id="${editing ? editing.id : ''}" data-person-id="${person.id}" data-course-id="${course.id}">
       <label>Status<select id="opsRecordStatus">
         <option value="Completed" ${(!editing||editing.status==='Completed')?'selected':''}>Completed</option>
@@ -1102,6 +1122,8 @@
         <option value="Failed" ${editing?.status==='Failed'?'selected':''}>Failed</option>
       </select></label>
       <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${editing?.completed_date || today()}"></label>
+      <label>First qualified / trained<input id="opsRecordFirstQualified" type="date" value="${firstQualifiedValue}"></label>
+      <p class="ops-span-2 ops-subtle">The original date this person was first qualified or trained in this area. Experience is calculated from this date automatically, so you only need to set it once - it carries forward to future refresher records for this course.</p>
       <label>Expiry date<input id="opsRecordExpiryDate" type="date" value="${editing?.expiry_date || ''}" placeholder="${course.validity_period_months ? 'Auto if left blank' : 'No expiry'}"></label>
       <label>Provider / trainer<input id="opsRecordProvider" value="${esc(editing?.provider_or_trainer || '')}"></label>
       <label>Reference number<input id="opsRecordReference" value="${esc(editing?.reference_number || '')}"></label>
@@ -1116,13 +1138,13 @@
     const matrixEntry = trainingMatrixEntry(person.id, course.id);
     const compulsory = !!matrixEntry?.compulsory;
     const status = trainingCellStatus(latest, compulsory);
-    const rows = records.map(r => trainingRecordRowHtml(r)).join('') || `<tr><td colspan="6" class="ops-subtle">No records yet.</td></tr>`;
+    const rows = records.map(r => trainingRecordRowHtml(r)).join('') || `<tr><td colspan="7" class="ops-subtle">No records yet.</td></tr>`;
     const formOpen = state.trainingRecordFormOpen && String(state.trainingRecordFormCourseId) === String(course.id);
     return `<div class="ops-card">
       <div class="ops-section-title"><h3>${esc(course.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}</h3><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></div>
       <p class="ops-subtle">${esc(course.category)}${course.nzqa_code ? ` · NZQA ${esc(course.nzqa_code)}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
       ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Experience</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
     </div>`;
   }
 
@@ -1162,6 +1184,7 @@
       course_id: courseId,
       status: byId('opsRecordStatus').value,
       completed_date: completedDate,
+      first_qualified_date: byId('opsRecordFirstQualified').value || null,
       expiry_date: expiryDate,
       provider_or_trainer: byId('opsRecordProvider').value.trim() || null,
       reference_number: byId('opsRecordReference').value.trim() || null,
