@@ -41,6 +41,7 @@
     maintenanceLog: [],
     maintenanceLogItems: [],
     maintenanceUsers: [],
+    heightUsers: [],
     pendingUsers: [],
     actualUsers: [],
     actualUserRoles: [],
@@ -1590,6 +1591,13 @@
           catch(e){ console.warn('Maintenance user names unavailable:', e.message); state.maintenanceUsers = state.profile ? [state.profile] : []; }
         }
       } else state.maintenanceUsers = [];
+      if(canUseHeight()){
+        if(isAdmin()) state.heightUsers = state.actualUsers.slice();
+        else {
+          try { state.heightUsers = await loadTable('profiles','*'); }
+          catch(e){ console.warn('Height equipment user names unavailable:', e.message); state.heightUsers = state.profile ? [state.profile] : []; }
+        }
+      } else state.heightUsers = [];
       try { state.qualifications = await loadTable('height_inspector_qualifications','*',{column:'expiry_date'}); }
       catch(e){ console.warn('Height inspector qualifications table unavailable:', e.message); state.qualifications = []; }
       render();
@@ -6318,9 +6326,15 @@
 
   function qualificationFormHtml(record = null) {
     const editing = Boolean(record);
+    const linkedId = record?.inspector_user_id ? String(record.inspector_user_id) : '';
+    const userOptions = (state().heightUsers || []).slice()
+      .sort((a, b) => String(a.display_name || a.email || '').localeCompare(String(b.display_name || b.email || '')))
+      .map(u => `<option value="${esc(u.user_id)}" ${String(u.user_id) === linkedId ? 'selected' : ''}>${esc(u.display_name || u.email || u.user_id)}</option>`).join('');
     return `<form id="heightQualForm" class="ops-form">
       <label>Inspector name *<input id="heightQualName" required placeholder="e.g. Brendan Harris" value="${esc(record?.inspector_name || '')}"></label>
       <label>Email<input id="heightQualEmail" type="email" placeholder="name@example.com" value="${esc(record?.email || '')}"></label>
+      <label>Link to employee account<select id="heightQualUserId"><option value="">— Not linked —</option>${userOptions}</select></label>
+      <p class="ops-span-2 ops-subtle">Linking an account syncs this qualification into that employee&#39;s Training record automatically.</p>
       <label>Qualification type *<input id="heightQualType" required placeholder="e.g. Height Safety Inspector" value="${esc(record?.qualification_type || '')}"></label>
       <label>Provider<input id="heightQualProvider" placeholder="Training provider" value="${esc(record?.provider || '')}"></label>
       <label>Reference / certificate number<input id="heightQualRef" value="${esc(record?.reference_number || '')}"></label>
@@ -6341,7 +6355,7 @@
       <details ${editing?'open':''}>
         <summary>Saved Inspectors</summary>
         <div class="sw429-qual-body">${active.length ? `<div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>Inspector</th><th>Qualification</th><th>Provider</th><th>Reference</th><th>Expiry</th><th>File status</th><th>Actions</th></tr></thead><tbody>${active.map(row => `<tr>
-          <td>${esc(titleCase(row.inspector_name))}<br><span class="ops-subtle">${esc(row.email || '')}</span></td>
+          <td>${esc(titleCase(row.inspector_name))}<br><span class="ops-subtle">${esc(row.email || '')}</span><br><span class="ops-pill ${row.inspector_user_id ? 'ops-ok' : 'ops-muted'}">${row.inspector_user_id ? 'Linked to account' : 'Not linked'}</span></td>
           <td>${esc(row.qualification_type || '—')}</td>
           <td>${esc(row.provider || '—')}</td>
           <td>${esc(row.reference_number || '—')}</td>
@@ -6395,6 +6409,7 @@
       const row = {
         inspector_name: titleCase($('heightQualName')?.value),
         email: String($('heightQualEmail')?.value || '').trim().toLowerCase() || null,
+        inspector_user_id: $('heightQualUserId')?.value || null,
         qualification_type: String($('heightQualType')?.value || '').trim(),
         provider: String($('heightQualProvider')?.value || '').trim() || null,
         reference_number: String($('heightQualRef')?.value || '').trim() || null,
