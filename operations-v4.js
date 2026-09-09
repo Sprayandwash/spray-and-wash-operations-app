@@ -93,6 +93,11 @@
     trainingRecordFormOpen: false,
     editingRecordId: '',
     trainingRecordFormCourseId: '',
+    myTrainingLoaded: false,
+    myTrainingPerson: null,
+    myTrainingCourses: [],
+    myTrainingMatrix: [],
+    myTrainingRecords: [],
     lastError: ''
   };
 
@@ -466,6 +471,7 @@
     window.openVehicleChecksModule = openVehicleChecksModule;
     window.openOpsManagementModule = openOpsManagementModule;
     window.openTrainingModule = openTrainingModule;
+    window.openMyTrainingModule = openMyTrainingModule;
     window.showOperations = showOperations;
     window.openAdminModule = openAdminModule;
     window.openLegacyUserTools = openLegacyUserTools;
@@ -802,6 +808,73 @@
       trainingDataLoading = false;
       render();
     }
+  }
+
+  function openMyTrainingModule(){
+    if(!state.user) return alert('Sign in first.');
+    state.currentModule = 'my-training';
+    setTopTabsMode('none');
+    showOperations('my-training');
+    loadMyTrainingData();
+  }
+
+  let myTrainingDataLoading = false;
+  async function loadMyTrainingData(force){
+    if(!state.sb || !state.user) return;
+    if(state.myTrainingLoaded && !force){ render(); return; }
+    if(myTrainingDataLoading) return;
+    myTrainingDataLoading = true;
+    try{
+      const [people, courses, matrix, records] = await Promise.all([
+        loadTable('operations_training_people','*'),
+        loadTable('operations_training_courses','*',{column:'name'}),
+        loadTable('operations_training_matrix','*'),
+        loadTable('operations_training_records','*')
+      ]);
+      const person = people.find(p => String(p.user_id) === String(state.user.id)) || null;
+      state.myTrainingPerson = person;
+      state.myTrainingCourses = courses;
+      state.myTrainingMatrix = person ? matrix.filter(m => String(m.person_id) === String(person.id)) : [];
+      state.myTrainingRecords = person ? records.filter(r => String(r.person_id) === String(person.id)) : [];
+      state.myTrainingLoaded = true;
+    }catch(e){
+      console.warn('My Training data unavailable:', e.message);
+      state.lastError = 'Your training records could not be loaded: '+e.message;
+    }finally{
+      myTrainingDataLoading = false;
+      render();
+    }
+  }
+
+  function myTrainingMatrixEntry(courseId){
+    return state.myTrainingMatrix.find(m => String(m.course_id) === String(courseId));
+  }
+
+  function myTrainingLatestRecord(courseId){
+    const records = state.myTrainingRecords.filter(r => String(r.course_id) === String(courseId));
+    if(!records.length) return null;
+    return records.slice().sort((a,b) => String(b.completed_date || b.created_at || '').localeCompare(String(a.completed_date || a.created_at || '')))[0];
+  }
+
+  function myTrainingHtml(){
+    if(!state.myTrainingLoaded) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">Loading your training records…</p></div>`;
+    const person = state.myTrainingPerson;
+    if(!person) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">No training profile is linked to your account yet. Ask your manager to add you to the Training Matrix.</p></div>`;
+    const applicableCourseIds = state.myTrainingMatrix.filter(m => m.applicable).map(m => String(m.course_id));
+    const courses = state.myTrainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    const rows = courses.length ? courses.map(c => {
+      const entry = myTrainingMatrixEntry(c.id);
+      const compulsory = !!entry?.compulsory;
+      const record = myTrainingLatestRecord(c.id);
+      const status = trainingCellStatus(record, compulsory);
+      const expiryText = record ? (record.expiry_date ? nzDate(record.expiry_date) : 'No expiry') : '—';
+      return `<tr><td>${esc(c.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></td></tr>`;
+    }).join('') : `<tr><td colspan="3" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
+    return `<div class="ops-card">
+      <h3>My Training</h3>
+      <p class="ops-subtle">${esc(person.full_name)} · a read-only view of your training status. Contact your manager to update a record.</p>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Qualification</th><th>Expiry</th><th>Status</th></tr>${rows}</table></div>
+    </div>`;
   }
 
   function trainingDashboardHtml(){
@@ -1168,7 +1241,9 @@
       if(canUseManagement()) cards.push(moduleCard('Maintenance', '', 'openOpsManagementModule()'));
       if(canUseTraining()) cards.push(moduleCard('Training', '', 'openTrainingModule()'));
       if(isAdmin()) cards.push(moduleCard('Admin', '', 'openAdminModule()'));
-      if(!cards.length) cards.push(`<div class="ops-card"><h3>No app access yet</h3><p class="ops-subtle">Your account needs an assigned role before modules will appear.</p></div>`);
+      const hasRoleCards = cards.length > 0;
+      cards.push(moduleCard('My Training', '', 'openMyTrainingModule()'));
+      if(!hasRoleCards) cards.push(`<div class="ops-card"><h3>No other access yet</h3><p class="ops-subtle">Your account needs an assigned role before other modules will appear. You can still check your training status above.</p></div>`);
     }
     const attention=appAttentionItems();
     const filtered=state.homeAttentionFilter==='all'?attention:attention.filter(item=>item.group===state.homeAttentionFilter);
@@ -1466,6 +1541,7 @@
     const isVehicle = state.currentView === 'vehicle-checks';
     const isAdminModule = isAdminView(state.currentView);
     const isSharedTasks = state.currentView === 'app-tasks';
+    const isMyTraining = state.currentView === 'my-training';
     const isTraining = isTrainingView(state.currentView);
     const managementNav = canUseManagement() && !isVehicle && !isAdminModule && !isSharedTasks && !isTraining ? `
         ${navButton('management-dashboard','Dashboard')}
@@ -1482,9 +1558,9 @@
         ${navButton('training-matrix','Matrix')}
         ${navButton('training-catalog','Course Catalog')}
         ${navButton('training-contractors','Contractors')}` : '';
-    const staffNav = isVehicle || isSharedTasks ? '' : (isAdminModule ? adminNav : isTraining ? trainingNav : managementNav);
-    const title = isVehicle ? 'Vehicle Checks' : isAdminModule ? 'Admin' : isSharedTasks ? 'Tasks' : isTraining ? 'Training' : 'Maintenance';
-    const note = isVehicle || isSharedTasks ? '' : isAdminModule ? 'Users, permissions, app settings and backups' : isTraining ? 'Courses, certifications and contractor records' : '';
+    const staffNav = isVehicle || isSharedTasks || isMyTraining ? '' : (isAdminModule ? adminNav : isTraining ? trainingNav : managementNav);
+    const title = isVehicle ? 'Vehicle Checks' : isAdminModule ? 'Admin' : isSharedTasks ? 'Tasks' : isMyTraining ? 'My Training' : isTraining ? 'Training' : 'Maintenance';
+    const note = isVehicle || isSharedTasks ? '' : isAdminModule ? 'Users, permissions, app settings and backups' : isMyTraining ? 'Your qualifications and status' : isTraining ? 'Courses, certifications and contractor records' : '';
     return `
       <div class="ops-header">
         <div class="ops-module-title">
@@ -1506,6 +1582,7 @@
       if(!canAccessSharedTasks()) return `<div class="ops-card"><h3>No task access</h3><p>Your account does not have access to shared tasks.</p></div>`;
       return tasksHtml(true);
     }
+    if(state.currentView === 'my-training') return myTrainingHtml();
     if(isTrainingView(state.currentView)){
       if(!canUseTraining()) return `<div class="ops-card"><h3>Training access required</h3><p>This module is only available to Admin or Training manager users.</p></div>`;
       if(!state.trainingDataLoaded) return `<div class="ops-card"><h3>Loading training data…</h3></div>`;
