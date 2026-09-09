@@ -1015,6 +1015,37 @@
     return {label:'Compliant', pillClass:'ops-ok'};
   }
 
+  function contractorTrainingStatus(contractorId){
+    const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractorId) && p.active !== false);
+    const courses = state.trainingCourses.filter(c => c.active !== false);
+    const items = [];
+    people.forEach(p => {
+      courses.forEach(c => {
+        const entry = trainingMatrixEntry(p.id, c.id);
+        if(!entry?.applicable || !entry?.compulsory) return;
+        const record = trainingLatestRecord(p.id, c.id);
+        const status = trainingCellStatus(record, true);
+        items.push({personId: p.id, personName: p.full_name, courseId: c.id, courseName: c.name, label: status.label, pillClass: status.pillClass});
+      });
+    });
+    if(!items.length) return {status: 'not_set_up', warnExpiringSoon: false, items};
+    const hasFail = items.some(i => i.pillClass === 'ops-bad');
+    const hasWarn = items.some(i => i.pillClass === 'ops-warn');
+    return {status: hasFail ? 'fail' : 'pass', warnExpiringSoon: !hasFail && hasWarn, items};
+  }
+
+  function contractorTrainingSignalHtml(contractorId){
+    const result = contractorTrainingStatus(contractorId);
+    if(result.status === 'not_set_up') return `<span class="ops-pill ops-muted">Not set up</span><div class="ops-subtle">No compulsory courses set for this contractor's people yet.</div>`;
+    if(result.status === 'fail'){
+      const failing = result.items.filter(i => i.pillClass === 'ops-bad').map(i => `${esc(i.courseName)} — ${esc(i.personName)} (${esc(i.label)})`);
+      return `<span class="ops-pill ops-bad">Fail</span><div class="ops-subtle">${failing.join('<br>')}</div>`;
+    }
+    const warningItems = result.items.filter(i => i.pillClass === 'ops-warn').map(i => `${esc(i.courseName)} — ${esc(i.personName)}`);
+    const warning = result.warnExpiringSoon ? `<div class="ops-subtle">Renewal due soon: ${warningItems.join(', ')}</div>` : '';
+    return `<span class="ops-pill ops-ok">Pass</span>${warning}`;
+  }
+
   function trainingMatrixHtml(){
     const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
     const courses = state.trainingCourses.filter(c => c.active !== false).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
@@ -1291,10 +1322,11 @@
 
   function trainingContractorsHtml(){
     const contractors = state.trainingContractors.slice().sort((a,b) => String(a.company_name).localeCompare(String(b.company_name)));
-    const rows = contractors.map(c => `<tr><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-contractor="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No contractors yet.</td></tr>';
+    const rows = contractors.map(c => `<tr><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-contractor="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No contractors yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
       ${state.trainingContractorFormOpen ? trainingContractorFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+      <p class="ops-subtle">The Training column is a pass/fail signal for this contractor's people against their compulsory training requirements — the single check an HSE review of this contractor's system will draw on.</p>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Training</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
     </div>
     ${trainingSubcontractorPeopleHtml()}`;
   }
@@ -4392,7 +4424,7 @@
     installShortCertificateNumberPatch();
     installCertificateV405Patch();
     initSupabase().catch(err => { state.lastError = err.message; render(); });
-    window.SWOperationsV4 = { refresh: loadAll, show: showOperations, state, openQualificationFile, generateQualificationCertificate, handleDashboardShortcut, openNewHeightInspectionV415, openAppAttention, openAttentionItem };
+    window.SWOperationsV4 = { refresh: loadAll, show: showOperations, state, openQualificationFile, generateQualificationCertificate, handleDashboardShortcut, openNewHeightInspectionV415, openAppAttention, openAttentionItem, contractorTrainingStatus };
     setupLogoHomeClick();
   }
 
