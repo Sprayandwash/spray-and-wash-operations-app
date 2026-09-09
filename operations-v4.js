@@ -495,6 +495,7 @@
     window.openAdminModule = openAdminModule;
     window.openLegacyUserTools = openLegacyUserTools;
     window.openHeightQualifications = openHeightQualifications;
+    window.generateTrainingRegister = generateTrainingRegister;
     setupLogoHomeClick();
     if(originalShowTab){
       window.showTab = function(id){
@@ -977,11 +978,12 @@
     const courseCount = state.trainingCourses.length;
     const contractorCount = state.trainingContractors.length;
     const peopleCount = state.trainingPeople.filter(p => p.active !== false).length;
-    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog, Contractors register, Training Matrix and individual training records with evidence are live. Reporting and SiteWise exports are being added in the next phases.</p></div>
+    return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog, Contractors register, Training Matrix, individual training records with evidence and the printable Training &amp; Competency Register are live.</p></div>
       <div class="ops-branch-grid">
         ${moduleCard('Training Matrix', `${peopleCount} ${peopleCount===1?'person':'people'} × ${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-matrix')")}
         ${moduleCard('Course Catalog', `${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-catalog')")}
         ${moduleCard('Contractors', `${contractorCount} contractor${contractorCount===1?'':'s'}`, "showOperations('training-contractors')")}
+        ${moduleCard('Training & Competency Register', 'Printable register for SiteWise', "generateTrainingRegister()")}
       </div>`;
   }
 
@@ -1044,6 +1046,98 @@
     const warningItems = result.items.filter(i => i.pillClass === 'ops-warn').map(i => `${esc(i.courseName)} — ${esc(i.personName)}`);
     const warning = result.warnExpiringSoon ? `<div class="ops-subtle">Renewal due soon: ${warningItems.join(', ')}</div>` : '';
     return `<span class="ops-pill ops-ok">Pass</span>${warning}`;
+  }
+
+  function trainingRegisterBuildData(){
+    const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => {
+      const rank = t => t === 'employee' ? 0 : 1;
+      const ra = rank(a.person_type), rb = rank(b.person_type);
+      if(ra !== rb) return ra - rb;
+      return String(a.full_name).localeCompare(String(b.full_name));
+    });
+    const courses = state.trainingCourses.filter(c => c.active !== false);
+    const higherLevelCandidates = [];
+    const peopleRows = people.map(person => {
+      const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
+      const roleLabel = person.person_type === 'employee' ? 'Employee' : contractor ? `${contractor.company_name} (${person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor'})` : (person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker');
+      const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
+      const personCourses = courses.filter(c => applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+      const entries = personCourses.map(c => {
+        const matrixEntry = trainingMatrixEntry(person.id, c.id);
+        const record = trainingLatestRecord(person.id, c.id);
+        const status = trainingCellStatus(record, !!matrixEntry?.compulsory);
+        const entry = { courseName: c.name, category: c.category, compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, statusLabel: status.label, pillClass: status.pillClass };
+        if(c.higher_level_learning && (status.pillClass === 'ops-ok' || status.pillClass === 'ops-warn')){
+          higherLevelCandidates.push({ personName: person.full_name, roleLabel, courseName: c.name, category: c.category, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, provider: record?.provider_or_trainer || null, reference: record?.reference_number || null, statusLabel: status.label, pillClass: status.pillClass });
+        }
+        return entry;
+      });
+      return { name: person.full_name, roleLabel, entries };
+    });
+    const example = higherLevelCandidates.find(c => c.pillClass === 'ops-ok') || higherLevelCandidates.find(c => c.pillClass === 'ops-warn') || null;
+    const allEntries = peopleRows.flatMap(p => p.entries);
+    const summary = {
+      peopleCount: people.length,
+      recordCount: allEntries.length,
+      compliant: allEntries.filter(e => e.pillClass === 'ops-ok').length,
+      expiringSoon: allEntries.filter(e => e.pillClass === 'ops-warn').length,
+      missingOrExpired: allEntries.filter(e => e.pillClass === 'ops-bad').length,
+      notRecorded: allEntries.filter(e => e.pillClass === 'ops-muted').length
+    };
+    return { peopleRows, summary, example };
+  }
+
+  function trainingRegisterPillClass(pillClass){
+    return pillClass === 'ops-ok' ? 'ok' : pillClass === 'ops-warn' ? 'warn' : pillClass === 'ops-bad' ? 'bad' : 'muted';
+  }
+
+  function trainingRegisterCss(){
+    return `@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#0f766e;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #0f766e;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#0f766e}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #0f766e;border-radius:12px;padding:14px 16px;margin:16px 0;background:#f0fdfa}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
+  }
+
+  function trainingRegisterDocHtml(){
+    const data = trainingRegisterBuildData();
+    const rows = data.peopleRows.map(p => {
+      if(!p.entries.length){
+        return `<tr><td>${esc(p.name)}</td><td>${esc(p.roleLabel)}</td><td colspan="4" class="muted">No compulsory or applicable courses assigned yet.</td></tr>`;
+      }
+      return p.entries.map((e,i) => `<tr>${i===0 ? `<td rowspan="${p.entries.length}">${esc(p.name)}</td><td rowspan="${p.entries.length}">${esc(p.roleLabel)}</td>` : ''}<td>${esc(e.courseName)}${e.compulsory ? ' <span class="pill bad">Compulsory</span>' : ''}${e.higherLevel ? ' <span class="pill ok">Higher-level</span>' : ''}<br><span class="muted">${esc(e.category)}</span></td><td>${nzDate(e.completedDate)}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td><span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></td></tr>`).join('');
+    }).join('');
+    const example = data.example;
+    const exampleBlock = example ? `<div class="example"><h2>Example: current training at Level 3 or above</h2><div class="grid"><div class="label">Person</div><div class="value">${esc(example.personName)} <span class="muted">(${esc(example.roleLabel)})</span></div><div class="label">Course</div><div class="value">${esc(example.courseName)} <span class="muted">— ${esc(example.category)}</span></div><div class="label">Completed</div><div class="value">${nzDate(example.completedDate)}</div><div class="label">Expiry</div><div class="value">${example.expiryDate ? nzDate(example.expiryDate) : 'No expiry'}</div>${example.provider ? `<div class="label">Provider</div><div class="value">${esc(example.provider)}</div>` : ''}${example.reference ? `<div class="label">Reference</div><div class="value">${esc(example.reference)}</div>` : ''}</div></div>` : `<div class="example warn"><h2>Example: current training at Level 3 or above</h2><p>No course is currently both marked as "Higher-level learning (SiteWise)" and compliant for anyone in the register. Tick a course as higher-level in the Course Catalog and record a completed training entry to generate this example automatically.</p></div>`;
+    const summary = data.summary;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Training &amp; Competency Register</title><style>${trainingRegisterCss()}</style></head><body>
+      <div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>
+      <div class="page">
+        <div class="head"><div class="brand">Spray &amp; Wash Ltd</div><div class="title">Training &amp; Competency Register</div><div class="muted">All active employees and contractor people · Generated ${new Date().toLocaleString('en-NZ')}</div></div>
+        <div class="summary">
+          <div><strong>${summary.peopleCount}</strong><span>People covered</span></div>
+          <div><strong>${summary.recordCount}</strong><span>Course requirements tracked</span></div>
+          <div><strong>${summary.compliant}</strong><span>Compliant</span></div>
+          <div><strong>${summary.expiringSoon}</strong><span>Expiring within 30 days</span></div>
+          <div><strong>${summary.missingOrExpired}</strong><span>Missing / expired</span></div>
+        </div>
+        ${exampleBlock}
+        <table><thead><tr><th>Name</th><th>Role / Company</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="footer">This register lists every active employee and contractor/subcontractor person recorded in Spray &amp; Wash Operations, with their applicable training and current compliance status. Generated automatically from live records.</div>
+      </div>
+    </body></html>`;
+  }
+
+  async function generateTrainingRegister(){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can generate the register.');
+    if(!state.trainingDataLoaded) await loadTrainingData(true);
+    const html = trainingRegisterDocHtml();
+    const w = window.open('', '_blank');
+    if(w){ w.document.open(); w.document.write(html); w.document.close(); }
+    else {
+      const blob = new Blob([html], {type:'text/html'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'spray-wash-training-competency-register.html';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
   }
 
   function trainingMatrixHtml(){
