@@ -1066,9 +1066,9 @@
         const matrixEntry = trainingMatrixEntry(person.id, c.id);
         const record = trainingLatestRecord(person.id, c.id);
         const status = trainingCellStatus(record, !!matrixEntry?.compulsory);
-        const entry = { courseName: c.name, category: c.category, compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, statusLabel: status.label, pillClass: status.pillClass };
+        const entry = { courseName: c.name, category: c.category, compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, firstQualifiedDate: record?.first_qualified_date || null, statusLabel: status.label, pillClass: status.pillClass };
         if(c.higher_level_learning && (status.pillClass === 'ops-ok' || status.pillClass === 'ops-warn')){
-          higherLevelCandidates.push({ personName: person.full_name, roleLabel, courseName: c.name, category: c.category, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, provider: record?.provider_or_trainer || null, reference: record?.reference_number || null, statusLabel: status.label, pillClass: status.pillClass });
+          higherLevelCandidates.push({ personName: person.full_name, roleLabel, courseName: c.name, category: c.category, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, firstQualifiedDate: record?.first_qualified_date || null, provider: record?.provider_or_trainer || null, reference: record?.reference_number || null, statusLabel: status.label, pillClass: status.pillClass });
         }
         return entry;
       });
@@ -1099,12 +1099,12 @@
     const data = trainingRegisterBuildData();
     const rows = data.peopleRows.map(p => {
       if(!p.entries.length){
-        return `<tr><td>${esc(p.name)}</td><td>${esc(p.roleLabel)}</td><td colspan="4" class="muted">No compulsory or applicable courses assigned yet.</td></tr>`;
+        return `<tr><td>${esc(p.name)}</td><td>${esc(p.roleLabel)}</td><td colspan="5" class="muted">No compulsory or applicable courses assigned yet.</td></tr>`;
       }
-      return p.entries.map((e,i) => `<tr>${i===0 ? `<td rowspan="${p.entries.length}">${esc(p.name)}</td><td rowspan="${p.entries.length}">${esc(p.roleLabel)}</td>` : ''}<td>${esc(e.courseName)}${e.compulsory ? ' <span class="pill bad">Compulsory</span>' : ''}${e.higherLevel ? ' <span class="pill ok">Higher-level</span>' : ''}<br><span class="muted">${esc(e.category)}</span></td><td>${nzDate(e.completedDate)}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td><span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></td></tr>`).join('');
+      return p.entries.map((e,i) => `<tr>${i===0 ? `<td rowspan="${p.entries.length}">${esc(p.name)}</td><td rowspan="${p.entries.length}">${esc(p.roleLabel)}</td>` : ''}<td>${esc(e.courseName)}${e.compulsory ? ' <span class="pill bad">Compulsory</span>' : ''}${e.higherLevel ? ' <span class="pill ok">Higher-level</span>' : ''}<br><span class="muted">${esc(e.category)}</span></td><td>${nzDate(e.completedDate)}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${e.firstQualifiedDate ? (experienceSince(e.firstQualifiedDate) || '—') : '—'}</td><td><span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></td></tr>`).join('');
     }).join('');
     const example = data.example;
-    const exampleBlock = example ? `<div class="example"><h2>Example: current training at Level 3 or above</h2><div class="grid"><div class="label">Person</div><div class="value">${esc(example.personName)} <span class="muted">(${esc(example.roleLabel)})</span></div><div class="label">Course</div><div class="value">${esc(example.courseName)} <span class="muted">— ${esc(example.category)}</span></div><div class="label">Completed</div><div class="value">${nzDate(example.completedDate)}</div><div class="label">Expiry</div><div class="value">${example.expiryDate ? nzDate(example.expiryDate) : 'No expiry'}</div>${example.provider ? `<div class="label">Provider</div><div class="value">${esc(example.provider)}</div>` : ''}${example.reference ? `<div class="label">Reference</div><div class="value">${esc(example.reference)}</div>` : ''}</div></div>` : `<div class="example warn"><h2>Example: current training at Level 3 or above</h2><p>No course is currently both marked as "Higher-level learning (SiteWise)" and compliant for anyone in the register. Tick a course as higher-level in the Course Catalog and record a completed training entry to generate this example automatically.</p></div>`;
+    const exampleBlock = example ? `<div class="example"><h2>Example: current training at Level 3 or above</h2><div class="grid"><div class="label">Person</div><div class="value">${esc(example.personName)} <span class="muted">(${esc(example.roleLabel)})</span></div><div class="label">Course</div><div class="value">${esc(example.courseName)} <span class="muted">— ${esc(example.category)}</span></div><div class="label">Completed</div><div class="value">${nzDate(example.completedDate)}</div><div class="label">Expiry</div><div class="value">${example.expiryDate ? nzDate(example.expiryDate) : 'No expiry'}</div>${example.firstQualifiedDate ? `<div class="label">Experience</div><div class="value">${esc(experienceSince(example.firstQualifiedDate) || '—')} <span class="muted">(since ${nzDate(example.firstQualifiedDate)})</span></div>` : ''}${example.provider ? `<div class="label">Provider</div><div class="value">${esc(example.provider)}</div>` : ''}${example.reference ? `<div class="label">Reference</div><div class="value">${esc(example.reference)}</div>` : ''}</div></div>` : `<div class="example warn"><h2>Example: current training at Level 3 or above</h2><p>No course is currently both marked as "Higher-level learning (SiteWise)" and compliant for anyone in the register. Tick a course as higher-level in the Course Catalog and record a completed training entry to generate this example automatically.</p></div>`;
     const summary = data.summary;
     return `<!doctype html><html><head><meta charset="utf-8"><title>Training &amp; Competency Register</title><style>${trainingRegisterCss()}</style></head><body>
       <div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>
@@ -1118,7 +1118,7 @@
           <div><strong>${summary.missingOrExpired}</strong><span>Missing / expired</span></div>
         </div>
         ${exampleBlock}
-        <table><thead><tr><th>Name</th><th>Role / Company</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+        <table><thead><tr><th>Name</th><th>Role / Company</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Experience</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="footer">This register lists every active employee and contractor/subcontractor person recorded in Spray &amp; Wash Operations, with their applicable training and current compliance status. Generated automatically from live records.</div>
       </div>
     </body></html>`;
