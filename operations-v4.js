@@ -1153,36 +1153,15 @@
         const entry = trainingMatrixEntry(p.id, c.id);
         const applicable = !!entry?.applicable;
         const compulsory = !!entry?.compulsory;
-        const record = applicable ? trainingLatestRecord(p.id, c.id) : null;
-        const evidenceCount = record ? trainingRecordEvidenceCount(record.id) : 0;
-        const status = applicable ? trainingCellStatus(record, compulsory) : null;
-        const detailBits = [];
-        if(record){
-          if(evidenceCount) detailBits.push(`${evidenceCount} file${evidenceCount===1?'':'s'}`);
-          if(record.notes) detailBits.push('notes');
-          if(record.source_key) detailBits.push('synced');
-        }
-        const detailText = detailBits.join(' · ');
-        const tooltipBits = [];
-        if(record){
-          if(record.completed_date) tooltipBits.push(`Completed ${nzDate(record.completed_date)}`);
-          if(record.expiry_date) tooltipBits.push(`Expires ${nzDate(record.expiry_date)}`);
-          if(record.provider_or_trainer) tooltipBits.push(`Provider: ${record.provider_or_trainer}`);
-          if(record.notes) tooltipBits.push(`Notes: ${record.notes}`);
-          if(record.source_key) tooltipBits.push(`Synced from: ${trainingSyncSourceLabel(record.source_key)}`);
-          tooltipBits.push(`Updated ${nzDate(record.updated_at)}`);
-        }
-        const tooltip = esc(tooltipBits.join(' · '));
         return `<td class="ops-matrix-cell">
           <label class="ops-check"><input type="checkbox" data-ops-matrix-applicable data-person="${p.id}" data-course="${c.id}" ${applicable?'checked':''}> Applies</label>
           ${applicable ? `<label class="ops-check"><input type="checkbox" data-ops-matrix-compulsory data-person="${p.id}" data-course="${c.id}" ${compulsory?'checked':''}> Compulsory</label>` : ''}
-          ${status ? `<div title="${tooltip}"><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span>${detailText ? `<div class="ops-subtle">${esc(detailText)}</div>` : ''}</div>` : ''}
         </td>`;
       }).join('');
       return `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.full_name)}</button><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
     }).join('');
     return `<div class="ops-card"><div class="ops-section-title"><h3>Training Matrix</h3><span class="ops-subtle">${people.length} ${people.length===1?'person':'people'} × ${courses.length} course${courses.length===1?'':'s'}</span></div>
-      <p class="ops-subtle">Tick "Applies" for each qualification that's relevant to a person, then mark "Compulsory" for the ones they must hold. Status, expiry and evidence come from their training records, added in a follow-up phase.</p>
+      <p class="ops-subtle">This is data entry only: tick "Applies" for each qualification that's relevant to a person, then mark "Compulsory" for the ones they must hold. To record completion dates, evidence and expiry, open that person under Team members.</p>
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th>${headerCells}</tr>${rows}</table></div>
     </div>`;
   }
