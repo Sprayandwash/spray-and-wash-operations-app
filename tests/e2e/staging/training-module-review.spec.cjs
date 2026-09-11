@@ -13,6 +13,24 @@ async function signIn(page) {
   await page.goto('/');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('STAGING');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('NOT PRODUCTION');
+
+  // Diagnostic-only: surface the exact reason a sign-in attempt fails (the
+  // app reports auth errors via a plain alert()) and the raw Supabase Auth
+  // token response, so a broken run's log states the cause instead of only
+  // "the signed-in section never appeared".
+  page.on('dialog', async dialog => {
+    console.log(`SIGN-IN DIALOG: ${dialog.message()}`);
+    await dialog.dismiss();
+  });
+  page.on('response', response => {
+    if (response.url().includes('/auth/v1/token')) {
+      response
+        .text()
+        .then(body => console.log(`AUTH TOKEN RESPONSE: status=${response.status()} body=${body}`))
+        .catch(() => {});
+    }
+  });
+
   await page.locator('#loginEmail').fill(config.email);
   await page.locator('#loginPassword').fill(config.password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
