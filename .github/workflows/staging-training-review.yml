@@ -1,0 +1,86 @@
+name: Staging Training module review
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  training-review:
+    name: Verify Staging Training module browser journey without writes
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: staging
+    env:
+      E2E_STAGING_TRAINING_EMAIL: ${{ secrets.E2E_STAGING_TRAINING_EMAIL }}
+      E2E_STAGING_TRAINING_PASSWORD: ${{ secrets.E2E_STAGING_TRAINING_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Validate dedicated Staging Training credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${E2E_STAGING_TRAINING_EMAIL:-}" || { echo 'Missing E2E_STAGING_TRAINING_EMAIL in the staging environment.' >&2; exit 1; }
+          test -n "${E2E_STAGING_TRAINING_PASSWORD:-}" || { echo 'Missing E2E_STAGING_TRAINING_PASSWORD in the staging environment.' >&2; exit 1; }
+      - name: Install locked test tooling
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Download latest isolated Staging app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=spray-wash-staging-app&per_page=100" --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | last | .id // empty')"
+          test -n "$artifact_id" || { echo 'No current spray-wash-staging-app artifact exists. Run Build staging app first.' >&2; exit 1; }
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > staging-app.zip
+          mkdir staging-app
+          unzip -q staging-app.zip -d staging-app
+          test -f staging-app/index.html
+          test -f staging-app/config.js
+          test -f staging-app/STAGING-README.txt
+          ref="$(sed -n 's/^Supabase project ref: //p' staging-app/STAGING-README.txt | head -n 1)"
+          test -n "$ref" || { echo 'Staging artifact has no project ref.' >&2; exit 1; }
+          test "$ref" != 'twkgfmctuffmkvkmdkct' || { echo 'SAFETY STOP: staging artifact identifies production.' >&2; exit 1; }
+          ! grep -F 'twkgfmctuffmkvkmdkct' staging-app/config.js >/dev/null || { echo 'SAFETY STOP: staging artifact config references production.' >&2; exit 1; }
+          echo "E2E_STAGING_PROJECT_REF=$ref" >> "$GITHUB_ENV"
+      - name: Serve and browse the isolated Staging app without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install http-server staging-app -p 4174 -c-1 > staging-http-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4174/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4174/ >/dev/null
+          E2E_STAGING_BASE_URL=http://127.0.0.1:4174 npm run test:staging:training-review
+      - name: Publish read-only review status
+        if: ${{ success() }}
+        run: |
+          echo '## Staging Training module review passed' >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo '- Signed in as the dedicated Training-manager-only staging account and opened the Training module.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Verified the Training Matrix renders every active course and spot-checked seeded statuses (Missing, Expiring, Not recorded, Compliant).' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Verified the Contractors view shows a Fail signal for Aotearoa Scaffolding Ltd and a Pass signal for Kiwi Rope Access.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Generated the Training & Competency Register and confirmed it lists a Level 3+ example with Experience.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Opened My Training for the dedicated account without error.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No matrix cell, contractor, person, or record was created, changed, or removed. Production was refused and not accessed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Playwright failure evidence
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-training-review-failure-evidence
+          path: |
+            playwright-report/
+            test-results/
+            staging-http-server.log
+          if-no-files-found: warn
+          retention-days: 14
