@@ -138,3 +138,31 @@ test('TRAINING-REVIEW-005: the dedicated account can open My Training without er
   await page.evaluate(() => window.openMyTrainingModule());
   await expect(page.locator('#opsShell h2')).toHaveText('My Training', { timeout: 15_000 });
 });
+
+test('TRAINING-REVIEW-007: Settings holds the Matrix and Catalog, and Team members lists everyone', async ({ page }) => {
+  await signIn(page);
+  await openTrainingModule(page);
+
+  // Matrix and Course Catalog are no longer their own top-level tabs - they
+  // now live inside Settings, since they're used less often than Team
+  // members.
+  await expect(page.locator('[data-ops-view="training-matrix"]')).toHaveCount(0);
+  await expect(page.locator('[data-ops-view="training-catalog"]')).toHaveCount(0);
+
+  await page.locator('[data-ops-view="training-settings"]').click();
+  await expect(page.locator('h3', { hasText: 'Settings' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('h3', { hasText: 'Training Matrix' })).toBeVisible();
+  await expect(page.locator('h3', { hasText: 'Course Catalog' })).toBeVisible();
+
+  await page.locator('[data-ops-view="training-team"]').click();
+  await expect(page.locator('h3', { hasText: 'Team members' })).toBeVisible({ timeout: 15_000 });
+  const table = page.locator('.ops-table-wrap table.ops-table').first();
+  const frodoRow = table.locator('tr', { hasText: 'Frodo Baggins' });
+  await expect(frodoRow).toHaveCount(1);
+
+  // Clicking through opens the person's own record - now the main way to
+  // manage an individual's training entries, instead of going through the
+  // Matrix.
+  await frodoRow.getByRole('button', { name: 'View / edit training' }).click();
+  await expect(page.locator('h3', { hasText: 'Frodo Baggins' })).toBeVisible({ timeout: 15_000 });
+});
