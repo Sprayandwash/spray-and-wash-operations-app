@@ -52,7 +52,8 @@ test('TRAINING-REVIEW-001: dedicated Training manager account can sign in and op
 test('TRAINING-REVIEW-002: Training Matrix renders every active course and known seeded statuses', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
-  await page.locator('[data-ops-view="training-matrix"]').click();
+  // The Matrix now lives inside Settings rather than its own top-level tab.
+  await page.locator('[data-ops-view="training-settings"]').click();
 
   const table = page.locator('.ops-table-wrap table.ops-table').first();
   await expect(table).toBeVisible({ timeout: 15_000 });
