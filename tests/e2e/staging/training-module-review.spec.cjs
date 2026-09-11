@@ -40,7 +40,7 @@ test('TRAINING-REVIEW-002: Training Matrix renders every active course and known
   await expect(table).toBeVisible({ timeout: 15_000 });
 
   // The catalog currently has 15 active courses plus the leading "Person"
-  // column. This is a coarse guard, not a layout check â it only confirms
+  // column. This is a coarse guard, not a layout check — it only confirms
   // every course still renders a header, not the header's width or position.
   const headerCells = table.locator('tr').first().locator('th');
   await expect(headerCells).toHaveCount(16);
@@ -48,7 +48,7 @@ test('TRAINING-REVIEW-002: Training Matrix renders every active course and known
   // Spot-check a handful of the dummy statuses seeded across every bucket
   // the app can render, so a broken status calculation shows up here rather
   // than only being noticed by hand in the UI. Only uniquely-named people are
-  // targeted individually â two seeded test accounts share the exact name
+  // targeted individually — two seeded test accounts share the exact name
   // "Brendan Harris", so their Expiring/Expired statuses are checked
   // table-wide instead of by row.
   const checks = [
