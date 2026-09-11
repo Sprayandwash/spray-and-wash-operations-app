@@ -222,7 +222,7 @@
   }
   function isManagementView(view){ return ['management-dashboard','assets','history','tasks','schedules'].includes(view) || ['vehicles','washing','maintenance'].includes(view); }
   function isAdminView(view){ return ['admin-users','admin-app-settings','admin-settings'].includes(view); }
-  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-person','training-catalog','training-contractors'].includes(view); }
+  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-person','training-catalog','training-contractors','training-settings','training-team'].includes(view); }
   function displayStatusLabel(value){
     const v = String(value || '—');
     if(v === 'Pass') return 'Completed OK';
@@ -980,9 +980,9 @@
     const peopleCount = state.trainingPeople.filter(p => p.active !== false).length;
     return `<div class="ops-card"><h3>Training &amp; Qualifications</h3><p class="ops-subtle">The Course Catalog, Contractors register, Training Matrix, individual training records with evidence and the printable Training &amp; Competency Register are live.</p></div>
       <div class="ops-branch-grid">
-        ${moduleCard('Training Matrix', `${peopleCount} ${peopleCount===1?'person':'people'} × ${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-matrix')")}
-        ${moduleCard('Course Catalog', `${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-catalog')")}
+        ${moduleCard('Team members', `${peopleCount} ${peopleCount===1?'person':'people'}`, "showOperations('training-team')")}
         ${moduleCard('Contractors', `${contractorCount} contractor${contractorCount===1?'':'s'}`, "showOperations('training-contractors')")}
+        ${moduleCard('Settings', `Matrix · ${courseCount} course${courseCount===1?'':'s'}`, "showOperations('training-settings')")}
         ${moduleCard('Training & Competency Register', 'Printable register for SiteWise', "generateTrainingRegister()")}
       </div>`;
   }
@@ -1140,6 +1140,12 @@
     }
   }
 
+  function trainingSettingsHtml(){
+    return `<div class="ops-card"><h3>Settings</h3><p class="ops-subtle">The Training Matrix and Course Catalog are used less often than Team members, so they live here. To update what an individual has completed, go to Team members instead.</p></div>
+      ${trainingMatrixHtml()}
+      ${trainingCatalogHtml()}`;
+  }
+
   function trainingMatrixHtml(){
     const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
     const courses = state.trainingCourses.filter(c => c.active !== false).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
@@ -1277,14 +1283,14 @@
 
   function trainingPersonHtml(){
     const person = state.trainingPeople.find(p => String(p.id) === String(state.trainingViewPersonId));
-    if(!person) return `<div class="ops-card"><h3>Person not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-matrix')">← Back to Matrix</button></div>`;
+    if(!person) return `<div class="ops-card"><h3>Person not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-team')">← Back to Team members</button></div>`;
     const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
     const personTypeLabel = person.person_type === 'employee' ? 'Employee' : person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
     const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
     const courses = state.trainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
-    const sections = courses.length ? courses.map(c => trainingPersonCourseSectionHtml(person, c)).join('') : `<div class="ops-card"><p class="ops-subtle">No courses are marked as applicable for ${esc(person.full_name)} yet. Set that up in the <a href="#" onclick="showOperations('training-matrix');return false;">Training Matrix</a>.</p></div>`;
+    const sections = courses.length ? courses.map(c => trainingPersonCourseSectionHtml(person, c)).join('') : `<div class="ops-card"><p class="ops-subtle">No courses are marked as applicable for ${esc(person.full_name)} yet. Set that up in the <a href="#" onclick="showOperations('training-settings');return false;">Training Matrix</a> under Settings.</p></div>`;
     return `<div class="ops-card">
-      <button class="ops-btn ghost" type="button" onclick="showOperations('training-matrix')">← Back to Matrix</button>
+      <button class="ops-btn ghost" type="button" onclick="showOperations('training-team')">← Back to Team members</button>
       <h3>${esc(person.full_name)}</h3>
       <p class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}${person.active === false ? ' · Inactive' : ''}</p>
     </div>
@@ -1442,6 +1448,27 @@
       <p class="ops-span-2 ops-subtle">Person type (sole trader or subcontractor worker) is set automatically from the contractor's type above. Add the contractor first if it isn't listed.</p>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit" ${contractors.length ? '' : 'disabled'}>${editing ? 'Save changes' : 'Add person'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingPersonEditor">Cancel</button></div>
     </form>`;
+  }
+
+  function trainingTeamMembersHtml(){
+    const people = state.trainingPeople.slice().sort((a,b) => {
+      const rank = t => t === 'employee' ? 0 : 1;
+      const ra = rank(a.person_type), rb = rank(b.person_type);
+      if(ra !== rb) return ra - rb;
+      return String(a.full_name).localeCompare(String(b.full_name));
+    });
+    const activeContractorCount = state.trainingContractors.filter(c => c.active !== false).length;
+    const rows = people.map(p => {
+      const contractor = state.trainingContractors.find(c => String(c.id) === String(p.contractor_id));
+      const typeLabel = p.person_type === 'employee' ? 'Employee' : p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
+      const canEdit = p.person_type !== 'employee';
+      return `<tr><td><strong>${esc(p.full_name)}</strong></td><td>${typeLabel}</td><td>${esc(contractor?.company_name || '—')}</td><td>${p.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-open-person="${p.id}">View / edit training</button> ${canEdit ? `<button class="ops-btn ghost" type="button" data-ops-edit-training-person="${p.id}">Edit</button> ` : ''}<button class="ops-btn ghost" type="button" data-ops-toggle-training-person-active="${p.id}">${p.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="ops-subtle">No people yet.</td></tr>';
+    return `<div class="ops-card"><div class="ops-section-title"><h3>Team members</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingPersonEditor" ${activeContractorCount ? '' : 'disabled'}>+ Add subcontractor person</button></div>
+      <p class="ops-subtle">Every Spray &amp; Wash employee, sole trader and subcontractor worker. Click "View / edit training" to open a person's record and update their course entries - this is the main way to manage an individual's training now, instead of going through the Matrix. Employees are added automatically and can't be edited here.${activeContractorCount ? '' : ' Add an active contractor under Contractors first to add a subcontractor person.'}</p>
+      ${state.trainingPersonFormOpen ? trainingPersonFormHtml() : ''}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Type</th><th>Company</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+    </div>`;
   }
 
   function trainingSubcontractorPeopleHtml(){
@@ -1874,9 +1901,9 @@
         ${navButton('admin-settings','Backup')}` : '';
     const trainingNav = isTraining ? `
         ${navButton('training-dashboard','Dashboard')}
-        ${navButton('training-matrix','Matrix')}
-        ${navButton('training-catalog','Course Catalog')}
-        ${navButton('training-contractors','Contractors')}` : '';
+        ${navButton('training-team','Team members')}
+        ${navButton('training-contractors','Contractors')}
+        ${navButton('training-settings','Settings')}` : '';
     const staffNav = isVehicle || isSharedTasks || isMyTraining ? '' : (isAdminModule ? adminNav : isTraining ? trainingNav : managementNav);
     const title = isVehicle ? 'Vehicle Checks' : isAdminModule ? 'Admin' : isSharedTasks ? 'Tasks' : isMyTraining ? 'My Training' : isTraining ? 'Training' : 'Maintenance';
     const note = isVehicle || isSharedTasks ? '' : isAdminModule ? 'Users, permissions, app settings and backups' : isMyTraining ? 'Your qualifications and status' : isTraining ? 'Courses, certifications and contractor records' : '';
@@ -1909,6 +1936,8 @@
       if(state.currentView === 'training-person') return trainingPersonHtml();
       if(state.currentView === 'training-catalog') return trainingCatalogHtml();
       if(state.currentView === 'training-contractors') return trainingContractorsHtml();
+      if(state.currentView === 'training-settings') return trainingSettingsHtml();
+      if(state.currentView === 'training-team') return trainingTeamMembersHtml();
       return trainingDashboardHtml();
     }
     if(!canView()) return `<div class="ops-card"><h3>No Operations access yet</h3><p>Your account needs Vehicle inspector, Maintenance manager or Admin access.</p></div>`;
