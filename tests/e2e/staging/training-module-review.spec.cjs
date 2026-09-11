@@ -13,6 +13,24 @@ async function signIn(page) {
   await page.goto('/');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('STAGING');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('NOT PRODUCTION');
+
+  // Diagnostic-only: surface the exact reason a sign-in attempt fails (the
+  // app reports auth errors via a plain alert()) and the raw Supabase Auth
+  // token response, so a broken run's log states the cause instead of only
+  // "the signed-in section never appeared".
+  page.on('dialog', async dialog => {
+    console.log(`SIGN-IN DIALOG: ${dialog.message()}`);
+    await dialog.dismiss();
+  });
+  page.on('response', response => {
+    if (response.url().includes('/auth/v1/token')) {
+      response
+        .text()
+        .then(body => console.log(`AUTH TOKEN RESPONSE: status=${response.status()} body=${body}`))
+        .catch(() => {});
+    }
+  });
+
   await page.locator('#loginEmail').fill(config.email);
   await page.locator('#loginPassword').fill(config.password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -80,11 +98,18 @@ test('TRAINING-REVIEW-003: Contractors view shows the seeded pass and fail signa
   await page.locator('[data-ops-view="training-contractors"]').click();
   await expect(page.locator('h3', { hasText: 'Contractors' })).toBeVisible({ timeout: 15_000 });
 
-  const failingRow = page.locator('tr', { hasText: 'Aotearoa Scaffolding Ltd' });
+  // Scope to the Contractors table itself (the first table on this view).
+  // The page also renders a separate "Subcontractor & Sole Trader People"
+  // table further down that lists each person's contractor by name, so an
+  // unscoped `tr` search matches that contractor's name once per person too.
+  const contractorsTable = page.locator('.ops-table-wrap table.ops-table').first();
+  await expect(contractorsTable).toBeVisible();
+
+  const failingRow = contractorsTable.locator('tr', { hasText: 'Aotearoa Scaffolding Ltd' });
   await expect(failingRow).toHaveCount(1);
   await expect(failingRow.locator('.ops-pill', { hasText: 'Fail' })).toBeVisible();
 
-  const passingRow = page.locator('tr', { hasText: 'Kiwi Rope Access' });
+  const passingRow = contractorsTable.locator('tr', { hasText: 'Kiwi Rope Access' });
   await expect(passingRow).toHaveCount(1);
   await expect(passingRow.locator('.ops-pill', { hasText: 'Pass' })).toBeVisible();
 });
@@ -94,8 +119,11 @@ test('TRAINING-REVIEW-004: the Training & Competency Register generates and list
   await openTrainingModule(page);
   await page.locator('[data-ops-view="training-dashboard"]').click();
 
+  // Not `exact: true` — this home-tile button's accessible name is its
+  // title plus its subtitle text ("...RegisterPrintable register for
+  // SiteWise"), since moduleCard() renders both inside the same <button>.
   const popupPromise = page.waitForEvent('popup');
-  await page.getByRole('button', { name: 'Training & Competency Register', exact: true }).click();
+  await page.getByRole('button', { name: 'Training & Competency Register' }).click();
   const registerPage = await popupPromise;
   await registerPage.waitForLoadState('domcontentloaded');
 
