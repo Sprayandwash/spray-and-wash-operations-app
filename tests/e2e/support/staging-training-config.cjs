@@ -9,17 +9,18 @@ function required(env, name) {
 // The Training module is gated behind the "Training manager" role, which the
 // normal read-only staging preflight account deliberately does not hold. This
 // suite signs in as its own dedicated staging-only account instead of the
-// shared E2E_STAGING_TEST_EMAIL/PASSWORD pair used elsewhere.
+// shared E2E_STAGING_TEST_EMAIL/PASSWORD pair used elsewhere, following the
+// same override pattern as staging-admin-readonly-config.cjs so this suite
+// does not depend on the shared account's credentials being set at all.
 function getStagingTrainingConfig(env = process.env) {
-  const staging = getStagingConfig(env);
   const email = required(env, 'E2E_STAGING_TRAINING_EMAIL').toLowerCase();
   const password = required(env, 'E2E_STAGING_TRAINING_PASSWORD');
-
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
-    throw new Error('SAFETY STOP: E2E_STAGING_TRAINING_EMAIL must be a valid email address.');
-  }
-
-  return { ...staging, email, password };
+  const staging = getStagingConfig({
+    ...env,
+    E2E_STAGING_TEST_EMAIL: email,
+    E2E_STAGING_TEST_PASSWORD: password
+  });
+  return { ...staging, accountPurpose: 'Training manager browser review' };
 }
 
 module.exports = { getStagingTrainingConfig };
