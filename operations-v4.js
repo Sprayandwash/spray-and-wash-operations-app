@@ -97,6 +97,7 @@
     trainingRecordFormOpen: false,
     editingRecordId: '',
     trainingRecordFormCourseId: '',
+    trainingExpandedCourseIds: new Set(),
     myTrainingLoaded: false,
     myTrainingPerson: null,
     myTrainingCourses: [],
@@ -289,6 +290,14 @@
       .ops-warn { background:#fef3c7; color:#92400e; }
       .ops-bad { background:#fee2e2; color:#991b1b; }
       .ops-muted { background:#e5e7eb; color:#374151; }
+      details.ops-training-course { padding:0; }
+      details.ops-training-course>summary { cursor:pointer; list-style:none; padding:1rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+      details.ops-training-course>summary::-webkit-details-marker { display:none; }
+      details.ops-training-course>summary::marker { content:''; }
+      details.ops-training-course>summary::before { content:'▸'; display:inline-block; margin-right:.6rem; color:#65758b; transition:transform .12s ease; }
+      details.ops-training-course[open]>summary::before { transform:rotate(90deg); }
+      details.ops-training-course>summary .ops-training-course-title { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+      .ops-training-course-body { padding:0 1rem 1rem; }
       .ops-form { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:.8rem; }
       .ops-form label { display:flex; flex-direction:column; gap:.25rem; font-size:.9rem; font-weight:700; color:#344054; }
       .ops-form input, .ops-form select, .ops-form textarea { width:100%; border:1px solid #cfd8e3; border-radius:.6rem; padding:.58rem .65rem; font:inherit; box-sizing:border-box; }
@@ -1267,12 +1276,15 @@
     const status = trainingCellStatus(latest, compulsory);
     const rows = records.map(r => trainingRecordRowHtml(r)).join('') || `<tr><td colspan="7" class="ops-subtle">No records yet.</td></tr>`;
     const formOpen = state.trainingRecordFormOpen && String(state.trainingRecordFormCourseId) === String(course.id);
-    return `<div class="ops-card">
-      <div class="ops-section-title"><h3>${esc(course.name)}${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}</h3><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></div>
-      <p class="ops-subtle">${esc(course.category)}${course.nzqa_code ? ` · NZQA ${esc(course.nzqa_code)}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
-      ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Experience</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
-    </div>`;
+    const isOpen = formOpen || state.trainingExpandedCourseIds.has(String(course.id));
+    return `<details class="ops-card ops-training-course" data-ops-course-id="${course.id}" ${isOpen ? 'open' : ''}>
+      <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong>${compulsory ? ' <span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></summary>
+      <div class="ops-training-course-body">
+        <p class="ops-subtle">${esc(course.category)}${course.nzqa_code ? ` · NZQA ${esc(course.nzqa_code)}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
+        ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
+        <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Experience</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
+      </div>
+    </details>`;
   }
 
   function trainingPersonHtml(){
@@ -4097,6 +4109,10 @@
     document.querySelectorAll('[data-ops-matrix-compulsory]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixCompulsory(cb.dataset.person, cb.dataset.course, cb.checked)));
     document.querySelectorAll('[data-ops-open-person]').forEach(b => b.addEventListener('click', () => openTrainingPerson(b.dataset.opsOpenPerson)));
     document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; render(); }));
+    document.querySelectorAll('details.ops-training-course').forEach(d => d.addEventListener('toggle', () => {
+      const courseId = String(d.dataset.opsCourseId);
+      if(d.open) state.trainingExpandedCourseIds.add(courseId); else state.trainingExpandedCourseIds.delete(courseId);
+    }));
     document.querySelectorAll('[data-ops-edit-record]').forEach(b => b.addEventListener('click', () => { const rec=state.trainingRecords.find(r=>String(r.id)===String(b.dataset.opsEditRecord)); if(!rec) return; state.editingRecordId=rec.id; state.trainingRecordFormCourseId=rec.course_id; state.trainingRecordFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-delete-record]').forEach(b => b.addEventListener('click', () => deleteTrainingRecord(b.dataset.opsDeleteRecord)));
     document.querySelectorAll('[data-ops-evidence-input]').forEach(input => input.addEventListener('change', () => {
