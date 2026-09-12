@@ -1104,7 +1104,7 @@
       return p.entries.map((e,i) => `<tr>${i===0 ? `<td rowspan="${p.entries.length}">${esc(p.name)}</td><td rowspan="${p.entries.length}">${esc(p.roleLabel)}</td>` : ''}<td>${esc(e.courseName)}${e.compulsory ? ' <span class="pill bad">Compulsory</span>' : ''}${e.higherLevel ? ' <span class="pill ok">Higher-level</span>' : ''}<br><span class="muted">${esc(e.category)}</span></td><td>${nzDate(e.completedDate)}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${e.firstQualifiedDate ? (experienceSince(e.firstQualifiedDate) || '—') : '—'}</td><td><span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></td></tr>`).join('');
     }).join('');
     const example = data.example;
-    const exampleBlock = example ? `<div class="example"><h2>Example: current training at Level 3 or above</h2><div class="grid"><div class="label">Person</div><div class="value">${esc(example.personName)} <span class="muted">(${esc(example.roleLabel)})</span></div><div class="label">Course</div><div class="value">${esc(example.courseName)} <span class="muted">— ${esc(example.category)}</span></div><div class="label">Completed</div><div class="value">${nzDate(example.completedDate)}</div><div class="label">Expiry</div><div class="value">${example.expiryDate ? nzDate(example.expiryDate) : 'No expiry'}</div>${example.firstQualifiedDate ? `<div class="label">Experience</div><div class="value">${esc(experienceSince(example.firstQualifiedDate) || '—')} <span class="muted">(since ${nzDate(example.firstQualifiedDate)})</span></div>` : ''}${example.provider ? `<div class="label">Provider</div><div class="value">${esc(example.provider)}</div>` : ''}${example.reference ? `<div class="label">Reference</div><div class="value">${esc(example.reference)}</div>` : ''}</div></div>` : `<div class="example warn"><h2>Example: current training at Level 3 or above</h2><p>No course is currently both marked as "Higher-level learning (SiteWise)" and compliant for anyone in the register. Tick a course as higher-level in the Course Catalog and record a completed training entry to generate this example automatically.</p></div>`;
+    const exampleBlock = example ? `<div class="example"><h2>Example: current training at Level 3 or above</h2><div class="grid"><div class="label">Person</div><div class="value">${esc(example.personName)} <span class="muted">(${esc(example.roleLabel)})</span></div><div class="label">Course</div><div class="value">${esc(example.courseName)} <span class="muted">— ${esc(example.category)}</span></div><div class="label">Completed</div><div class="value">${nzDate(example.completedDate)}</div><div class="label">Expiry</div><div class="value">${example.expiryDate ? nzDate(example.expiryDate) : 'No expiry'}</div>${example.firstQualifiedDate ? `<div class="label">Experience</div><div class="value">${esc(experienceSince(example.firstQualifiedDate) || '—')} <span class="muted">(since ${nzDate(example.firstQualifiedDate)})</span></div>` : ''}${example.provider ? `<div class="label">Provider</div><div class="value">${esc(example.provider)}</div>` : ''}${example.reference ? `<div class="label">Reference</div><div class="value">${esc(example.reference)}</div>` : ''}</div></div>` : `<div class="example warn"><h2>Example: current training at Level 3 or above</h2><p>No course is currently both higher-level and compliant for anyone in the register. In the Course Catalog, set a course's NZQA level to 3 or above, or tag it with a recognised competency type, and record a completed training entry to generate this example automatically.</p></div>`;
     const summary = data.summary;
     return `<!doctype html><html><head><meta charset="utf-8"><title>Training &amp; Competency Register</title><style>${trainingRegisterCss()}</style></head><body>
       <div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>
@@ -1159,36 +1159,15 @@
         const entry = trainingMatrixEntry(p.id, c.id);
         const applicable = !!entry?.applicable;
         const compulsory = !!entry?.compulsory;
-        const record = applicable ? trainingLatestRecord(p.id, c.id) : null;
-        const evidenceCount = record ? trainingRecordEvidenceCount(record.id) : 0;
-        const status = applicable ? trainingCellStatus(record, compulsory) : null;
-        const detailBits = [];
-        if(record){
-          if(evidenceCount) detailBits.push(`${evidenceCount} file${evidenceCount===1?'':'s'}`);
-          if(record.notes) detailBits.push('notes');
-          if(record.source_key) detailBits.push('synced');
-        }
-        const detailText = detailBits.join(' · ');
-        const tooltipBits = [];
-        if(record){
-          if(record.completed_date) tooltipBits.push(`Completed ${nzDate(record.completed_date)}`);
-          if(record.expiry_date) tooltipBits.push(`Expires ${nzDate(record.expiry_date)}`);
-          if(record.provider_or_trainer) tooltipBits.push(`Provider: ${record.provider_or_trainer}`);
-          if(record.notes) tooltipBits.push(`Notes: ${record.notes}`);
-          if(record.source_key) tooltipBits.push(`Synced from: ${trainingSyncSourceLabel(record.source_key)}`);
-          tooltipBits.push(`Updated ${nzDate(record.updated_at)}`);
-        }
-        const tooltip = esc(tooltipBits.join(' · '));
         return `<td class="ops-matrix-cell">
           <label class="ops-check"><input type="checkbox" data-ops-matrix-applicable data-person="${p.id}" data-course="${c.id}" ${applicable?'checked':''}> Applies</label>
           ${applicable ? `<label class="ops-check"><input type="checkbox" data-ops-matrix-compulsory data-person="${p.id}" data-course="${c.id}" ${compulsory?'checked':''}> Compulsory</label>` : ''}
-          ${status ? `<div title="${tooltip}"><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span>${detailText ? `<div class="ops-subtle">${esc(detailText)}</div>` : ''}</div>` : ''}
         </td>`;
       }).join('');
       return `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.full_name)}</button><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
     }).join('');
     return `<div class="ops-card"><div class="ops-section-title"><h3>Training Matrix</h3><span class="ops-subtle">${people.length} ${people.length===1?'person':'people'} × ${courses.length} course${courses.length===1?'':'s'}</span></div>
-      <p class="ops-subtle">Tick "Applies" for each qualification that's relevant to a person, then mark "Compulsory" for the ones they must hold. Status, expiry and evidence come from their training records, added in a follow-up phase.</p>
+      <p class="ops-subtle">This is data entry only: tick "Applies" for each qualification that's relevant to a person, then mark "Compulsory" for the ones they must hold. To record completion dates, evidence and expiry, open that person under Team members.</p>
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th>${headerCells}</tr>${rows}</table></div>
     </div>`;
   }
@@ -1347,17 +1326,39 @@
     render();
   }
 
+  const TRAINING_RECOGNISED_COMPETENCY_TYPES = [
+    { value: '', label: '—' },
+    { value: 'height_rope_access', label: 'Height & rope access (harness systems, abseiling)' },
+    { value: 'elevated_work_platform', label: 'Elevated work platform (MEWP)' },
+    { value: 'confined_space', label: 'Confined space' },
+    { value: 'forklift_dangerous_goods', label: 'Forklift / dangerous goods' },
+    { value: 'first_aid_unit_standard_6400', label: 'First aid — NZQA Unit Standard 6400' },
+    { value: 'driver_licence_endorsement', label: 'Driver licence endorsement' },
+    { value: 'trade_qualification', label: 'Trade qualification' }
+  ];
+
+  function trainingRecognisedCompetencyLabel(value){
+    return TRAINING_RECOGNISED_COMPETENCY_TYPES.find(t => t.value === value)?.label || value;
+  }
+
+  function trainingIsHigherLevel(course){
+    return !!(((course?.nzqa_level ?? null) !== null && Number(course.nzqa_level) >= 3) || course?.recognised_competency_type);
+  }
+
   function trainingCourseFormHtml(){
     const editing = state.trainingCourses.find(c => String(c.id) === String(state.editingCourseId));
+    const nzqaLevelValue = editing?.nzqa_level ?? '';
+    const recognisedValue = editing?.recognised_competency_type || '';
     return `<form id="opsTrainingCourseForm" class="ops-form" data-course-id="${editing ? editing.id : ''}">
       <label>Course name *<input id="opsCourseName" required value="${esc(editing?.name || '')}"></label>
       <label>Category<input id="opsCourseCategory" value="${esc(editing?.category || 'Certification')}" placeholder="e.g. Certification, Induction, Internal"></label>
       <label>Provider<input id="opsCourseProvider" value="${esc(editing?.provider || '')}"></label>
       <label>NZQA code<input id="opsCourseNzqaCode" value="${esc(editing?.nzqa_code || '')}"></label>
       <label>Validity (months)<input id="opsCourseValidity" type="number" min="0" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"></label>
+      <label>NZQA level (1-10)<input id="opsCourseNzqaLevel" type="number" min="1" max="10" value="${esc(String(nzqaLevelValue))}" placeholder="Leave blank if not NZQA-registered"></label>
+      <label>Recognised competency type<select id="opsCourseRecognisedType">${TRAINING_RECOGNISED_COMPETENCY_TYPES.map(t => `<option value="${esc(t.value)}" ${t.value === recognisedValue ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></label>
       <label class="ops-span-2">Description<textarea id="opsCourseDescription">${esc(editing?.description || '')}</textarea></label>
-      <label class="ops-check"><input id="opsCourseHigherLevel" type="checkbox" ${editing?.higher_level_learning ? 'checked' : ''}> Higher-level learning (SiteWise)</label>
-      <p class="ops-span-2 ops-subtle">Tick this for courses SiteWise counts as "higher-level learning" evidence for their Training question - e.g. MEWP, harness systems, confined space, driver licence endorsements, first aid (unit standard 6400), NZQA level 3 or above, trade qualifications.</p>
+      <p class="ops-span-2 ops-subtle">"Higher-level learning" is no longer a manual tick - it's worked out automatically and identically for every course from the two fields above: an NZQA level of 3 or above, or a recognised competency type (height/rope access, MEWP, confined space, forklift/dangerous goods, first aid unit standard 6400, driver licence endorsement, trade qualification).${editing ? ` This course is currently <strong>${trainingIsHigherLevel(editing) ? 'higher-level' : 'not higher-level'}</strong>.` : ''}</p>
       <label class="ops-check"><input id="opsCourseActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
     </form>`;
@@ -1365,10 +1366,10 @@
 
   function trainingCatalogHtml(){
     const courses = state.trainingCourses.slice().sort((a,b) => String(a.name).localeCompare(String(b.name)));
-    const rows = courses.map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.higher_level_learning ? ' <span class="ops-pill ops-ok">Higher-level</span>' : ''}${c.description ? `<br><span class="ops-subtle">${esc(c.description)}</span>` : ''}</td><td>${esc(c.category || '')}</td><td>${esc(c.provider || '—')}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-course="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-course-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    const rows = courses.map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.higher_level_learning ? ` <span class="ops-pill ops-ok">Higher-level${c.recognised_competency_type ? ` — ${esc(trainingRecognisedCompetencyLabel(c.recognised_competency_type))}` : ''}</span>` : ''}${c.description ? `<br><span class="ops-subtle">${esc(c.description)}</span>` : ''}</td><td>${esc(c.category || '')}</td><td>${esc(c.provider || '—')}</td><td>${c.nzqa_code ? esc(c.nzqa_code) : '—'}${c.nzqa_level ? `<br><span class="ops-subtle">Level ${esc(String(c.nzqa_level))}</span>` : ''}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-course="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-course-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No courses yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen ? trainingCourseFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Category</th><th>Provider</th><th>Validity</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Category</th><th>Provider</th><th>NZQA</th><th>Validity</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
     </div>`;
   }
 
@@ -1383,8 +1384,9 @@
       provider: byId('opsCourseProvider').value.trim() || null,
       nzqa_code: byId('opsCourseNzqaCode').value.trim() || null,
       validity_period_months: byId('opsCourseValidity').value ? Number(byId('opsCourseValidity').value) : null,
+      nzqa_level: byId('opsCourseNzqaLevel').value ? Number(byId('opsCourseNzqaLevel').value) : null,
+      recognised_competency_type: byId('opsCourseRecognisedType').value || null,
       description: byId('opsCourseDescription').value.trim() || null,
-      higher_level_learning: byId('opsCourseHigherLevel').checked,
       active: byId('opsCourseActive').checked
     };
     if(!row.name) return alert('Course name is required.');
