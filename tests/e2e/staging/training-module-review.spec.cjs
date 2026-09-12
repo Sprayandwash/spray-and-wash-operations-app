@@ -49,10 +49,11 @@ test('TRAINING-REVIEW-001: dedicated Training manager account can sign in and op
   await openTrainingModule(page);
 });
 
-test('TRAINING-REVIEW-002: Training Matrix renders every active course and known seeded statuses', async ({ page }) => {
+test('TRAINING-REVIEW-002: Training Matrix is a pure Applies/Compulsory data-entry grid', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
-  await page.locator('[data-ops-view="training-matrix"]').click();
+  // The Matrix now lives inside Settings rather than its own top-level tab.
+  await page.locator('[data-ops-view="training-settings"]').click();
 
   const table = page.locator('.ops-table-wrap table.ops-table').first();
   await expect(table).toBeVisible({ timeout: 15_000 });
@@ -63,33 +64,17 @@ test('TRAINING-REVIEW-002: Training Matrix renders every active course and known
   const headerCells = table.locator('tr').first().locator('th');
   await expect(headerCells).toHaveCount(16);
 
-  // Spot-check a handful of the dummy statuses seeded across every bucket
-  // the app can render, so a broken status calculation shows up here rather
-  // than only being noticed by hand in the UI. Only uniquely-named people are
-  // targeted individually — two seeded test accounts share the exact name
-  // "Brendan Harris", so their Expiring/Expired statuses are checked
-  // table-wide instead of by row.
-  const checks = [
-    { person: 'Samwise Gamgee', label: 'Missing' },
-    { person: 'Frodo Baggins', label: 'In progress' },
-    { person: 'Brendan Harris80', label: 'Not recorded' }
-  ];
-  for (const { person, label } of checks) {
-    const row = table.locator('tr', { has: page.locator(`button[data-ops-open-person]:text-is("${person}")`) });
-    await expect(row, `Expected a Training Matrix row for ${person}`).toHaveCount(1);
-    await expect(row.locator('.ops-pill', { hasText: label }).first()).toBeVisible();
-  }
+  // The Matrix is data entry only now: every cell offers an "Applies"
+  // checkbox (and "Compulsory" once ticked), and none of it shows a
+  // completion/expiry status pill — that lives on the person's own record.
+  const samwiseRow = table.locator('tr', { has: page.locator('button[data-ops-open-person]:text-is("Samwise Gamgee")') });
+  await expect(samwiseRow, 'Expected a Training Matrix row for Samwise Gamgee').toHaveCount(1);
+  await expect(samwiseRow.locator('input[type="checkbox"][data-ops-matrix-applicable]').first()).toBeVisible();
 
-  // Frodo Baggins is seeded with a completed higher-level learning course, so
-  // that pill should read Compliant.
-  const frodoRow = table.locator('tr', { has: page.locator('button[data-ops-open-person]:text-is("Frodo Baggins")') });
-  await expect(frodoRow.locator('.ops-pill', { hasText: 'Compliant' }).first()).toBeVisible();
-
-  // The expiring-soon and expired examples both belong to accounts named
-  // plain "Brendan Harris" (two of them), so check the whole table instead
-  // of a single row.
-  await expect(table.locator('.ops-pill', { hasText: 'Expires in' }).first()).toBeVisible();
-  await expect(table.locator('.ops-pill', { hasText: 'Expired' }).first()).toBeVisible();
+  // Scoped to the data cells, not the header row - a course's own
+  // "Higher-level" badge in the header is a course attribute, not a
+  // per-person status pill, and is unaffected by this change.
+  await expect(table.locator('td.ops-matrix-cell .ops-pill')).toHaveCount(0);
 });
 
 test('TRAINING-REVIEW-003: Contractors view shows the seeded pass and fail signal', async ({ page }) => {
@@ -137,6 +122,54 @@ test('TRAINING-REVIEW-005: the dedicated account can open My Training without er
   await signIn(page);
   await page.evaluate(() => window.openMyTrainingModule());
   await expect(page.locator('#opsShell h2')).toHaveText('My Training', { timeout: 15_000 });
+});
+
+test('TRAINING-REVIEW-006: Course Catalog shows NZQA info and derives Higher-level objectively', async ({ page }) => {
+  await signIn(page);
+  await openTrainingModule(page);
+  await page.locator('[data-ops-view="training-catalog"]').click();
+  await expect(page.locator('h3', { hasText: 'Course Catalog' })).toBeVisible({ timeout: 15_000 });
+
+  const table = page.locator('.ops-table-wrap table.ops-table').first();
+  await expect(table).toBeVisible();
+  await expect(table.locator('tr').first().locator('th', { hasText: 'NZQA' })).toBeVisible();
+
+  // "Higher-level" is no longer an arbitrary manual tick per course - it's
+  // derived the same way for every course from an NZQA level (>=3) or a
+  // recognised competency type. Abseiling quals is height/rope-access work,
+  // so it must now carry the Higher-level pill even though nothing was
+  // manually ticked for it.
+  const abseilingRow = table.locator('tr', { hasText: 'Abseiling quals' });
+  await expect(abseilingRow).toHaveCount(1);
+  await expect(abseilingRow.locator('.ops-pill', { hasText: 'Higher-level' })).toBeVisible();
+});
+
+test('TRAINING-REVIEW-007: Settings holds the Matrix and Catalog, and Team members lists everyone', async ({ page }) => {
+  await signIn(page);
+  await openTrainingModule(page);
+
+  // Matrix and Course Catalog are no longer their own top-level tabs - they
+  // now live inside Settings, since they're used less often than Team
+  // members.
+  await expect(page.locator('[data-ops-view="training-matrix"]')).toHaveCount(0);
+  await expect(page.locator('[data-ops-view="training-catalog"]')).toHaveCount(0);
+
+  await page.locator('[data-ops-view="training-settings"]').click();
+  await expect(page.locator('h3', { hasText: 'Settings' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('h3', { hasText: 'Training Matrix' })).toBeVisible();
+  await expect(page.locator('h3', { hasText: 'Course Catalog' })).toBeVisible();
+
+  await page.locator('[data-ops-view="training-team"]').click();
+  await expect(page.locator('h3', { hasText: 'Team members' })).toBeVisible({ timeout: 15_000 });
+  const table = page.locator('.ops-table-wrap table.ops-table').first();
+  const frodoRow = table.locator('tr', { hasText: 'Frodo Baggins' });
+  await expect(frodoRow).toHaveCount(1);
+
+  // Clicking through opens the person's own record - now the main way to
+  // manage an individual's training entries, instead of going through the
+  // Matrix.
+  await frodoRow.getByRole('button', { name: 'View / edit training' }).click();
+  await expect(page.locator('h3', { hasText: 'Frodo Baggins' })).toBeVisible({ timeout: 15_000 });
 });
 
 test('TRAINING-REVIEW-008: Contractors route to a scoped page per contractor', async ({ page }) => {
