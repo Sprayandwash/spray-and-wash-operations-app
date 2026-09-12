@@ -171,3 +171,38 @@ test('TRAINING-REVIEW-007: Settings holds the Matrix and Catalog, and Team membe
   await frodoRow.getByRole('button', { name: 'View / edit training' }).click();
   await expect(page.locator('h3', { hasText: 'Frodo Baggins' })).toBeVisible({ timeout: 15_000 });
 });
+
+test('TRAINING-REVIEW-008: Contractors route to a scoped page per contractor', async ({ page }) => {
+  await signIn(page);
+  await openTrainingModule(page);
+  await page.locator('[data-ops-view="training-contractors"]').click();
+  await expect(page.locator('h3', { hasText: 'Contractors' })).toBeVisible({ timeout: 15_000 });
+
+  const contractorsTable = page.locator('.ops-table-wrap table.ops-table').first();
+
+  // Kiwi Rope Access is seeded as a sole trader - clicking through should go
+  // straight to that person's own training record, skipping any
+  // intermediate scoped list.
+  const soleTraderRow = contractorsTable.locator('tr', { hasText: 'Kiwi Rope Access' });
+  await expect(soleTraderRow).toHaveCount(1);
+  await soleTraderRow.getByRole('button', { name: 'View training' }).click();
+  await expect(page.locator('h3', { hasText: 'Piripi Walker' })).toBeVisible({ timeout: 15_000 });
+
+  // Back to Contractors, then into a company contractor - Aotearoa
+  // Scaffolding Ltd is seeded with two workers. This list must be scoped to
+  // just that company, not the flat cross-contractor list it replaces.
+  await page.locator('[data-ops-view="training-contractors"]').click();
+  await expect(page.locator('h3', { hasText: 'Contractors' })).toBeVisible({ timeout: 15_000 });
+  const companyRow = contractorsTable.locator('tr', { hasText: 'Aotearoa Scaffolding Ltd' });
+  await expect(companyRow).toHaveCount(1);
+  await companyRow.getByRole('button', { name: 'View employees' }).click();
+  await expect(page.locator('h3', { hasText: 'Aotearoa Scaffolding Ltd' })).toBeVisible({ timeout: 15_000 });
+
+  const scopedTable = page.locator('.ops-table-wrap table.ops-table').first();
+  await expect(scopedTable.locator('tr', { hasText: 'Dave Mitchell' })).toHaveCount(1);
+  await expect(scopedTable.locator('tr', { hasText: 'Tui Ngata' })).toHaveCount(1);
+  // People belonging to other contractors, or none, must not leak into this
+  // scoped view.
+  await expect(scopedTable.locator('tr', { hasText: 'Piripi Walker' })).toHaveCount(0);
+  await expect(scopedTable.locator('tr', { hasText: 'Frodo Baggins' })).toHaveCount(0);
+});
