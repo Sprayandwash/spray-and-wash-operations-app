@@ -122,3 +122,23 @@ test('TRAINING-REVIEW-005: the dedicated account can open My Training without er
   await page.evaluate(() => window.openMyTrainingModule());
   await expect(page.locator('#opsShell h2')).toHaveText('My Training', { timeout: 15_000 });
 });
+
+test('TRAINING-REVIEW-006: Course Catalog shows NZQA info and derives Higher-level objectively', async ({ page }) => {
+  await signIn(page);
+  await openTrainingModule(page);
+  await page.locator('[data-ops-view="training-catalog"]').click();
+  await expect(page.locator('h3', { hasText: 'Course Catalog' })).toBeVisible({ timeout: 15_000 });
+
+  const table = page.locator('.ops-table-wrap table.ops-table').first();
+  await expect(table).toBeVisible();
+  await expect(table.locator('tr').first().locator('th', { hasText: 'NZQA' })).toBeVisible();
+
+  // "Higher-level" is no longer an arbitrary manual tick per course - it's
+  // derived the same way for every course from an NZQA level (>=3) or a
+  // recognised competency type. Abseiling quals is height/rope-access work,
+  // so it must now carry the Higher-level pill even though nothing was
+  // manually ticked for it.
+  const abseilingRow = table.locator('tr', { hasText: 'Abseiling quals' });
+  await expect(abseilingRow).toHaveCount(1);
+  await expect(abseilingRow.locator('.ops-pill', { hasText: 'Higher-level' })).toBeVisible();
+});
