@@ -138,3 +138,32 @@ test('TRAINING-REVIEW-005: the dedicated account can open My Training without er
   await page.evaluate(() => window.openMyTrainingModule());
   await expect(page.locator('#opsShell h2')).toHaveText('My Training', { timeout: 15_000 });
 });
+
+test('TRAINING-REVIEW-009: each course on a person\'s training record is collapsible', async ({ page }) => {
+  await signIn(page);
+  await openTrainingModule(page);
+  await page.locator('[data-ops-view="training-matrix"]').click();
+
+  const table = page.locator('.ops-table-wrap table.ops-table').first();
+  await expect(table).toBeVisible({ timeout: 15_000 });
+  await table.locator('button[data-ops-open-person]:text-is("Frodo Baggins")').click();
+  await expect(page.locator('h3', { hasText: 'Frodo Baggins' })).toBeVisible({ timeout: 15_000 });
+
+  const courseBoxes = page.locator('details.ops-training-course');
+  await expect(courseBoxes.first()).toBeVisible({ timeout: 15_000 });
+  const firstBox = courseBoxes.first();
+
+  // Course boxes start collapsed - the record table stays hidden until the
+  // header is clicked, rather than every course rendering fully expanded.
+  await expect(firstBox).not.toHaveAttribute('open', '');
+  await expect(firstBox.locator('.ops-training-course-body')).toBeHidden();
+
+  // Clicking the header expands it, revealing the record table underneath.
+  await firstBox.locator('summary').click();
+  await expect(firstBox).toHaveAttribute('open', '');
+  await expect(firstBox.locator('.ops-training-course-body')).toBeVisible();
+
+  // Clicking again collapses it back.
+  await firstBox.locator('summary').click();
+  await expect(firstBox).not.toHaveAttribute('open', '');
+});
