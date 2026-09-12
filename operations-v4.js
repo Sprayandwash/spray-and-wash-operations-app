@@ -89,6 +89,8 @@
     trainingDataLoaded: false,
     trainingContractorFormOpen: false,
     editingContractorId: '',
+    viewingContractorId: '',
+    prefillContractorId: '',
     trainingPersonFormOpen: false,
     editingTrainingPersonId: '',
     trainingCourseFormOpen: false,
@@ -222,7 +224,7 @@
   }
   function isManagementView(view){ return ['management-dashboard','assets','history','tasks','schedules'].includes(view) || ['vehicles','washing','maintenance'].includes(view); }
   function isAdminView(view){ return ['admin-users','admin-app-settings','admin-settings'].includes(view); }
-  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-person','training-catalog','training-contractors'].includes(view); }
+  function isTrainingView(view){ return ['training-dashboard','training-matrix','training-person','training-catalog','training-contractors','training-contractor-people'].includes(view); }
   function displayStatusLabel(value){
     const v = String(value || '—');
     if(v === 'Pass') return 'Completed OK';
@@ -1419,19 +1421,45 @@
 
   function trainingContractorsHtml(){
     const contractors = state.trainingContractors.slice().sort((a,b) => String(a.company_name).localeCompare(String(b.company_name)));
-    const rows = contractors.map(c => `<tr><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-edit-contractor="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No contractors yet.</td></tr>';
+    const rows = contractors.map(c => `<tr><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-view-contractor="${c.id}">${c.contractor_type === 'sole_trader' ? 'View training' : 'View employees'}</button> <button class="ops-btn ghost" type="button" data-ops-edit-contractor="${c.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No contractors yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
       ${state.trainingContractorFormOpen ? trainingContractorFormHtml() : ''}
-      <p class="ops-subtle">The Training column is a pass/fail signal for this contractor's people against their compulsory training requirements — the single check an HSE review of this contractor's system will draw on.</p>
+      <p class="ops-subtle">The Training column is a pass/fail signal for this contractor's people against their compulsory training requirements — the single check an HSE review of this contractor's system will draw on. Each contractor's people are managed on their own page: a sole trader goes straight to their training record, a company opens a list scoped to just their employees.</p>
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Training</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
-    </div>
-    ${trainingSubcontractorPeopleHtml()}`;
+    </div>`;
+  }
+
+  function viewTrainingContractor(id){
+    const contractor = state.trainingContractors.find(c => String(c.id) === String(id));
+    if(!contractor) return;
+    if(contractor.contractor_type === 'sole_trader'){
+      const person = state.trainingPeople.find(p => String(p.contractor_id) === String(contractor.id));
+      if(person){ openTrainingPerson(person.id); return; }
+    }
+    state.viewingContractorId = contractor.id;
+    showOperations('training-contractor-people');
+  }
+
+  function trainingContractorPeopleHtml(){
+    const contractor = state.trainingContractors.find(c => String(c.id) === String(state.viewingContractorId));
+    if(!contractor) return `<div class="ops-card"><h3>Contractor not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-contractors')">← Back to Contractors</button></div>`;
+    const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractor.id)).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
+    const typeLabel = contractor.contractor_type === 'sole_trader' ? 'Sole trader' : 'Company';
+    const rows = people.map(p => `<tr><td><strong>${esc(p.full_name)}</strong></td><td>${p.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-open-person="${p.id}">View / edit training</button> <button class="ops-btn ghost" type="button" data-ops-edit-training-person="${p.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-training-person-active="${p.id}">${p.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || `<tr><td colspan="3" class="ops-subtle">No people added for this contractor yet.</td></tr>`;
+    return `<div class="ops-card">
+      <button class="ops-btn ghost" type="button" onclick="showOperations('training-contractors')">← Back to Contractors</button>
+      <div class="ops-section-title"><h3>${esc(contractor.company_name)} <span class="ops-subtle">(${typeLabel})</span></h3><button class="ops-btn primary" type="button" data-ops-add-person-for-contractor="${contractor.id}">+ Add person</button></div>
+      <p class="ops-subtle">People linked to ${esc(contractor.company_name)} only, so this contractor's own training records and evidence stay scoped to just their people.</p>
+      ${state.trainingPersonFormOpen ? trainingPersonFormHtml() : ''}
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
+    </div>`;
   }
 
   function trainingPersonFormHtml(){
     const editing = state.trainingPeople.find(p => String(p.id) === String(state.editingTrainingPersonId));
-    const contractors = state.trainingContractors.filter(c => c.active !== false || String(c.id) === String(editing?.contractor_id || ''));
-    const contractorOptions = contractors.map(c => `<option value="${c.id}" ${String(editing?.contractor_id || '') === String(c.id) ? 'selected' : ''}>${esc(c.company_name)} (${c.contractor_type === 'sole_trader' ? 'Sole trader' : 'Company'})</option>`).join('');
+    const preselectedContractorId = editing?.contractor_id || state.prefillContractorId || '';
+    const contractors = state.trainingContractors.filter(c => c.active !== false || String(c.id) === String(preselectedContractorId));
+    const contractorOptions = contractors.map(c => `<option value="${c.id}" ${String(preselectedContractorId) === String(c.id) ? 'selected' : ''}>${esc(c.company_name)} (${c.contractor_type === 'sole_trader' ? 'Sole trader' : 'Company'})</option>`).join('');
     return `<form id="opsTrainingPersonForm" class="ops-form" data-person-id="${editing ? editing.id : ''}">
       <label>Contractor *<select id="opsPersonContractorId" required ${contractors.length ? '' : 'disabled'}>
         <option value="">Select a contractor…</option>
@@ -1442,21 +1470,6 @@
       <p class="ops-span-2 ops-subtle">Person type (sole trader or subcontractor worker) is set automatically from the contractor's type above. Add the contractor first if it isn't listed.</p>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit" ${contractors.length ? '' : 'disabled'}>${editing ? 'Save changes' : 'Add person'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingPersonEditor">Cancel</button></div>
     </form>`;
-  }
-
-  function trainingSubcontractorPeopleHtml(){
-    const people = state.trainingPeople.filter(p => p.person_type !== 'employee').slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
-    const activeContractorCount = state.trainingContractors.filter(c => c.active !== false).length;
-    const rows = people.map(p => {
-      const contractor = state.trainingContractors.find(c => String(c.id) === String(p.contractor_id));
-      const typeLabel = p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
-      return `<tr><td><strong>${esc(p.full_name)}</strong></td><td>${typeLabel}</td><td>${esc(contractor?.company_name || '—')}</td><td>${p.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-open-person="${p.id}">View training</button> <button class="ops-btn ghost" type="button" data-ops-edit-training-person="${p.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-toggle-training-person-active="${p.id}">${p.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`;
-    }).join('') || '<tr><td colspan="5" class="ops-subtle">No subcontractor or sole trader people added yet.</td></tr>';
-    return `<div class="ops-card"><div class="ops-section-title"><h3>Subcontractor &amp; Sole Trader People</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingPersonEditor" ${activeContractorCount ? '' : 'disabled'}>+ Add person</button></div>
-      <p class="ops-subtle">Individual workers linked to a contractor above, so their training records and evidence can be tracked the same way as employees. ${activeContractorCount ? '' : 'Add an active contractor above first.'}</p>
-      ${state.trainingPersonFormOpen ? trainingPersonFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Type</th><th>Contractor</th><th>Status</th><th>Actions</th></tr>${rows}</table></div>
-    </div>`;
   }
 
   async function saveTrainingPerson(e){
@@ -1480,6 +1493,7 @@
     if(r.error) return alert('Could not save person: '+r.error.message);
     state.trainingPersonFormOpen = false;
     state.editingTrainingPersonId = '';
+    state.prefillContractorId = '';
     await loadTrainingData(true);
   }
 
@@ -1909,6 +1923,7 @@
       if(state.currentView === 'training-person') return trainingPersonHtml();
       if(state.currentView === 'training-catalog') return trainingCatalogHtml();
       if(state.currentView === 'training-contractors') return trainingContractorsHtml();
+      if(state.currentView === 'training-contractor-people') return trainingContractorPeopleHtml();
       return trainingDashboardHtml();
     }
     if(!canView()) return `<div class="ops-card"><h3>No Operations access yet</h3><p>Your account needs Vehicle inspector, Maintenance manager or Admin access.</p></div>`;
@@ -4089,6 +4104,8 @@
     document.querySelectorAll('[data-ops-create-schedule-task]').forEach(b => b.addEventListener('click', () => createTaskFromSchedule(b.dataset.opsCreateScheduleTask)));
     document.querySelectorAll('[data-ops-edit-contractor]').forEach(b => b.addEventListener('click', () => { state.editingContractorId=b.dataset.opsEditContractor; state.trainingContractorFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', () => toggleTrainingContractorActive(b.dataset.opsToggleContractorActive)));
+    document.querySelectorAll('[data-ops-view-contractor]').forEach(b => b.addEventListener('click', () => viewTrainingContractor(b.dataset.opsViewContractor)));
+    document.querySelectorAll('[data-ops-add-person-for-contractor]').forEach(b => b.addEventListener('click', () => { state.prefillContractorId=b.dataset.opsAddPersonForContractor; state.editingTrainingPersonId=''; state.trainingPersonFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-edit-course]').forEach(b => b.addEventListener('click', () => { state.editingCourseId=b.dataset.opsEditCourse; state.trainingCourseFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-toggle-course-active]').forEach(b => b.addEventListener('click', () => toggleTrainingCourseActive(b.dataset.opsToggleCourseActive)));
     document.querySelectorAll('[data-ops-edit-training-person]').forEach(b => b.addEventListener('click', () => { state.editingTrainingPersonId=b.dataset.opsEditTrainingPerson; state.trainingPersonFormOpen=true; render(); }));
@@ -4183,8 +4200,8 @@
     if(action === 'closeTrainingContractorEditor'){ state.trainingContractorFormOpen=false; state.editingContractorId=''; render(); }
     if(action === 'openTrainingCourseEditor'){ state.trainingCourseFormOpen=true; state.editingCourseId=''; render(); }
     if(action === 'closeTrainingCourseEditor'){ state.trainingCourseFormOpen=false; state.editingCourseId=''; render(); }
-    if(action === 'openTrainingPersonEditor'){ state.trainingPersonFormOpen=true; state.editingTrainingPersonId=''; render(); }
-    if(action === 'closeTrainingPersonEditor'){ state.trainingPersonFormOpen=false; state.editingTrainingPersonId=''; render(); }
+    if(action === 'openTrainingPersonEditor'){ state.trainingPersonFormOpen=true; state.editingTrainingPersonId=''; state.prefillContractorId=''; render(); }
+    if(action === 'closeTrainingPersonEditor'){ state.trainingPersonFormOpen=false; state.editingTrainingPersonId=''; state.prefillContractorId=''; render(); }
     if(action === 'closeTrainingRecordEditor'){ state.trainingRecordFormOpen=false; state.editingRecordId=''; state.trainingRecordFormCourseId=''; render(); }
   }
 
