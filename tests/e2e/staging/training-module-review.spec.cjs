@@ -127,10 +127,13 @@ test('TRAINING-REVIEW-005: the dedicated account can open My Training without er
 test('TRAINING-REVIEW-006: Course Catalog shows NZQA info and derives Higher-level objectively', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
-  await page.locator('[data-ops-view="training-catalog"]').click();
+  // Course Catalog now lives inside Settings rather than its own top-level tab.
+  await page.locator('[data-ops-view="training-settings"]').click();
   await expect(page.locator('h3', { hasText: 'Course Catalog' })).toBeVisible({ timeout: 15_000 });
 
-  const table = page.locator('.ops-table-wrap table.ops-table').first();
+  // The Training Matrix table renders first inside Settings, so the Course
+  // Catalog table is the second one on the page.
+  const table = page.locator('.ops-table-wrap table.ops-table').nth(1);
   await expect(table).toBeVisible();
   await expect(table.locator('tr').first().locator('th', { hasText: 'NZQA' })).toBeVisible();
 

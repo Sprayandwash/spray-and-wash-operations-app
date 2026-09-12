@@ -363,6 +363,7 @@
       .ops-home-height { background:linear-gradient(135deg,#0f766e,#14b8a6); }
       .ops-home-vehicle { background:linear-gradient(135deg,#15803d,#22c55e); }
       .ops-home-management { background:linear-gradient(135deg,#c2410c,#f59e0b); }
+      .ops-home-training { background:linear-gradient(135deg,#6d28d9,#a78bfa); }
       .ops-home-admin { background:linear-gradient(135deg,#334155,#64748b); }
       .ops-filter-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:.75rem; margin:.75rem 0; }
       .ops-filter-grid label { display:flex; flex-direction:column; gap:.25rem; font-size:.86rem; font-weight:800; color:#334155; }
@@ -449,6 +450,7 @@
       .ops-stat-total,.ops-home-height{background:#003b73!important}
       .ops-stat-green,.ops-home-vehicle{background:#0d9649!important}
       .ops-stat-amber,.ops-home-management{background:#4f9bd0!important}
+      .ops-home-training{background:#5b3aa0!important}
       .ops-stat-blue,.ops-home-admin{background:#003b73!important}
       .ops-ok{background:#e1f7e9!important;color:#007d34!important}.ops-warn{background:#fff0d6!important;color:#8b510a!important}.ops-bad{background:#fbe4e4!important;color:#b60909!important}
       .ops-card-icon,.ops-stat-icon{display:grid;place-items:center;flex:0 0 auto;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.16);color:currentColor}
@@ -1700,6 +1702,7 @@
       height:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>',
       vehicle:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3zM14 9h3l4 3v4h-7z"/><path d="M6 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM18 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 10h11"/></svg>',
       maintenance:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4.5 4.5 0 0 0-5.8 5.8L3 18l3 3 5.9-5.9a4.5 4.5 0 0 0 5.8-5.8l-3.1 3.1-2.4-2.4 2.5-3.7Z"/></svg>',
+      training:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 8l10 5 8-4v6h2V8L12 3Z"/><path d="M6 12.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5"/></svg>',
       admin:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.2A3.2 3.2 0 1 0 12 8.8a3.2 3.2 0 0 0 0 6.4Z"/><path d="m19.4 13.5 1.4 1-1.8 3.1-1.7-.7a7.6 7.6 0 0 1-1.8 1l-.3 1.8h-3.6l-.3-1.8a7.6 7.6 0 0 1-1.8-1l-1.7.7-1.8-3.1 1.4-1a7.4 7.4 0 0 1 0-2.1l-1.4-1 1.8-3.1 1.7.7a7.6 7.6 0 0 1 1.8-1l.3-1.8h3.6l.3 1.8a7.6 7.6 0 0 1 1.8 1l1.7-.7 1.8 3.1-1.4 1a7.4 7.4 0 0 1 0 2.1Z"/></svg>',
       task:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6v3H9zM9 12h6M9 16h4"/></svg>',
       schedule:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h5"/></svg>',
@@ -1708,8 +1711,8 @@
     return `<span class="${className||'ops-card-icon'}">${icons[name]||icons.task}</span>`;
   }
   function moduleCard(title, body, action){
-    const cls = /Height/i.test(title) ? 'ops-home-height' : /Vehicle/i.test(title) ? 'ops-home-vehicle' : /Maintenance/i.test(title) ? 'ops-home-management' : 'ops-home-admin';
-    const icon = /Height/i.test(title) ? 'height' : /Vehicle/i.test(title) ? 'vehicle' : /Maintenance/i.test(title) ? 'maintenance' : 'admin';
+    const cls = /Height/i.test(title) ? 'ops-home-height' : /Vehicle/i.test(title) ? 'ops-home-vehicle' : /Maintenance/i.test(title) ? 'ops-home-management' : /Training/i.test(title) ? 'ops-home-training' : 'ops-home-admin';
+    const icon = /Height/i.test(title) ? 'height' : /Vehicle/i.test(title) ? 'vehicle' : /Maintenance/i.test(title) ? 'maintenance' : /Training/i.test(title) ? 'training' : 'admin';
     return `<button type="button" class="ops-branch-card ${cls}" onclick="${action}">${appIcon(icon)}<span><strong>${esc(title)}</strong>${body?`<span class="ops-subtle">${esc(body)}</span>`:''}</span></button>`;
   }
 
