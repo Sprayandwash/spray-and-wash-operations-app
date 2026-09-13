@@ -83,13 +83,14 @@ It then retains one labelled `E2E REVIEW —` **Other maintenance** record on th
 Whenever the project reaches a Step 8-9A Staging browser review phase (a green Staging build ready to be checked in a browser), always hand the requester both of the following, without waiting to be asked again:
 
 1. **The current `spray-wash-staging-app` artifact** - either download the zip from the latest successful **Build staging app** workflow run and deliver it directly, or give a direct link to that run's Artifacts section so it can be downloaded from there.
-2. **The PowerShell commands to unzip and serve it locally on Windows**, for example:
+2. **The PowerShell commands to unzip and serve it locally on Windows.** These must always be generic/relative-path commands that work from whatever folder Brendan has saved the zip in - never hardcoded to a specific location such as Downloads:
 
    ```powershell
-   Expand-Archive -Path "$env:USERPROFILE\Downloads\spray-wash-staging-app.zip" -DestinationPath "$env:USERPROFILE\Downloads\staging-app" -Force
-   npx --yes http-server "$env:USERPROFILE\Downloads\staging-app" -p 4174 -c-1
+   # Run this from inside the folder where the zip was saved (cd there first if needed)
+   Expand-Archive -Path .\spray-wash-staging-app.zip -DestinationPath .\staging-app -Force
+   npx --yes http-server .\staging-app -p 4174 -c-1
    ```
 
    Then open `http://127.0.0.1:4174` in a browser. Before testing, confirm `staging-app/STAGING-README.txt` references only the Staging Supabase project and never the production ref - the same safety check `staging-training-review.yml` performs in CI.
 
-This handoff is a standing requirement for every Step 8-9A phase, not a one-off request.
+This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The commands given must always be the generic/relative-path form above, never a version hardcoded to a specific folder.
