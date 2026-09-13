@@ -86,9 +86,13 @@ Whenever the project reaches a Step 8-9A Staging browser review phase (a green S
 2. **One simple PowerShell one-liner**, run from inside the extracted app folder, that starts the server, opens the browser automatically, and copies the URL to the clipboard as a fallback:
 
    ```powershell
-   "http://127.0.0.1:4174" | Set-Clipboard; npx --yes http-server . -p 4174 -c-1 -o
+   "http://127.0.0.1:4174" | Set-Clipboard; npx.cmd --yes http-server . -p 4174 -c-1 -o
    ```
 
    Keep this simple - Brendan has explicitly asked for a single short line here, not a multi-line search/extract script. Tell the requester to `cd` into the folder holding the extracted app (the one with `index.html`/`STAGING-README.txt` in it) before running it. The `-o` flag opens the default browser once the server is actually ready, avoiding a premature "unable to connect" from opening before `npx` finishes its first-run download of `http-server`. Before testing, confirm `STAGING-README.txt` in that folder references only the Staging Supabase project and never the production ref - the same safety check `staging-training-review.yml` performs in CI.
 
-This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The command given must stay this simple one-liner - do not expand it back into a multi-line self-locating search script.
+   **Two Windows prerequisites confirmed on Brendan's machine (13 Sep 2026), verified working:**
+   - **Node.js must be installed.** If `node -v` / `npx -v` come back as "not recognized", Node.js isn't installed (or PATH hasn't refreshed) - install the LTS build from https://nodejs.org, then fully close and reopen every PowerShell window before retrying.
+   - **Use `npx.cmd`, not plain `npx`, in PowerShell.** Plain `npx` resolves to `npx.ps1`, which PowerShell's default execution policy blocks with a `PSSecurityException` ("running scripts is disabled on this system") even once Node.js is installed. Calling `npx.cmd` explicitly sidesteps that without changing any execution-policy/security settings. Always give the `npx.cmd` form above, never plain `npx`.
+
+This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The command given must stay this simple one-liner using `npx.cmd` - do not expand it back into a multi-line self-locating search script, and do not revert to plain `npx`.
