@@ -83,14 +83,37 @@ It then retains one labelled `E2E REVIEW —` **Other maintenance** record on th
 Whenever the project reaches a Step 8-9A Staging browser review phase (a green Staging build ready to be checked in a browser), always hand the requester both of the following, without waiting to be asked again:
 
 1. **The current `spray-wash-staging-app` artifact** - either download the zip from the latest successful **Build staging app** workflow run and deliver it directly, or give a direct link to that run's Artifacts section so it can be downloaded from there.
-2. **The PowerShell commands to unzip and serve it locally on Windows.** These must always be generic/relative-path commands that work from whatever folder Brendan has saved the zip in - never hardcoded to a specific location such as Downloads:
+2. **A single PowerShell command that finds and runs the app wherever it ended up - already extracted or still zipped, in any folder.** Never give a command that assumes a specific folder, or that assumes the zip hasn't been extracted yet - the requester may already have unzipped it somewhere before asking. Always give this self-locating form, which checks for an already-extracted copy first (by finding its `STAGING-README.txt`), and only if that fails looks for the zip and extracts it:
 
    ```powershell
-   # Run this from inside the folder where the zip was saved (cd there first if needed)
-   Expand-Archive -Path .\spray-wash-staging-app.zip -DestinationPath .\staging-app -Force
-   npx --yes http-server .\staging-app -p 4174 -c-1
+   & {
+       $readme = Get-ChildItem -Path . -Filter "STAGING-README.txt" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+       if (-not $readme) {
+           $readme = Get-ChildItem -Path $env:USERPROFILE -Filter "STAGING-README.txt" -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+       }
+
+       if ($readme) {
+           $folder = $readme.Directory
+           Write-Host "Found extracted app at: $folder"
+       } else {
+           $zip = Get-ChildItem -Path . -Filter "spray-wash-staging-app*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+           if (-not $zip) {
+               $zip = Get-ChildItem -Path $env:USERPROFILE -Filter "spray-wash-staging-app*.zip" -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+           }
+           if (-not $zip) {
+               Write-Host "Could not find the zip or an extracted copy anywhere under your user folder."
+               return
+           }
+           $folder = Join-Path $zip.Directory "staging-app"
+           Expand-Archive -Path $zip.FullName -DestinationPath $folder -Force
+           Write-Host "Extracted to: $folder"
+       }
+
+       Set-Location $folder
+       npx --yes http-server . -p 4174 -c-1
+   }
    ```
 
-   Then open `http://127.0.0.1:4174` in a browser. Before testing, confirm `staging-app/STAGING-README.txt` references only the Staging Supabase project and never the production ref - the same safety check `staging-training-review.yml` performs in CI.
+   It searches the current folder first, then - only if needed - the whole user profile, so it works no matter where the zip or the extracted folder landed (Downloads, a OneDrive project folder, the Desktop, anywhere). Then open `http://127.0.0.1:4174` in a browser. Before testing, confirm the app's `STAGING-README.txt` references only the Staging Supabase project and never the production ref - the same safety check `staging-training-review.yml` performs in CI.
 
-This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The commands given must always be the generic/relative-path form above, never a version hardcoded to a specific folder.
+This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The command given must always be this self-locating, already-extracted-or-not form - never one that assumes or hardcodes a specific folder or assumes the zip is still zipped.
