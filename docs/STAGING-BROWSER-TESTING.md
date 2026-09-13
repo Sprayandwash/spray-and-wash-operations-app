@@ -83,37 +83,12 @@ It then retains one labelled `E2E REVIEW —` **Other maintenance** record on th
 Whenever the project reaches a Step 8-9A Staging browser review phase (a green Staging build ready to be checked in a browser), always hand the requester both of the following, without waiting to be asked again:
 
 1. **The current `spray-wash-staging-app` artifact** - either download the zip from the latest successful **Build staging app** workflow run and deliver it directly, or give a direct link to that run's Artifacts section so it can be downloaded from there.
-2. **A single PowerShell command that finds and runs the app wherever it ended up - already extracted or still zipped, in any folder.** Never give a command that assumes a specific folder, or that assumes the zip hasn't been extracted yet - the requester may already have unzipped it somewhere before asking. Always give this self-locating form, which checks for an already-extracted copy first (by finding its `STAGING-README.txt`), and only if that fails looks for the zip and extracts it:
+2. **One simple PowerShell one-liner**, run from inside the extracted app folder, that starts the server, opens the browser automatically, and copies the URL to the clipboard as a fallback:
 
    ```powershell
-   & {
-       $readme = Get-ChildItem -Path . -Filter "STAGING-README.txt" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-       if (-not $readme) {
-           $readme = Get-ChildItem -Path $env:USERPROFILE -Filter "STAGING-README.txt" -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-       }
-
-       if ($readme) {
-           $folder = $readme.Directory
-           Write-Host "Found extracted app at: $folder"
-       } else {
-           $zip = Get-ChildItem -Path . -Filter "spray-wash-staging-app*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
-           if (-not $zip) {
-               $zip = Get-ChildItem -Path $env:USERPROFILE -Filter "spray-wash-staging-app*.zip" -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-           }
-           if (-not $zip) {
-               Write-Host "Could not find the zip or an extracted copy anywhere under your user folder."
-               return
-           }
-           $folder = Join-Path $zip.Directory "staging-app"
-           Expand-Archive -Path $zip.FullName -DestinationPath $folder -Force
-           Write-Host "Extracted to: $folder"
-       }
-
-       Set-Location $folder
-       npx --yes http-server . -p 4174 -c-1
-   }
+   "http://127.0.0.1:4174" | Set-Clipboard; npx --yes http-server . -p 4174 -c-1 -o
    ```
 
-   It searches the current folder first, then - only if needed - the whole user profile, so it works no matter where the zip or the extracted folder landed (Downloads, a OneDrive project folder, the Desktop, anywhere). Then open `http://127.0.0.1:4174` in a browser. Before testing, confirm the app's `STAGING-README.txt` references only the Staging Supabase project and never the production ref - the same safety check `staging-training-review.yml` performs in CI.
+   Keep this simple - Brendan has explicitly asked for a single short line here, not a multi-line search/extract script. Tell the requester to `cd` into the folder holding the extracted app (the one with `index.html`/`STAGING-README.txt` in it) before running it. The `-o` flag opens the default browser once the server is actually ready, avoiding a premature "unable to connect" from opening before `npx` finishes its first-run download of `http-server`. Before testing, confirm `STAGING-README.txt` in that folder references only the Staging Supabase project and never the production ref - the same safety check `staging-training-review.yml` performs in CI.
 
-This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The command given must always be this self-locating, already-extracted-or-not form - never one that assumes or hardcodes a specific folder or assumes the zip is still zipped.
+This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The command given must stay this simple one-liner - do not expand it back into a multi-line self-locating search script.
