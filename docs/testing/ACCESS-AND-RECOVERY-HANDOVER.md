@@ -89,3 +89,5 @@ The repository's `docs/SUPABASE-RECOVERY-AUTOMATION.md` describes the separate b
 3. Check which GitHub, browser and Supabase tools are already available before asking the user to do anything.
 4. Start each change at Step 1. Use Step 9A whenever a read-only review can answer the question.
 5. Obtain a fresh explicit approval immediately before every Step 9B run. Confirm cleanup after any such run.
+6. When working or reporting on progress, always state which numbered Step of this process (1-6, 7, 8-9A, 9B, 10A, 10B) the work is on or up to.
+7. At every Step 8-9A phase, hand over the current `spray-wash-staging-app` artifact plus the PowerShell commands to run it locally, per `docs/STAGING-BROWSER-TESTING.md`, without waiting to be asked.

@@ -77,3 +77,19 @@ Use **Actions → Create staging Maintenance review record** only when fresh vis
 It first creates an active vehicle with registration `E2E-MAINT-TEST` if that target does not already exist. The workflow creates **no schedules, machinery, sub-assets, or future maintenance attention** for that vehicle.
 
 It then retains one labelled `E2E REVIEW —` **Other maintenance** record on the vehicle itself, with parts, notes, and a further-maintenance requirement. The test verifies that the record has exactly one linked open task whose description is exactly the follow-up requirement. Review it in **Maintenance → Log** and **Maintenance → Tasks** after opening the current staging bundle and refreshing the page.
+
+## Local UI testing handoff (Step 8-9A)
+
+Whenever the project reaches a Step 8-9A Staging browser review phase (a green Staging build ready to be checked in a browser), always hand the requester both of the following, without waiting to be asked again:
+
+1. **The current `spray-wash-staging-app` artifact** - either download the zip from the latest successful **Build staging app** workflow run and deliver it directly, or give a direct link to that run's Artifacts section so it can be downloaded from there.
+2. **The PowerShell commands to unzip and serve it locally on Windows**, for example:
+
+   ```powershell
+   Expand-Archive -Path "$env:USERPROFILE\Downloads\spray-wash-staging-app.zip" -DestinationPath "$env:USERPROFILE\Downloads\staging-app" -Force
+   npx --yes http-server "$env:USERPROFILE\Downloads\staging-app" -p 4174 -c-1
+   ```
+
+   Then open `http://127.0.0.1:4174` in a browser. Before testing, confirm `staging-app/STAGING-README.txt` references only the Staging Supabase project and never the production ref - the same safety check `staging-training-review.yml` performs in CI.
+
+This handoff is a standing requirement for every Step 8-9A phase, not a one-off request.
