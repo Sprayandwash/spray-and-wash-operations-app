@@ -63,6 +63,8 @@
     currentView: 'vehicle-checks',
     editingVehicleId: '',
     editingWashId: '',
+    confirmDeleteVehicleId: '',
+    confirmDeleteWashId: '',
     prefillMachineryVehicleId: '',
     prefillMachinerySide: '',
     transferringMachineryId: '',
@@ -323,6 +325,10 @@
       .ops-question-photo { margin-top:.65rem; padding:.65rem; border-radius:.7rem; background:#f8fafc; border:1px dashed #cfd8e3; }
       .ops-photo-button { display:inline-flex; align-items:center; justify-content:center; }
       .ops-photo-button input { display:none; }
+      .ops-photo-buttons { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+      .ops-photo-buttons .ops-photo-button { padding:6px 10px; min-height:30px; font-size:.78rem; }
+      .ops-asset-photo-thumb { width:44px; height:44px; border-radius:.5rem; object-fit:cover; border:1px solid #d7dee8; background:#f1f5f9; flex-shrink:0; }
+      .ops-asset-photo-thumb-empty { display:inline-block; }
       .ops-photo-count { margin-top:.5rem; }
       .ops-check-section { margin:1rem 0; padding:.8rem; border:1px solid #dbe3ec; border-radius:1rem; background:#f8fafc; }
       .ops-check-section h4 { margin:.1rem 0 .6rem; }
@@ -3428,11 +3434,15 @@
     // input, matching the pattern already used for vehicle-inspection photos
     // (see .ops-item-photo) so a phone always offers both choices rather than
     // whatever its browser defaults to for a bare accept="image/*" input.
+    // Bug fix (Sep 2026, staging review): buttons were too large and the saved
+    // photo had no visual preview - now a small thumbnail sits beside compact
+    // Camera/Gallery buttons, with an explicit View photo button alongside it.
     return `<label class="ops-span-2">Asset photo<div class="ops-photo-buttons">
+        ${path ? `<img class="ops-asset-photo-thumb" alt="Saved asset photo" data-ops-asset-photo-thumb="${esc(path)}">` : `<span class="ops-asset-photo-thumb ops-asset-photo-thumb-empty" aria-hidden="true"></span>`}
         <label class="ops-btn ghost ops-photo-button">Camera<input id="${id}Camera" class="ops-asset-photo-input" type="file" accept="image/*" capture="environment"></label>
         <label class="ops-btn ghost ops-photo-button">Gallery<input id="${id}Gallery" class="ops-asset-photo-input" type="file" accept="image/*"></label>
-      </div></label>
-      ${path ? `<div class="ops-span-2"><span class="ops-pill ops-ok">Photo saved</span> <button class="ops-btn ghost" type="button" data-ops-view-asset-photo="${esc(path)}">View photo</button></div>` : ''}`;
+        ${path ? `<button class="ops-btn ghost ops-photo-button" type="button" data-ops-view-asset-photo="${esc(path)}">View photo</button>` : ''}
+      </div></label>`;
   }
   function assetPhotoFile(id){
     return byId(`${id}Camera`)?.files?.[0] || byId(`${id}Gallery`)?.files?.[0] || null;
@@ -3479,7 +3489,7 @@
         <label>Rear wiper-blade size<input id="opsVehicleRearWiper" value="${esc(v.rear_wiper_size||'')}"></label>
       </div></details>
       <label class="ops-span-2">Current service state / notes<textarea id="opsVehicleServiceNotes" placeholder="Current condition, recent work and anything requiring attention">${esc(v.service_notes||v.notes||'')}</textarea></label>
-      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save vehicle</button><button class="ops-btn ghost" type="button" data-ops-action="clearVehicle">Clear</button>${v.id&&canManage()?`<button class="ops-btn danger" type="button" data-ops-delete-vehicle="${esc(v.id)}">Delete vehicle</button>`:''}</div>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save vehicle</button><button class="ops-btn ghost" type="button" data-ops-action="clearVehicle">Clear</button>${v.id&&canManage()?(state.confirmDeleteVehicleId===v.id?`<span class="ops-pill ops-warn">Delete this vehicle?</span> <button class="ops-btn danger" type="button" data-ops-confirm-delete-vehicle="${esc(v.id)}">Yes, delete it</button><button class="ops-btn ghost" type="button" data-ops-cancel-delete-vehicle="${esc(v.id)}">Cancel</button>`:`<button class="ops-btn danger" type="button" data-ops-delete-vehicle="${esc(v.id)}">Delete vehicle</button>`):''}</div>
     </form>`;
   }
   function washingFormHtml(){
@@ -3511,7 +3521,7 @@
       ${assetPhotoFieldHtml('opsWashPhoto', w.photo_path)}
       ${w.id ? assetFilesListHtml('washing_equipment', w.id) : ''}
       <label class="ops-span-2">Current service state / notes<textarea id="opsMachineryServiceNotes" placeholder="Current condition, recent work and anything requiring attention">${esc(w.service_notes||w.notes||'')}</textarea></label>
-      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save machinery</button><button class="ops-btn ghost" type="button" data-ops-action="clearWash">Clear</button>${w.id&&canManage()?`<button class="ops-btn danger" type="button" data-ops-delete-wash="${esc(w.id)}">Delete machinery</button>`:''}</div>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save machinery</button><button class="ops-btn ghost" type="button" data-ops-action="clearWash">Clear</button>${w.id&&canManage()?(state.confirmDeleteWashId===w.id?`<span class="ops-pill ops-warn">Delete this machinery?</span> <button class="ops-btn danger" type="button" data-ops-confirm-delete-wash="${esc(w.id)}">Yes, delete it</button><button class="ops-btn ghost" type="button" data-ops-cancel-delete-wash="${esc(w.id)}">Cancel</button>`:`<button class="ops-btn danger" type="button" data-ops-delete-wash="${esc(w.id)}">Delete machinery</button>`):''}</div>
     </form>`;
   }
   function machineryTransferFormHtml(){
@@ -3661,36 +3671,31 @@
   // NULL) - only the asset record and its own schedules/files are removed.
   async function deleteVehicle(id){
     if(!canManage()) return alert('Only Admin or Maintenance manager users can delete vehicles.');
+    if(state.confirmDeleteVehicleId!==id) return;
     const vehicle = state.vehicles.find(v=>String(v.id)===String(id));
     if(!vehicle) return;
     const label = normalizeRego(vehicle.rego) || vehicle.name || 'this vehicle';
-    const linkedMachinery = state.washEquipment.filter(w=>String(w.assigned_vehicle_id||'')===String(id)).length;
-    if(!confirm(`Delete ${label}? This permanently removes the vehicle and its maintenance schedules and files.${linkedMachinery?` ${linkedMachinery} linked machinery item${linkedMachinery===1?'':'s'} will become unassigned/spare.`:''} Its inspection, maintenance-log and task history is kept but will show as unassigned. This cannot be undone.`)) return;
-    const typed = prompt(`Type ${label} to confirm deletion.`);
-    if(typed !== label) return alert('Deletion cancelled - the text did not match.');
     const files = state.assetFiles.filter(f=>String(f.vehicle_id)===String(id));
     if(files.length) await state.sb.storage.from(ASSET_FILE_BUCKET).remove(files.map(f=>f.storage_path));
     if(vehicle.photo_path) await state.sb.storage.from(PHOTO_BUCKET).remove([vehicle.photo_path]);
     const r = await state.sb.from('operations_vehicles').delete().eq('id', id);
     if(r.error) return alert('Could not delete vehicle: '+r.error.message);
-    state.editingVehicleId=''; state.assetEditorOpen=false; state.assetAddType='';
+    state.editingVehicleId=''; state.assetEditorOpen=false; state.assetAddType=''; state.confirmDeleteVehicleId='';
     await loadAll();
     alert(`${label} deleted.`);
   }
   async function deleteWashing(id){
     if(!canManage()) return alert('Only Admin or Maintenance manager users can delete machinery.');
+    if(state.confirmDeleteWashId!==id) return;
     const machinery = state.washEquipment.find(w=>String(w.id)===String(id));
     if(!machinery) return;
     const label = machineryIdentifier(machinery);
-    if(!confirm(`Delete ${label}? This permanently removes the machinery record, its maintenance schedules and files. Its inspection, maintenance-log and task history is kept but will show as unassigned. This cannot be undone.`)) return;
-    const typed = prompt(`Type ${label} to confirm deletion.`);
-    if(typed !== label) return alert('Deletion cancelled - the text did not match.');
     const files = state.assetFiles.filter(f=>String(f.washing_equipment_id)===String(id));
     if(files.length) await state.sb.storage.from(ASSET_FILE_BUCKET).remove(files.map(f=>f.storage_path));
     if(machinery.photo_path) await state.sb.storage.from(PHOTO_BUCKET).remove([machinery.photo_path]);
     const r = await state.sb.from('operations_washing_equipment').delete().eq('id', id);
     if(r.error) return alert('Could not delete machinery: '+r.error.message);
-    state.editingWashId=''; state.assetEditorOpen=false; state.assetAddType='';
+    state.editingWashId=''; state.assetEditorOpen=false; state.assetAddType=''; state.confirmDeleteWashId='';
     await loadAll();
     alert(`${label} deleted.`);
   }
@@ -4477,6 +4482,11 @@
     ['opsTransferVehicle','opsTransferSide'].forEach(id=>byId(id)?.addEventListener('change',updateMachineryTransferPreview));
     updateMachineryTransferPreview();
     document.querySelectorAll('[data-ops-view-asset-photo]').forEach(b=>b.addEventListener('click',()=>openAssetPhoto(b.dataset.opsViewAssetPhoto)));
+    document.querySelectorAll('[data-ops-asset-photo-thumb]').forEach(img=>{
+      const path = img.dataset.opsAssetPhotoThumb;
+      if(!path) return;
+      state.sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 600).then(r=>{ if(!r.error) img.src = r.data.signedUrl; }).catch(()=>{});
+    });
     document.querySelectorAll('[data-ops-asset-file-input]').forEach(input=>input.addEventListener('change',()=>{
       const [kind,id]=String(input.dataset.opsAssetFileInput||'').split(':');
       const files=Array.from(input.files||[]);
@@ -4486,10 +4496,14 @@
     }));
     document.querySelectorAll('[data-ops-view-asset-file]').forEach(b=>b.addEventListener('click',()=>openAssetFile(b.dataset.opsViewAssetFile)));
     document.querySelectorAll('[data-ops-delete-asset-file]').forEach(b=>b.addEventListener('click',()=>deleteAssetFile(b.dataset.opsDeleteAssetFile)));
-    document.querySelectorAll('[data-ops-delete-vehicle]').forEach(b=>b.addEventListener('click',()=>deleteVehicle(b.dataset.opsDeleteVehicle)));
-    document.querySelectorAll('[data-ops-delete-wash]').forEach(b=>b.addEventListener('click',()=>deleteWashing(b.dataset.opsDeleteWash)));
-    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle'; render(); }));
-    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide=''; render(); }));
+    document.querySelectorAll('[data-ops-delete-vehicle]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteVehicleId=b.dataset.opsDeleteVehicle; render(); }));
+    document.querySelectorAll('[data-ops-confirm-delete-vehicle]').forEach(b=>b.addEventListener('click',()=>deleteVehicle(b.dataset.opsConfirmDeleteVehicle)));
+    document.querySelectorAll('[data-ops-cancel-delete-vehicle]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteVehicleId=''; render(); }));
+    document.querySelectorAll('[data-ops-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=b.dataset.opsDeleteWash; render(); }));
+    document.querySelectorAll('[data-ops-confirm-delete-wash]').forEach(b=>b.addEventListener('click',()=>deleteWashing(b.dataset.opsConfirmDeleteWash)));
+    document.querySelectorAll('[data-ops-cancel-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=''; render(); }));
+    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
+    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
     document.querySelectorAll('[data-ops-transfer-machinery]').forEach(b=>b.addEventListener('click',()=>{state.transferringMachineryId=b.dataset.opsTransferMachinery;state.editingWashId='';state.editingVehicleId='';state.assetEditorOpen=false;render();}));
     document.querySelectorAll('[data-ops-add-machinery]').forEach(b => b.addEventListener('click', () => {
       state.editingWashId='';
@@ -4505,8 +4519,8 @@
   }
 
   async function handleAction(action){
-    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';render(); }
-    if(action === 'closeAssetEditor'||action === 'clearVehicle'||action === 'clearWash'){ clearAssetDraft('vehicle');clearAssetDraft('machinery');state.assetEditorOpen=false;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';render(); }
+    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
+    if(action === 'closeAssetEditor'||action === 'clearVehicle'||action === 'clearWash'){ clearAssetDraft('vehicle');clearAssetDraft('machinery');state.assetEditorOpen=false;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
     if(action === 'openMaintenanceEditor'){ state.maintenanceEditorOpen=true;render(); }
     if(action === 'openMaintenanceRecord'){ state.currentView='history';state.maintenanceEditorOpen=true;render(); }
     if(action === 'closeMaintenanceEditor'){ state.maintenanceEditorOpen=false;render(); }
