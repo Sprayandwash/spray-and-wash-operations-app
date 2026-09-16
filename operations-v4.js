@@ -9,6 +9,8 @@
   const VERSION = '4.0.82';
   const PHOTO_BUCKET = 'inspection-photos';
   const TRAINING_EVIDENCE_BUCKET = 'training-evidence';
+  const ASSET_FILE_BUCKET = 'asset-files';
+  const ASSET_FILE_MAX_BYTES = 20 * 1024 * 1024;
   const TASK_STATUSES = ['Open','In Progress','Waiting on Parts','Waiting on Someone','Completed','Deferred'];
   const PRIORITIES = ['Low','Medium','High','Critical'];
   const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP' };
@@ -40,6 +42,7 @@
     parts: [],
     maintenanceLog: [],
     maintenanceLogItems: [],
+    assetFiles: [],
     maintenanceUsers: [],
     heightUsers: [],
     pendingUsers: [],
@@ -1849,7 +1852,7 @@
       return;
     }
     try{
-      const [vehicles, washEquipment, templates, checklistItems, inspections, answers, photos, procedures, procedureSteps, schedules, tasks, taskSteps, parts, maintenanceLog, maintenanceLogItems] = await Promise.all([
+      const [vehicles, washEquipment, templates, checklistItems, inspections, answers, photos, procedures, procedureSteps, schedules, tasks, taskSteps, parts, maintenanceLog, maintenanceLogItems, assetFiles] = await Promise.all([
         loadTable('operations_vehicles','*',{column:'rego'}),
         loadTable('operations_washing_equipment','*',{column:'name'}),
         loadTable('operations_checklist_templates','*',{column:'name'}),
@@ -1864,9 +1867,10 @@
         loadTable('operations_maintenance_task_steps','*',{column:'created_at', ascending:false}),
         loadTable('operations_maintenance_parts_used','*',{column:'created_at', ascending:false}),
         loadTable('operations_maintenance_log','*',{column:'record_date', ascending:false}),
-        loadTable('operations_maintenance_log_items','*',{column:'sort_order'})
+        loadTable('operations_maintenance_log_items','*',{column:'sort_order'}),
+        loadTable('operations_asset_files','*',{column:'created_at', ascending:false}).catch(error=>{console.warn('Asset files unavailable:',error.message);return [];})
       ]);
-      Object.assign(state,{vehicles,washEquipment,templates,checklistItems,inspections,answers,photos,procedures,procedureSteps,schedules,tasks,taskSteps,parts,maintenanceLog,maintenanceLogItems});
+      Object.assign(state,{vehicles,washEquipment,templates,checklistItems,inspections,answers,photos,procedures,procedureSteps,schedules,tasks,taskSteps,parts,maintenanceLog,maintenanceLogItems,assetFiles});
       if(isAdmin()||canMaintain()){
         try { state.pendingUsers = await loadTable('operations_preloaded_users','*',{column:'email'}); }
         catch(e){ console.warn('Preloaded users table unavailable:', e.message); state.pendingUsers = []; }
@@ -2439,6 +2443,89 @@
     return applied;
   }
 
+  // Bug fix (Sep 2026): new machinery/sub-assets already received their default
+  // maintenance schedules automatically (above); new vehicles never did, so a
+  // vehicle's maintenance items never appeared until someone added a schedule
+  // by hand. This mirrors applyDefaultSchedulesForEquipment for vehicles, using
+  // the procedures already seeded with target_type='vehicle'. Procedures with no
+  // frequency_days are on-demand only (matches REG-020) and are skipped here.
+  async function applyDefaultSchedulesForVehicle(vehicle){
+    const v = typeof vehicle === 'string' ? (state.vehicles.find(x=>x.id===vehicle) || {id:vehicle}) : (vehicle || {});
+    if(!v.id) return;
+    const procs = state.procedures.filter(p=>p.is_active!==false && p.target_type==='vehicle' && p.frequency_days);
+    if(procs.length) await upsertSchedulesForVehicleIds([v.id], procs.map(p=>p.id), addDays(today(), 30));
+  }
+  async function upsertSchedulesForVehicleIds(vehicleIds, procedureIds, nextDate){
+    const rows = [];
+    let applied = 0;
+    for(const vehicleId of vehicleIds){
+      for(const procId of procedureIds){
+        const p = state.procedures.find(x=>x.id===procId) || {};
+        if(p.target_type !== 'vehicle') continue;
+        const existing = state.schedules.find(s=>s.vehicle_id===vehicleId && s.procedure_id===procId);
+        const row = { vehicle_id:vehicleId, procedure_id:procId, frequency_days:p.frequency_days || 365, next_due_at:nextDate || addDays(today(), p.frequency_days || 365), is_active:true, created_by:state.user.id };
+        if(existing) await state.sb.from('operations_equipment_maintenance_schedules').update(row).eq('id', existing.id);
+        else rows.push(row);
+        applied++;
+      }
+    }
+    if(rows.length) await state.sb.from('operations_equipment_maintenance_schedules').insert(rows);
+    return applied;
+  }
+
+  // Bug fix (Sep 2026): the "Create task" action on an upcoming/overdue
+  // maintenance item had no handler at all (data-ops-create-schedule-task was
+  // wired to a function that did not exist anywhere in the app). This creates
+  // one task from a single schedule, on demand - for an item that is not yet
+  // due this is the only way to get a task started early. It shares the exact
+  // automatic_key format used by the server-side
+  // operations_sync_automatic_tasks_v4077() RPC (which separately auto-creates
+  // tasks once a schedule is due/overdue), so the two can never create a
+  // duplicate task for the same schedule and due date.
+  function scheduleTaskAutomaticKey(schedule){
+    return `maintenance_schedule:${schedule.id}:${String(schedule.next_due_at).slice(0,10)}`;
+  }
+  function scheduleTaskTitle(schedule, procedure, targetLabel){
+    const base = String(procedure?.category||'').match(/^Planned:\s*/i) ? String(procedure.category).replace(/^Planned:\s*/i,'')
+      : String(procedure?.name||'').match(/^PM - [^-]+ -\s*/) ? String(procedure.name).replace(/^PM - [^-]+ -\s*/,'')
+      : (procedure?.description || procedure?.name || 'Scheduled maintenance');
+    return `${base} - ${targetLabel}`;
+  }
+  async function createTaskFromSchedule(scheduleId, opts={}){
+    const silent = !!opts.silent;
+    if(!canMaintain()){ if(!silent) alert('Only Admin or Maintenance manager users can create tasks.'); return null; }
+    const schedule = state.schedules.find(s=>String(s.id)===String(scheduleId));
+    if(!schedule){ if(!silent) alert('Maintenance schedule not found.'); return null; }
+    const automaticKey = scheduleTaskAutomaticKey(schedule);
+    if(state.tasks.some(t=>t.automatic_key===automaticKey)){ if(!silent) alert('A task already exists for this maintenance item.'); return null; }
+    const procedure = state.procedures.find(p=>String(p.id)===String(schedule.procedure_id));
+    const isVehicle = !!schedule.vehicle_id;
+    const machinery = isVehicle ? null : state.washEquipment.find(w=>String(w.id)===String(schedule.washing_equipment_id));
+    const vehicle = isVehicle ? state.vehicles.find(v=>String(v.id)===String(schedule.vehicle_id)) : state.vehicles.find(v=>String(v.id)===String(machinery?.assigned_vehicle_id||''));
+    const targetLabel = isVehicle ? (normalizeRego(vehicle?.rego)||vehicle?.name||'Vehicle') : (machinery?machineryIdentifier(machinery):'Machinery');
+    const row = {
+      source_type:'Scheduled', source_module:'maintenance', source_record_type:'maintenance_schedule', source_record_id:schedule.id,
+      target_type: isVehicle?'vehicle':'washing_equipment',
+      target_record_id: isVehicle?schedule.vehicle_id:schedule.washing_equipment_id,
+      target_label: targetLabel,
+      vehicle_id: isVehicle?schedule.vehicle_id:(machinery?.assigned_vehicle_id||null),
+      washing_equipment_id: isVehicle?null:schedule.washing_equipment_id,
+      procedure_id: schedule.procedure_id, schedule_id: schedule.id,
+      title: scheduleTaskTitle(schedule, procedure, targetLabel),
+      description: procedure?.description || 'Scheduled maintenance is due.',
+      status:'Open', priority: daysUntil(schedule.next_due_at) < 0 ? 'High' : 'Medium',
+      due_date: schedule.next_due_at, assigned_role:'Maintenance manager', automatic_key: automaticKey,
+      created_by: state.user.id
+    };
+    const r = await state.sb.from('operations_maintenance_tasks').insert(row).select().single();
+    if(r.error){
+      if(!silent) alert(r.error.code==='23505' ? 'A task already exists for this maintenance item.' : 'Could not create task: '+r.error.message);
+      return null;
+    }
+    state.tasks.push(r.data);
+    if(!silent){ render(); alert('Task created.'); }
+    return r.data;
+  }
 
 
   function roleChips(roles){
@@ -3235,6 +3322,121 @@
   async function removeReplacedAssetPhoto(oldPath, newPath){
     if(oldPath && oldPath !== newPath) await state.sb.storage.from(PHOTO_BUCKET).remove([oldPath]);
   }
+  async function openAssetPhoto(path){
+    if(!path) return;
+    try{
+      const r = await state.sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 600);
+      if(r.error) throw r.error;
+      window.open(r.data.signedUrl, '_blank');
+    }catch(err){ alert('Could not open photo: ' + (err.message || err)); }
+  }
+
+  // Bug fix (Sep 2026): on mobile, opening the camera or the OS photo picker can
+  // background the PWA tab long enough for the browser to discard it. Returning
+  // reloads the page from scratch, which wiped whatever had been typed into the
+  // Add vehicle / Add machinery form because the in-progress values only ever
+  // lived in the DOM. These helpers mirror the current field values into
+  // sessionStorage as the user types, and the asset-add forms below restore
+  // them automatically if the page comes back with the form still empty.
+  const ASSET_DRAFT_PREFIX = 'ops-asset-draft-';
+  const ASSET_DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+  function assetDraftKey(kind){ return `${ASSET_DRAFT_PREFIX}${kind}`; }
+  function saveAssetDraft(kind, data){
+    try{ sessionStorage.setItem(assetDraftKey(kind), JSON.stringify({ savedAt: Date.now(), data })); }catch(e){}
+  }
+  function loadAssetDraft(kind){
+    try{
+      const raw = sessionStorage.getItem(assetDraftKey(kind));
+      if(!raw) return null;
+      const parsed = JSON.parse(raw);
+      if(!parsed || typeof parsed !== 'object' || Date.now() - Number(parsed.savedAt||0) > ASSET_DRAFT_MAX_AGE_MS) return null;
+      return parsed.data && typeof parsed.data === 'object' ? parsed.data : null;
+    }catch(e){ return null; }
+  }
+  function clearAssetDraft(kind){
+    try{ sessionStorage.removeItem(assetDraftKey(kind)); }catch(e){}
+  }
+  function captureFormDraft(formId, kind){
+    const form = byId(formId);
+    if(!form) return;
+    const data = {};
+    form.querySelectorAll('input[id], select[id], textarea[id]').forEach(el=>{
+      if(el.type === 'file') return; // selected files can never be restored, never persist them
+      data[el.id] = el.value;
+    });
+    saveAssetDraft(kind, data);
+  }
+  function applyFormDraft(formId, kind){
+    const draft = loadAssetDraft(kind);
+    if(!draft) return;
+    const form = byId(formId);
+    if(!form) return;
+    Object.keys(draft).forEach(id=>{
+      const el = byId(id);
+      if(el && el.type !== 'file') el.value = draft[id];
+    });
+  }
+
+  async function uploadAssetFile(kind, id, file){
+    if(!file || !id) return null;
+    if(file.size > ASSET_FILE_MAX_BYTES){ alert(`"${file.name}" is larger than 20MB and was not uploaded.`); return null; }
+    const clean = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${kind}/${id}/${Date.now()}-${clean}`;
+    const up = await state.sb.storage.from(ASSET_FILE_BUCKET).upload(path, file, { cacheControl:'3600', upsert:false, contentType:file.type || 'application/octet-stream' });
+    if(up.error){ alert('File upload failed: ' + up.error.message); return null; }
+    const row = {
+      target_type: kind, vehicle_id: kind==='vehicle'?id:null, washing_equipment_id: kind==='washing_equipment'?id:null,
+      storage_path: path, file_name: file.name, file_size_bytes: file.size, uploaded_by: state.user.id
+    };
+    const r = await state.sb.from('operations_asset_files').insert(row).select().single();
+    if(r.error){ alert('File could not be saved: ' + r.error.message); await state.sb.storage.from(ASSET_FILE_BUCKET).remove([path]); return null; }
+    return r.data;
+  }
+  async function addAssetFiles(kind, id, files){
+    if(!canManage()) return alert('Only Admin or Maintenance manager users can attach files here.');
+    for(const file of Array.from(files||[])){
+      const row = await uploadAssetFile(kind, id, file);
+      if(row) state.assetFiles.push(row);
+    }
+    render();
+  }
+  async function openAssetFile(fileId){
+    const file = state.assetFiles.find(f=>String(f.id)===String(fileId));
+    if(!file) return alert('File not found.');
+    const r = await state.sb.storage.from(ASSET_FILE_BUCKET).createSignedUrl(file.storage_path, 300);
+    if(r.error) return alert('Could not open file: ' + r.error.message);
+    window.open(r.data.signedUrl, '_blank');
+  }
+  async function deleteAssetFile(fileId){
+    if(!canManage()) return alert('Only Admin or Maintenance manager users can remove files.');
+    const file = state.assetFiles.find(f=>String(f.id)===String(fileId));
+    if(!file) return;
+    if(!confirm(`Remove "${file.file_name}"? This cannot be undone.`)) return;
+    await state.sb.storage.from(ASSET_FILE_BUCKET).remove([file.storage_path]);
+    const r = await state.sb.from('operations_asset_files').delete().eq('id', fileId);
+    if(r.error) return alert('Could not remove the file record: ' + r.error.message);
+    state.assetFiles = state.assetFiles.filter(f=>String(f.id)!==String(fileId));
+    render();
+  }
+  function assetFilesListHtml(kind, id){
+    if(!id) return '';
+    const files = state.assetFiles.filter(f=>kind==='vehicle'?String(f.vehicle_id)===String(id):String(f.washing_equipment_id)===String(id));
+    return `<div class="ops-span-2"><strong>Files</strong> <span class="ops-subtle">(maintenance manuals, warranty documents, etc.)</span><div class="ops-asset-files" style="margin-top:.4rem">${files.length?files.map(f=>`<div>${esc(f.file_name)} <button class="ops-btn ghost" type="button" data-ops-view-asset-file="${f.id}">View</button>${canManage()?` <button class="ops-btn ghost" type="button" data-ops-delete-asset-file="${f.id}">Remove</button>`:''}</div>`).join(''):'<span class="ops-subtle">No files uploaded yet.</span>'}</div>${canManage()?`<label style="margin-top:.4rem;display:block">Add a file<input type="file" accept="application/pdf,image/*" multiple data-ops-asset-file-input="${kind}:${id}"></label>`:''}</div>`;
+  }
+  function assetPhotoFieldHtml(id, path){
+    // Two explicit buttons (camera vs gallery) instead of one generic file
+    // input, matching the pattern already used for vehicle-inspection photos
+    // (see .ops-item-photo) so a phone always offers both choices rather than
+    // whatever its browser defaults to for a bare accept="image/*" input.
+    return `<label class="ops-span-2">Asset photo<div class="ops-photo-buttons">
+        <label class="ops-btn ghost ops-photo-button">Camera<input id="${id}Camera" class="ops-asset-photo-input" type="file" accept="image/*" capture="environment"></label>
+        <label class="ops-btn ghost ops-photo-button">Gallery<input id="${id}Gallery" class="ops-asset-photo-input" type="file" accept="image/*"></label>
+      </div></label>
+      ${path ? `<div class="ops-span-2"><span class="ops-pill ops-ok">Photo saved</span> <button class="ops-btn ghost" type="button" data-ops-view-asset-photo="${esc(path)}">View photo</button></div>` : ''}`;
+  }
+  function assetPhotoFile(id){
+    return byId(`${id}Camera`)?.files?.[0] || byId(`${id}Gallery`)?.files?.[0] || null;
+  }
   function vehicleFormHtml(){
     const v = state.vehicles.find(x=>x.id===state.editingVehicleId) || {};
     return `<form id="opsVehicleForm" class="ops-form">
@@ -3257,8 +3459,8 @@
       <label>Spark-plug part number<input id="opsVehicleSparkPlug" value="${esc(v.spark_plug_part_number||'')}"></label>
       <label>Service interval (km)<input id="opsVehicleServiceKm" type="number" min="1" step="1" value="${esc(v.service_interval_km??'')}"></label>
       <label>Service interval (months)<input id="opsVehicleServiceMonths" type="number" min="1" step="1" value="${esc(v.service_interval_months??'')}"></label>
-      <label>Asset photo<input id="opsVehiclePhoto" type="file" accept="image/*"></label>
-      ${v.photo_path ? `<div class="ops-span-2"><span class="ops-pill ops-ok">Photo saved</span></div>` : ''}
+      ${assetPhotoFieldHtml('opsVehiclePhoto', v.photo_path)}
+      ${v.id ? assetFilesListHtml('vehicle', v.id) : ''}
       <details class="ops-span-2"><summary><strong>Additional service specifications</strong></summary><div class="ops-form" style="margin-top:.8rem">
         <label>Coolant type<input id="opsVehicleCoolantType" value="${esc(v.coolant_type||'')}"></label>
         <label>Coolant capacity (L)<input id="opsVehicleCoolantCapacity" type="number" min="0" step="0.01" value="${esc(v.coolant_capacity_l??'')}"></label>
@@ -3277,7 +3479,7 @@
         <label>Rear wiper-blade size<input id="opsVehicleRearWiper" value="${esc(v.rear_wiper_size||'')}"></label>
       </div></details>
       <label class="ops-span-2">Current service state / notes<textarea id="opsVehicleServiceNotes" placeholder="Current condition, recent work and anything requiring attention">${esc(v.service_notes||v.notes||'')}</textarea></label>
-      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save vehicle</button><button class="ops-btn ghost" type="button" data-ops-action="clearVehicle">Clear</button></div>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save vehicle</button><button class="ops-btn ghost" type="button" data-ops-action="clearVehicle">Clear</button>${v.id&&canManage()?`<button class="ops-btn danger" type="button" data-ops-delete-vehicle="${esc(v.id)}">Delete vehicle</button>`:''}</div>
     </form>`;
   }
   function washingFormHtml(){
@@ -3306,10 +3508,10 @@
         <label>PSI rating<input id="opsMachineryPressure" type="number" min="0" step="1" value="${esc(w.pressure_psi??'')}"></label>
         <label>Maximum volume output (L/min)<input id="opsMachineryOutput" type="number" min="0" step="0.1" value="${esc(w.max_output_lpm??'')}"></label>
       </div></div>
-      <label>Asset photo<input id="opsWashPhoto" type="file" accept="image/*"></label>
-      ${w.photo_path ? `<div class="ops-span-2"><span class="ops-pill ops-ok">Photo saved</span></div>` : ''}
+      ${assetPhotoFieldHtml('opsWashPhoto', w.photo_path)}
+      ${w.id ? assetFilesListHtml('washing_equipment', w.id) : ''}
       <label class="ops-span-2">Current service state / notes<textarea id="opsMachineryServiceNotes" placeholder="Current condition, recent work and anything requiring attention">${esc(w.service_notes||w.notes||'')}</textarea></label>
-      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save machinery</button><button class="ops-btn ghost" type="button" data-ops-action="clearWash">Clear</button></div>
+      <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save machinery</button><button class="ops-btn ghost" type="button" data-ops-action="clearWash">Clear</button>${w.id&&canManage()?`<button class="ops-btn danger" type="button" data-ops-delete-wash="${esc(w.id)}">Delete machinery</button>`:''}</div>
     </form>`;
   }
   function machineryTransferFormHtml(){
@@ -3381,7 +3583,7 @@
     };
     if(!row.rego){ if(submit)submit.disabled=false; return alert('Registration is required.'); }
     if(state.vehicles.some(v=>String(v.id)!==String(id) && normalizeRego(v.rego)===row.rego)){ if(submit)submit.disabled=false; return alert('That vehicle registration is already in use.'); }
-    const file = byId('opsVehiclePhoto')?.files?.[0] || null;
+    const file = assetPhotoFile('opsVehiclePhoto');
     let upload = null;
     try{
       if(file){
@@ -3392,7 +3594,9 @@
       const r = id ? await state.sb.from('operations_vehicles').update(row).eq('id',id).select().single() : await state.sb.from('operations_vehicles').insert(row).select().single();
       if(r.error){ if(upload) await state.sb.storage.from(PHOTO_BUCKET).remove([upload.path]); return alert(r.error.message); }
       if(upload) await removeReplacedAssetPhoto(existing.photo_path,upload.path);
+      if(!id&&r.data) await applyDefaultSchedulesForVehicle(r.data);
       const failed = await refreshMachineryIdentifiersForVehicle(r.data);
+      clearAssetDraft('vehicle');
       state.editingVehicleId='';
       state.assetEditorOpen=false;state.assetAddType='';
       await loadAll();
@@ -3429,7 +3633,7 @@
       max_output_lpm:type==='Pump'?numberOrNull('opsMachineryOutput'):null,
       service_notes:textOrNull('opsMachineryServiceNotes'), created_by:state.user.id
     };
-    const file=byId('opsWashPhoto')?.files?.[0]||null;
+    const file=assetPhotoFile('opsWashPhoto');
     let upload=null;
     try{
       if(file){
@@ -3441,11 +3645,56 @@
       if(r.error){ if(upload)await state.sb.storage.from(PHOTO_BUCKET).remove([upload.path]); return alert(r.error.message); }
       if(upload)await removeReplacedAssetPhoto(existing.photo_path,upload.path);
       if(!id&&r.data)await applyDefaultSchedulesForEquipment(r.data);
+      clearAssetDraft('machinery');
       state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.assetEditorOpen=false;state.assetAddType='';
       await loadAll();
       alert('Machinery saved.');
     }finally{if(submit)submit.disabled=false;}
   }
+
+  // Bug fix (Sep 2026): there was no way to delete a vehicle or a machinery/
+  // sub-asset record at all. Two-step confirmation (a warning dialog, then
+  // typing the asset's own identifier) mirrors the pattern already used for
+  // deleting a user account elsewhere in this app, so a stray tap can't delete
+  // an asset by accident. Inspection, maintenance log and task history rows
+  // referencing the asset are kept (their foreign keys are ON DELETE SET
+  // NULL) - only the asset record and its own schedules/files are removed.
+  async function deleteVehicle(id){
+    if(!canManage()) return alert('Only Admin or Maintenance manager users can delete vehicles.');
+    const vehicle = state.vehicles.find(v=>String(v.id)===String(id));
+    if(!vehicle) return;
+    const label = normalizeRego(vehicle.rego) || vehicle.name || 'this vehicle';
+    const linkedMachinery = state.washEquipment.filter(w=>String(w.assigned_vehicle_id||'')===String(id)).length;
+    if(!confirm(`Delete ${label}? This permanently removes the vehicle and its maintenance schedules and files.${linkedMachinery?` ${linkedMachinery} linked machinery item${linkedMachinery===1?'':'s'} will become unassigned/spare.`:''} Its inspection, maintenance-log and task history is kept but will show as unassigned. This cannot be undone.`)) return;
+    const typed = prompt(`Type ${label} to confirm deletion.`);
+    if(typed !== label) return alert('Deletion cancelled - the text did not match.');
+    const files = state.assetFiles.filter(f=>String(f.vehicle_id)===String(id));
+    if(files.length) await state.sb.storage.from(ASSET_FILE_BUCKET).remove(files.map(f=>f.storage_path));
+    if(vehicle.photo_path) await state.sb.storage.from(PHOTO_BUCKET).remove([vehicle.photo_path]);
+    const r = await state.sb.from('operations_vehicles').delete().eq('id', id);
+    if(r.error) return alert('Could not delete vehicle: '+r.error.message);
+    state.editingVehicleId=''; state.assetEditorOpen=false; state.assetAddType='';
+    await loadAll();
+    alert(`${label} deleted.`);
+  }
+  async function deleteWashing(id){
+    if(!canManage()) return alert('Only Admin or Maintenance manager users can delete machinery.');
+    const machinery = state.washEquipment.find(w=>String(w.id)===String(id));
+    if(!machinery) return;
+    const label = machineryIdentifier(machinery);
+    if(!confirm(`Delete ${label}? This permanently removes the machinery record, its maintenance schedules and files. Its inspection, maintenance-log and task history is kept but will show as unassigned. This cannot be undone.`)) return;
+    const typed = prompt(`Type ${label} to confirm deletion.`);
+    if(typed !== label) return alert('Deletion cancelled - the text did not match.');
+    const files = state.assetFiles.filter(f=>String(f.washing_equipment_id)===String(id));
+    if(files.length) await state.sb.storage.from(ASSET_FILE_BUCKET).remove(files.map(f=>f.storage_path));
+    if(machinery.photo_path) await state.sb.storage.from(PHOTO_BUCKET).remove([machinery.photo_path]);
+    const r = await state.sb.from('operations_washing_equipment').delete().eq('id', id);
+    if(r.error) return alert('Could not delete machinery: '+r.error.message);
+    state.editingWashId=''; state.assetEditorOpen=false; state.assetAddType='';
+    await loadAll();
+    alert(`${label} deleted.`);
+  }
+
   async function saveMachineryTransfer(e){
     e.preventDefault(); if(!canManage())return alert('Only Admin or Maintenance manager users can transfer machinery.');
     const submit=e.submitter;if(submit?.disabled)return;if(submit)submit.disabled=true;
@@ -3868,12 +4117,21 @@
     });
     return matching.sort((a,b)=>String(a.next_due_at||'').localeCompare(String(b.next_due_at||'')));
   }
+  function maintenanceDashboardFilterRowHtml(schedule, filter){
+    const procedure=state.procedures.find(p=>String(p.id)===String(schedule.procedure_id));
+    const days=daysUntil(schedule.next_due_at);
+    const item=String(procedure?.category||procedure?.name||'Maintenance').replace(/^Planned:\s*/, '');
+    const status=filter==='overdue'?`${Math.abs(days)} day${Math.abs(days)===1?'':'s'} overdue`:days===0?'Due today':`Due in ${days} day${days===1?'':'s'}`;
+    const hasTask = state.tasks.some(t=>t.automatic_key===scheduleTaskAutomaticKey(schedule));
+    const action = !canMaintain() ? '' : hasTask ? '<span class="ops-pill ops-ok">Task created</span>' : `<button class="ops-btn ghost" type="button" data-ops-create-schedule-task="${esc(schedule.id)}">Create task</button>`;
+    return `<tr><td>${esc(plannedMaintenanceTargetName(schedule))}</td><td><strong>${esc(item)}</strong></td><td>${nzDate(schedule.next_due_at)}</td><td><span class="ops-pill ${filter==='overdue'?'ops-bad':'ops-warn'}">${esc(status)}</span></td><td>${action}</td></tr>`;
+  }
   function maintenanceDashboardFilterHtml(filter){
     if(!['upcoming','overdue'].includes(filter)) return '';
     const rows=maintenanceSchedulesForDashboard(filter);
     const title=filter==='overdue'?'Overdue maintenance':'Upcoming maintenance';
     const note=filter==='overdue'?'Maintenance past its scheduled due date.':'Maintenance due today or within the next 14 days.';
-    return `<div class="ops-card ops-maintenance-filter-results"><div class="ops-section-title"><div><h3>${title}</h3><p class="ops-subtle">${note}</p></div><button type="button" class="ops-btn ghost" data-ops-action="clearScheduleFilter">Clear filter</button></div>${rows.length?`<div class="ops-table-wrap"><table class="ops-table"><tr><th>Asset</th><th>Maintenance item</th><th>Due</th><th>Status</th></tr>${rows.map(schedule=>{const procedure=state.procedures.find(p=>String(p.id)===String(schedule.procedure_id));const days=daysUntil(schedule.next_due_at);const item=String(procedure?.category||procedure?.name||'Maintenance').replace(/^Planned:\s*/, '');const status=filter==='overdue'?`${Math.abs(days)} day${Math.abs(days)===1?'':'s'} overdue`:days===0?'Due today':`Due in ${days} day${days===1?'':'s'}`;return `<tr><td>${esc(plannedMaintenanceTargetName(schedule))}</td><td><strong>${esc(item)}</strong></td><td>${nzDate(schedule.next_due_at)}</td><td><span class="ops-pill ${filter==='overdue'?'ops-bad':'ops-warn'}">${esc(status)}</span></td></tr>`;}).join('')}</table></div>`:'<p class="ops-subtle">No maintenance items match this filter.</p>'}</div>`;
+    return `<div class="ops-card ops-maintenance-filter-results"><div class="ops-section-title"><div><h3>${title}</h3><p class="ops-subtle">${note}</p></div><button type="button" class="ops-btn ghost" data-ops-action="clearScheduleFilter">Clear filter</button></div>${rows.length?`<div class="ops-table-wrap"><table class="ops-table"><tr><th>Asset</th><th>Maintenance item</th><th>Due</th><th>Status</th><th>Action</th></tr>${rows.map(schedule=>maintenanceDashboardFilterRowHtml(schedule,filter)).join('')}</table></div>`:'<p class="ops-subtle">No maintenance items match this filter.</p>'}</div>`;
   }
   function schedulesHtml(){
     const catalog=maintenanceItemCatalog();
@@ -4204,10 +4462,32 @@
     updateMaintenanceLogEntryAssetOptions();
     updateMaintenanceLogEntryRoutineChoices();
     updateMaintenanceLogEntryConditionalFields();
+    // Bug fix (Sep 2026): restore an in-progress Add vehicle / Add machinery
+    // draft (see saveAssetDraft/loadAssetDraft above) before wiring the type
+    // dropdown's dependent visibility, so a restored machinery type shows its
+    // correct fields immediately rather than the Engine default.
+    if(!state.editingVehicleId && byId('opsVehicleForm')) applyFormDraft('opsVehicleForm','vehicle');
+    if(!state.editingWashId && byId('opsWashingForm')) applyFormDraft('opsWashingForm','machinery');
+    byId('opsVehicleForm')?.addEventListener('input', ()=>captureFormDraft('opsVehicleForm','vehicle'));
+    byId('opsVehicleForm')?.addEventListener('change', ()=>captureFormDraft('opsVehicleForm','vehicle'));
+    byId('opsWashingForm')?.addEventListener('input', ()=>captureFormDraft('opsWashingForm','machinery'));
+    byId('opsWashingForm')?.addEventListener('change', ()=>captureFormDraft('opsWashingForm','machinery'));
     ['opsMachineryType','opsWashVehicle','opsMachinerySide'].forEach(id=>byId(id)?.addEventListener('change',updateMachineryFormVisibility));
     updateMachineryFormVisibility();
     ['opsTransferVehicle','opsTransferSide'].forEach(id=>byId(id)?.addEventListener('change',updateMachineryTransferPreview));
     updateMachineryTransferPreview();
+    document.querySelectorAll('[data-ops-view-asset-photo]').forEach(b=>b.addEventListener('click',()=>openAssetPhoto(b.dataset.opsViewAssetPhoto)));
+    document.querySelectorAll('[data-ops-asset-file-input]').forEach(input=>input.addEventListener('change',()=>{
+      const [kind,id]=String(input.dataset.opsAssetFileInput||'').split(':');
+      const files=Array.from(input.files||[]);
+      if(!kind||!id||!files.length) return;
+      addAssetFiles(kind,id,files);
+      input.value='';
+    }));
+    document.querySelectorAll('[data-ops-view-asset-file]').forEach(b=>b.addEventListener('click',()=>openAssetFile(b.dataset.opsViewAssetFile)));
+    document.querySelectorAll('[data-ops-delete-asset-file]').forEach(b=>b.addEventListener('click',()=>deleteAssetFile(b.dataset.opsDeleteAssetFile)));
+    document.querySelectorAll('[data-ops-delete-vehicle]').forEach(b=>b.addEventListener('click',()=>deleteVehicle(b.dataset.opsDeleteVehicle)));
+    document.querySelectorAll('[data-ops-delete-wash]').forEach(b=>b.addEventListener('click',()=>deleteWashing(b.dataset.opsDeleteWash)));
     document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle'; render(); }));
     document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide=''; render(); }));
     document.querySelectorAll('[data-ops-transfer-machinery]').forEach(b=>b.addEventListener('click',()=>{state.transferringMachineryId=b.dataset.opsTransferMachinery;state.editingWashId='';state.editingVehicleId='';state.assetEditorOpen=false;render();}));
@@ -4226,7 +4506,7 @@
 
   async function handleAction(action){
     if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';render(); }
-    if(action === 'closeAssetEditor'||action === 'clearVehicle'||action === 'clearWash'){ state.assetEditorOpen=false;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';render(); }
+    if(action === 'closeAssetEditor'||action === 'clearVehicle'||action === 'clearWash'){ clearAssetDraft('vehicle');clearAssetDraft('machinery');state.assetEditorOpen=false;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';render(); }
     if(action === 'openMaintenanceEditor'){ state.maintenanceEditorOpen=true;render(); }
     if(action === 'openMaintenanceRecord'){ state.currentView='history';state.maintenanceEditorOpen=true;render(); }
     if(action === 'closeMaintenanceEditor'){ state.maintenanceEditorOpen=false;render(); }
