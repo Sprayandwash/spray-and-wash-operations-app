@@ -292,7 +292,7 @@
       table.ops-table { width:100%; border-collapse:collapse; min-width:760px; }
       .ops-table th, .ops-table td { text-align:left; padding:.65rem .75rem; border-bottom:1px solid #edf1f5; vertical-align:top; }
       .ops-table th { background:#f8fafc; font-size:.85rem; color:#475569; }
-      .ops-pill { display:inline-block; border-radius:999px; padding:.18rem .55rem; font-size:.78rem; font-weight:800; }
+      .ops-pill { display:inline-flex; align-items:center; border-radius:999px; padding:.18rem .55rem; font-size:.78rem; font-weight:800; }
       .ops-ok { background:#dcfce7; color:#166534; }
       .ops-warn { background:#fef3c7; color:#92400e; }
       .ops-bad { background:#fee2e2; color:#991b1b; }
