@@ -99,7 +99,7 @@ test('TRAINING-REVIEW-003: Contractors view shows the seeded pass and fail signa
   await expect(passingRow.locator('.ops-pill', { hasText: 'Pass' })).toBeVisible();
 });
 
-test('TRAINING-REVIEW-004: the Training & Competency Register generates and lists a Level 3+ example', async ({ page }) => {
+test('TRAINING-REVIEW-004: the Training & Competency Register can be filtered before it generates', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
   await page.locator('[data-ops-view="training-dashboard"]').click();
@@ -107,14 +107,25 @@ test('TRAINING-REVIEW-004: the Training & Competency Register generates and list
   // Not `exact: true` — this home-tile button's accessible name is its
   // title plus its subtitle text ("...RegisterPrintable register for
   // SiteWise"), since moduleCard() renders both inside the same <button>.
-  const popupPromise = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Training & Competency Register' }).click();
+
+  // The tile now opens an in-app filter step (People / Training type) first,
+  // rather than opening the printable register straight away.
+  await expect(page.locator('h3', { hasText: 'Training & Competency Register' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#opsRegisterPersonType')).toBeVisible();
+  await expect(page.locator('#opsRegisterTrainingType')).toBeVisible();
+
+  const popupPromise = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Generate register' }).click();
   const registerPage = await popupPromise;
   await registerPage.waitForLoadState('domcontentloaded');
 
   const bodyText = await registerPage.locator('body').innerText();
   expect(bodyText).toContain('Frodo Baggins');
-  expect(bodyText).toContain('Experience');
+  // The "years of experience" section was removed from the register, and so
+  // was the old "Example: current training at Level 3 or above" callout.
+  expect(bodyText).not.toContain('Experience');
+  expect(bodyText).not.toContain('Example: current training');
   await registerPage.close();
 });
 
@@ -124,7 +135,7 @@ test('TRAINING-REVIEW-005: the dedicated account can open My Training without er
   await expect(page.locator('#opsShell h2')).toHaveText('My Training', { timeout: 15_000 });
 });
 
-test('TRAINING-REVIEW-006: Course Catalog shows NZQA info and derives Higher-level objectively', async ({ page }) => {
+test('TRAINING-REVIEW-006: Course Catalog links through to a record that derives Higher-level objectively', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
   // Course Catalog now lives inside Settings rather than its own top-level tab.
@@ -137,14 +148,24 @@ test('TRAINING-REVIEW-006: Course Catalog shows NZQA info and derives Higher-lev
   await expect(table).toBeVisible();
   await expect(table.locator('tr').first().locator('th', { hasText: 'NZQA' })).toBeVisible();
 
-  // "Higher-level" is no longer an arbitrary manual tick per course - it's
-  // derived the same way for every course from an NZQA level (>=3) or a
-  // recognised competency type. Abseiling quals is height/rope-access work,
-  // so it must now carry the Higher-level pill even though nothing was
-  // manually ticked for it.
+  // The catalogue list itself no longer shows the Higher-level pill or a
+  // course description - both moved onto the course's own record page.
   const abseilingRow = table.locator('tr', { hasText: 'Abseiling quals' });
   await expect(abseilingRow).toHaveCount(1);
-  await expect(abseilingRow.locator('.ops-pill', { hasText: 'Higher-level' })).toBeVisible();
+  await expect(abseilingRow.locator('.ops-pill', { hasText: 'Higher-level' })).toHaveCount(0);
+
+  // Clicking the course name opens its record. "Higher-level" is derived the
+  // same way for every course - from having an NZQA code attached, or from a
+  // recognised competency type - never a manual tick. Abseiling quals is
+  // tagged as height/rope-access work, so it must still carry the
+  // Higher-level pill on its record even though nothing was manually ticked.
+  await abseilingRow.getByRole('button', { name: 'Abseiling quals' }).click();
+  await expect(page.locator('h3', { hasText: 'Abseiling quals' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.ops-pill', { hasText: 'Higher-level' })).toBeVisible();
+
+  // Edit and Archive now live on the course record, not in the catalogue list.
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Archive', exact: true })).toBeVisible();
 });
 
 test('TRAINING-REVIEW-007: Settings holds the Matrix and Catalog, and Team members lists everyone', async ({ page }) => {
