@@ -91,3 +91,4 @@ The repository's `docs/SUPABASE-RECOVERY-AUTOMATION.md` describes the separate b
 5. Obtain a fresh explicit approval immediately before every Step 9B run. Confirm cleanup after any such run.
 6. When working or reporting on progress, always state which numbered Step of this process (1-6, 7, 8-9A, 9B, 10A, 10B) the work is on or up to.
 7. At every Step 8-9A phase, hand over the current `spray-wash-staging-app` artifact plus the PowerShell commands to run it locally, per `docs/STAGING-BROWSER-TESTING.md`, without waiting to be asked.
+8. Before that Step 8-9A handoff, confirm the staging build's source commit (`main`) actually contains every previously-applied fix relevant to the area under review — e.g. via `git log`/`git diff` against the last confirmed-good commit — so a stale local server or an unmerged branch is never mistaken for a missing fix.
