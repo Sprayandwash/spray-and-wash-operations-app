@@ -49,13 +49,13 @@ test('TRAINING-REVIEW-001: dedicated Training manager account can sign in and op
   await openTrainingModule(page);
 });
 
-test('TRAINING-REVIEW-002: Training Matrix is a pure Applies/Compulsory data-entry grid', async ({ page }) => {
+test('TRAINING-REVIEW-002: Training Matrix is a single-tick required/not-required grid', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
   // The Matrix now lives inside Settings rather than its own top-level tab.
   await page.locator('[data-ops-view="training-settings"]').click();
 
-  const table = page.locator('.ops-table-wrap table.ops-table').first();
+  const table = page.locator('table.ops-matrix-table').first();
   await expect(table).toBeVisible({ timeout: 15_000 });
 
   // The catalog currently has 15 active courses plus the leading "Person"
@@ -64,12 +64,12 @@ test('TRAINING-REVIEW-002: Training Matrix is a pure Applies/Compulsory data-ent
   const headerCells = table.locator('tr').first().locator('th');
   await expect(headerCells).toHaveCount(16);
 
-  // The Matrix is data entry only now: every cell offers an "Applies"
-  // checkbox (and "Compulsory" once ticked), and none of it shows a
-  // completion/expiry status pill — that lives on the person's own record.
+  // The Matrix is a single tick box per person/course cell now (checked =
+  // required), and it carries no completion/expiry status pill — that lives
+  // on the person's own record.
   const samwiseRow = table.locator('tr', { has: page.locator('button[data-ops-open-person]:text-is("Samwise Gamgee")') });
   await expect(samwiseRow, 'Expected a Training Matrix row for Samwise Gamgee').toHaveCount(1);
-  await expect(samwiseRow.locator('input[type="checkbox"][data-ops-matrix-applicable]').first()).toBeVisible();
+  await expect(samwiseRow.locator('input[type="checkbox"][data-ops-matrix-cell]').first()).toBeVisible();
 
   // Scoped to the data cells, not the header row - a course's own
   // "Higher-level" badge in the header is a course attribute, not a
@@ -102,14 +102,13 @@ test('TRAINING-REVIEW-003: Contractors view shows the seeded pass and fail signa
 test('TRAINING-REVIEW-004: the Training & Competency Register can be filtered before it generates', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
-  await page.locator('[data-ops-view="training-dashboard"]').click();
 
-  // Not `exact: true` — this home-tile button's accessible name is its
-  // title plus its subtitle text ("...RegisterPrintable register for
-  // SiteWise"), since moduleCard() renders both inside the same <button>.
-  await page.getByRole('button', { name: 'Training & Competency Register' }).click();
+  // The Register is reached from its own top-level tab now, not a Dashboard
+  // tile - the Dashboard tiles were removed since the top tabs already cover
+  // that navigation.
+  await page.locator('[data-ops-view="training-register"]').click();
 
-  // The tile now opens an in-app filter step (People / Training type) first,
+  // This opens an in-app filter step (People / Training type) first,
   // rather than opening the printable register straight away.
   await expect(page.locator('h3', { hasText: 'Training & Competency Register' })).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#opsRegisterPersonType')).toBeVisible();
@@ -189,10 +188,10 @@ test('TRAINING-REVIEW-007: Settings holds the Matrix and Catalog, and Team membe
   const frodoRow = table.locator('tr', { hasText: 'Frodo Baggins' });
   await expect(frodoRow).toHaveCount(1);
 
-  // Clicking through opens the person's own record - now the main way to
-  // manage an individual's training entries, instead of going through the
-  // Matrix.
-  await frodoRow.getByRole('button', { name: 'View / edit training' }).click();
+  // The whole row is clickable now (no per-row action buttons) and opens the
+  // person's own record - the main way to manage an individual's training
+  // entries, instead of going through the Matrix.
+  await frodoRow.click();
   await expect(page.locator('h3', { hasText: 'Frodo Baggins' })).toBeVisible({ timeout: 15_000 });
 });
 
@@ -204,12 +203,19 @@ test('TRAINING-REVIEW-008: Contractors route to a scoped page per contractor', a
 
   const contractorsTable = page.locator('.ops-table-wrap table.ops-table').first();
 
-  // Kiwi Rope Access is seeded as a sole trader - clicking through should go
-  // straight to that person's own training record, skipping any
-  // intermediate scoped list.
+  // Every contractor row - sole trader or company - is clickable now and
+  // opens that contractor's own scoped page first (rather than a sole
+  // trader skipping straight to their person record), so Edit and +Add
+  // person are reachable in one consistent place for every contractor type.
   const soleTraderRow = contractorsTable.locator('tr', { hasText: 'Kiwi Rope Access' });
   await expect(soleTraderRow).toHaveCount(1);
-  await soleTraderRow.getByRole('button', { name: 'View training' }).click();
+  await soleTraderRow.click();
+  await expect(page.locator('h3', { hasText: 'Kiwi Rope Access' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  const soleTraderScopedTable = page.locator('.ops-table-wrap table.ops-table').first();
+  const piripiRow = soleTraderScopedTable.locator('tr', { hasText: 'Piripi Walker' });
+  await expect(piripiRow).toHaveCount(1);
+  await piripiRow.click();
   await expect(page.locator('h3', { hasText: 'Piripi Walker' })).toBeVisible({ timeout: 15_000 });
 
   // Back to Contractors, then into a company contractor - Aotearoa
@@ -219,8 +225,10 @@ test('TRAINING-REVIEW-008: Contractors route to a scoped page per contractor', a
   await expect(page.locator('h3', { hasText: 'Contractors' })).toBeVisible({ timeout: 15_000 });
   const companyRow = contractorsTable.locator('tr', { hasText: 'Aotearoa Scaffolding Ltd' });
   await expect(companyRow).toHaveCount(1);
-  await companyRow.getByRole('button', { name: 'View employees' }).click();
+  await companyRow.click();
   await expect(page.locator('h3', { hasText: 'Aotearoa Scaffolding Ltd' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Add person', exact: true })).toBeVisible();
 
   const scopedTable = page.locator('.ops-table-wrap table.ops-table').first();
   await expect(scopedTable.locator('tr', { hasText: 'Dave Mitchell' })).toHaveCount(1);
