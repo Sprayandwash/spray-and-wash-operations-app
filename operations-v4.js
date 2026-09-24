@@ -106,6 +106,9 @@
     editingRecordId: '',
     trainingRecordFormCourseId: '',
     trainingExpandedCourseIds: new Set(),
+    trainingSettingsMatrixOpen: false,
+    trainingSettingsCatalogOpen: false,
+    trainingRegisterShowOnScreen: false,
     trainingFileMenuOpenId: '',
     trainingMatrixTab: 'external',
     myTrainingLoaded: false,
@@ -280,7 +283,7 @@
       .height-module-heading h2{margin:.1rem 0 .1rem 0;font-size:20px;}
       .height-module-heading .ops-subtle{font-size:.92rem;}
       .tabs{position:static!important;top:auto!important;background:transparent!important;margin:.75rem 0 1rem 0!important;display:flex;flex-wrap:wrap;gap:.5rem!important;padding:0!important;}
-      .ops-nav button, .ops-btn { box-sizing:border-box; font:inherit; border:0; border-radius:12px; padding:11px 14px; background:#e2e8f0; color:#0f172a; font-weight:800; cursor:pointer; min-height:42px; line-height:1.3; }
+      .ops-nav button, .ops-btn { box-sizing:border-box; font:inherit; border:0; border-radius:12px; padding:11px 14px; background:#e2e8f0; color:#0f172a; font-weight:800; cursor:pointer; min-height:42px; line-height:1.3; display:inline-flex; align-items:center; justify-content:center; }
       .ops-nav button.active, .ops-btn.primary { background:#0f766e; color:white; }
       .tabs { align-items:center; gap:.5rem !important; padding:6px 0 12px !important; }
       .tabs .tab, .tabs button.tab { border:0; border-radius:12px !important; padding:11px 14px !important; background:#e2e8f0 !important; color:#0f172a !important; font-weight:800 !important; min-height:42px; white-space:nowrap; }
@@ -316,9 +319,10 @@
       .ops-training-course-body > .ops-add-record-btn { margin:.75rem 0; }
       .ops-training-row-badges { display:grid; grid-template-columns:92px 108px; align-items:center; gap:.4rem; }
       .ops-training-row-badges .ops-pill { justify-self:end; min-width:88px; text-align:center; justify-content:center; }
-      .ops-register-badges { display:grid; grid-template-columns:92px 96px 108px; align-items:center; gap:.4rem; }
-      .ops-register-badges .ops-pill { justify-self:start; min-width:84px; text-align:center; justify-content:center; }
-      .ops-register-compliant { min-width:100px; text-align:center; justify-content:center; }
+      .ops-register-badges { display:grid; grid-template-columns:104px 118px 128px; align-items:center; gap:.4rem; }
+      .ops-register-badges .ops-pill { justify-self:stretch; width:100%; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; }
+      .ops-register-compliant { width:120px; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; }
+      .ops-register-competency { white-space:nowrap; }
       .ops-register-key { font-size:.85rem; color:#334155; background:#f6f9fe; border:1px solid #d9e2f0; border-radius:.75rem; padding:.6rem .85rem; margin:.75rem 0; }
       .ops-register-key strong { color:#0f766e; }
       .ops-evidence-list { list-style:none; margin:.5rem 0; padding:0; border:1px solid #e2e8f0; border-radius:.6rem; overflow:hidden; }
@@ -342,11 +346,11 @@
       .ops-collapsible[open] > summary h3::before { transform:rotate(90deg); }
       .ops-collapsible-body { margin-top:.75rem; }
       .ops-matrix-wrap { max-width:100%; max-height:70vh; overflow:auto; }
-      table.ops-matrix-table { min-width:auto; width:auto; font-size:.82rem; }
+      table.ops-matrix-table { min-width:auto; width:auto; font-size:.82rem; table-layout:fixed; }
       .ops-matrix-table th, .ops-matrix-table td { padding:.35rem .5rem; }
-      .ops-matrix-head-cell { position:sticky; top:0; background:#f8fafc; z-index:2; max-width:140px; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; font-size:.78rem; line-height:1.25; text-align:center; }
-      .ops-matrix-person-head { position:sticky; top:0; left:0; background:#f8fafc; z-index:3; }
-      .ops-matrix-person { position:sticky; left:0; background:#fff; z-index:1; min-width:150px; }
+      .ops-matrix-head-cell { position:sticky; top:0; background:#f8fafc; z-index:2; width:112px; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; font-size:.78rem; line-height:1.25; text-align:center; }
+      .ops-matrix-person-head { position:sticky; top:0; left:0; background:#f8fafc; z-index:3; width:170px; text-align:left; }
+      .ops-matrix-person { position:sticky; left:0; background:#fff; z-index:1; width:170px; }
       .ops-matrix-tabs { margin-bottom:.75rem; }
       .ops-matrix-cell { text-align:center; vertical-align:middle; }
       .ops-matrix-cell input { width:18px; height:18px; margin:0; }
@@ -382,9 +386,9 @@
       .ops-check-section h4 { margin:.1rem 0 .6rem; }
       .ops-check { display:flex; gap:.5rem; align-items:center; font-weight:700; margin:.35rem 0; }
       .ops-check input { width:auto; }
-      .ops-toggle-pill { cursor:pointer; }
-      .ops-toggle-pill input { position:absolute; opacity:0; width:0; height:0; }
-      .ops-toggle-pill .ops-toggle-on, .ops-toggle-pill .ops-toggle-off { display:none; }
+      .ops-toggle-pill { cursor:pointer; position:relative; display:inline-flex !important; flex-direction:row !important; align-items:center; width:auto !important; }
+      .ops-toggle-pill input { position:absolute; opacity:0; top:0; left:0; right:0; bottom:0; width:100% !important; height:100% !important; margin:0; padding:0 !important; border:0 !important; cursor:pointer; }
+      .ops-toggle-pill .ops-toggle-on, .ops-toggle-pill .ops-toggle-off { display:none; pointer-events:none; }
       .ops-toggle-pill .ops-toggle-off { display:inline-flex; }
       .ops-toggle-pill input:checked ~ .ops-toggle-on { display:inline-flex; }
       .ops-toggle-pill input:checked ~ .ops-toggle-off { display:none; }
@@ -1218,21 +1222,22 @@
   }
 
   function trainingRegisterCss(){
-    return `@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#0f766e;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #0f766e;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#0f766e}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #0f766e;border-radius:12px;padding:14px 16px;margin:16px 0;background:#f0fdfa}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px;text-align:center}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.badges{display:grid;grid-template-columns:62px 70px 80px;align-items:center;gap:4px}.badges span.pill{justify-self:start}.key{margin:0 0 10px;font-size:11px;color:#334155;background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:8px 12px}.key strong{color:#0f766e}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
+    return `@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#0f766e;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #0f766e;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#0f766e}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #0f766e;border-radius:12px;padding:14px 16px;margin:16px 0;background:#f0fdfa}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px;text-align:center}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.badges{display:grid;grid-template-columns:72px 82px 92px;align-items:center;gap:4px}.badges span.pill{justify-self:start;width:100%;box-sizing:border-box;white-space:nowrap}.pill-compliant{width:92px;box-sizing:border-box;white-space:nowrap}.key{margin:0 0 10px;font-size:11px;color:#334155;background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:8px 12px}.key strong{color:#0f766e}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
   }
 
   function trainingRegisterDocHtml(filters){
     const data = trainingRegisterBuildData(filters);
     const statusFilter = filters?.status || 'all';
     const sourceRows = statusFilter !== 'all' ? data.statusFilteredPeopleRows : data.peopleRows;
-    const nameCell = p => `${esc(p.name)}${trainingCompetencyLabel(p.competencyLevel) ? `<br><span class="muted">SiteWise competency: ${p.competencyLevel}. ${esc(trainingCompetencyLabel(p.competencyLevel))}</span>` : ''}`;
+    const nameCell = p => esc(p.name);
+    const competencyCell = p => trainingCompetencyBadgePrintHtml(p.competencyLevel);
     const detailsCell = e => `<span class="badges">${e.compulsory ? '<span class="pill bad">Compulsory</span>' : '<span></span>'}${e.higherLevel ? '<span class="pill ok">Higher-level</span>' : '<span></span>'}<span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></span>`;
-    const compliantCell = e => `<span class="pill ${e.compliant ? 'ok' : 'bad'}">${e.compliant ? 'Compliant' : 'Non-Compliant'}</span>`;
+    const compliantCell = e => `<span class="pill pill-compliant ${e.compliant ? 'ok' : 'bad'}">${e.compliant ? 'Compliant' : 'Non-Compliant'}</span>`;
     const rows = sourceRows.map(p => {
       if(!p.entries.length){
-        return `<tr><td>${nameCell(p)}</td><td>${esc(p.roleLabel)}</td><td colspan="5" class="muted">No compulsory or applicable courses assigned yet.</td></tr>`;
+        return `<tr><td>${nameCell(p)}</td><td>${esc(p.roleLabel)}</td><td>${competencyCell(p)}</td><td colspan="5" class="muted">No compulsory or applicable courses assigned yet.</td></tr>`;
       }
-      return p.entries.map((e,i) => `<tr>${i===0 ? `<td rowspan="${p.entries.length}">${nameCell(p)}</td><td rowspan="${p.entries.length}">${esc(p.roleLabel)}</td>` : ''}<td>${esc(e.courseName)}<br><span class="muted">${esc(e.category)}</span></td><td>${nzDate(e.completedDate)}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${detailsCell(e)}</td><td>${compliantCell(e)}</td></tr>`).join('');
+      return p.entries.map((e,i) => `<tr>${i===0 ? `<td rowspan="${p.entries.length}">${nameCell(p)}</td><td rowspan="${p.entries.length}">${esc(p.roleLabel)}</td><td rowspan="${p.entries.length}">${competencyCell(p)}</td>` : ''}<td>${esc(e.courseName)}<br><span class="muted">${esc(e.category)}</span></td><td>${nzDate(e.completedDate)}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${detailsCell(e)}</td><td>${compliantCell(e)}</td></tr>`).join('');
     }).join('');
     const summary = data.summary;
     const scopeBits = [];
@@ -1240,7 +1245,7 @@
     else if(filters?.personType === 'contractor') scopeBits.push('Contractors only');
     else scopeBits.push('All active employees and contractor people');
     if(filters?.trainingType === 'internal') scopeBits.push('Internal training only');
-    else if(filters?.trainingType === 'formal') scopeBits.push('Formal training / quals only');
+    else if(filters?.trainingType === 'external') scopeBits.push('External training only');
     if(statusFilter !== 'all') scopeBits.push(`Filtered to: ${TRAINING_STATUS_LABELS[statusFilter] || statusFilter}`);
     return `<!doctype html><html><head><meta charset="utf-8"><title>Training &amp; Competency Register</title><style>${trainingRegisterCss()}</style></head><body>
       <div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>
@@ -1253,8 +1258,8 @@
           <div><strong>${summary.expiringSoon}</strong><span>Expiring within 30 days</span></div>
           <div><strong>${summary.missingOrExpired}</strong><span>Missing / expired</span></div>
         </div>
-        <div class="key"><strong>SiteWise competency key:</strong> ${esc(trainingCompetencyKeyText())}</div>
-        <table><thead><tr><th>Name</th><th>Role / Company</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th><th>Compliant</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="key"><strong>Competency key:</strong> ${esc(trainingCompetencyKeyText())}</div>
+        <table><thead><tr><th>Name</th><th>Role / Company</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th><th>Compliant</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="footer">This register lists every active employee and contractor/subcontractor person recorded in Spray &amp; Wash Operations, with their applicable training and current compliance status. Generated automatically from live records.</div>
       </div>
     </body></html>`;
@@ -1271,22 +1276,34 @@
   function trainingRegisterResultsHtml(filters){
     const data = trainingRegisterBuildData(filters);
     const statusFilter = filters?.status || 'all';
-    if(statusFilter === 'all') return '';
-    const rows = data.statusFilteredPeopleRows.flatMap(p => p.entries.map(e =>
-      `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}${trainingCompetencyLabel(p.competencyLevel) ? ` · SiteWise competency ${p.competencyLevel}: ${esc(trainingCompetencyLabel(p.competencyLevel))}` : ''}</span></td><td>${esc(e.courseName)}</td><td>${e.completedDate ? nzDate(e.completedDate) : '—'}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${trainingRegisterDetailsBadgesHtml(e)}</td><td>${trainingRegisterCompliantPillHtml(e)}</td></tr>`
-    )).join('') || `<tr><td colspan="6" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
+    const showOnScreen = !!state.trainingRegisterShowOnScreen;
+    if(statusFilter === 'all' && !showOnScreen) return '';
+    const sourceRows = statusFilter !== 'all' ? data.statusFilteredPeopleRows : data.peopleRows;
+    const rows = sourceRows.flatMap(p => p.entries.length ? p.entries.map(e =>
+      `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td>${esc(e.courseName)}</td><td>${e.completedDate ? nzDate(e.completedDate) : '—'}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${trainingRegisterDetailsBadgesHtml(e)}</td><td>${trainingRegisterCompliantPillHtml(e)}</td></tr>`
+    ) : [`<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td colspan="5" class="ops-subtle">No compulsory or applicable courses assigned yet.</td></tr>`])
+      .join('') || `<tr><td colspan="7" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
+    const heading = statusFilter !== 'all' ? `Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}` : 'On-screen register';
+    const clearBtn = statusFilter !== 'all'
+      ? `<button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button>`
+      : `<button class="ops-btn ghost" type="button" onclick="toggleTrainingRegisterOnScreen()">Hide on-screen register</button>`;
     return `<div class="ops-card">
-      <div class="ops-section-title"><h3>Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}</h3><button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button></div>
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th><th>Compliant</th></tr>${rows}</table></div>
+      <div class="ops-section-title"><h3>${heading}</h3>${clearBtn}</div>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th><th>Compliant</th></tr>${rows}</table></div>
     </div>`;
+  }
+
+  function toggleTrainingRegisterOnScreen(){
+    state.trainingRegisterShowOnScreen = !state.trainingRegisterShowOnScreen;
+    render();
   }
 
   function trainingRegisterFilterHtml(){
     const f = state.trainingRegisterFilters || {personType:'all', trainingType:'all', status:'all'};
     return `<div class="ops-card">
       <h3>Training &amp; Competency Register</h3>
-      <p class="ops-subtle">Choose who and what to include, then generate a printable register for SiteWise.</p>
-      <div class="ops-register-key"><strong>SiteWise competency key:</strong> ${esc(trainingCompetencyKeyText())}</div>
+      <p class="ops-subtle">Choose who and what to include, then view it on screen or generate a printable register.</p>
+      <div class="ops-register-key"><strong>Competency key:</strong> ${esc(trainingCompetencyKeyText())}</div>
       <div class="ops-form">
         <label>People<select id="opsRegisterPersonType">
           <option value="all" ${f.personType==='all'?'selected':''}>Employees &amp; contractors</option>
@@ -1294,9 +1311,9 @@
           <option value="contractor" ${f.personType==='contractor'?'selected':''}>Contractors only</option>
         </select></label>
         <label>Training type<select id="opsRegisterTrainingType">
-          <option value="all" ${f.trainingType==='all'?'selected':''}>Formal &amp; internal</option>
-          <option value="formal" ${f.trainingType==='formal'?'selected':''}>Formal training / quals only</option>
-          <option value="internal" ${f.trainingType==='internal'?'selected':''}>Internal training only</option>
+          <option value="all" ${f.trainingType==='all'?'selected':''}>External &amp; Internal</option>
+          <option value="external" ${f.trainingType==='external'?'selected':''}>External only</option>
+          <option value="internal" ${f.trainingType==='internal'?'selected':''}>Internal only</option>
         </select></label>
         <label>Status<select id="opsRegisterStatus">
           <option value="all" ${(!f.status||f.status==='all')?'selected':''}>All statuses</option>
@@ -1305,7 +1322,7 @@
           <option value="compliant" ${f.status==='compliant'?'selected':''}>Compliant</option>
           <option value="not_recorded" ${f.status==='not_recorded'?'selected':''}>Not recorded</option>
         </select></label>
-        <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="button" onclick="generateTrainingRegister()">Generate printable register</button></div>
+        <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="button" onclick="generateTrainingRegister()">Generate printable register</button><button class="ops-btn ghost" type="button" onclick="toggleTrainingRegisterOnScreen()">${state.trainingRegisterShowOnScreen ? 'Hide on-screen register' : 'Show on-screen register'}</button></div>
       </div>
     </div>
     ${trainingRegisterResultsHtml(f)}`;
@@ -1339,11 +1356,11 @@
   }
 
   function trainingSettingsHtml(){
-    return `<details class="ops-card ops-collapsible" open>
+    return `<details class="ops-card ops-collapsible" id="opsTrainingMatrixDetails" ${state.trainingSettingsMatrixOpen ? 'open' : ''}>
         <summary><h3>Training Matrix</h3></summary>
         <div class="ops-collapsible-body">${trainingMatrixHtml()}</div>
       </details>
-      <details class="ops-card ops-collapsible" open>
+      <details class="ops-card ops-collapsible" id="opsTrainingCatalogDetails" ${state.trainingSettingsCatalogOpen ? 'open' : ''}>
         <summary><h3>Course Catalog</h3></summary>
         <div class="ops-collapsible-body">${trainingCatalogHtml()}</div>
       </details>`;
@@ -1478,11 +1495,11 @@
         </div>
       </div>
       <p class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}${person.active === false ? ' · Archived' : ''}</p>
-      <div class="ops-form"><label>SiteWise competency<select data-ops-person-competency="${person.id}">
+      <div class="ops-form"><label>Competency<select data-ops-person-competency="${person.id}">
         <option value="">— Not set —</option>
         ${TRAINING_COMPETENCY_LEVELS.map(t => `<option value="${t.value}" ${Number(person.competency_level)===t.value?'selected':''}>${t.value}: ${esc(t.label)}</option>`).join('')}
       </select></label></div>
-      <p class="ops-subtle">A simple 1–4 supervision scale SiteWise uses to record this person's overall competency. It has no link to any specific course or qualification and appears on the Training &amp; Competency Register.</p>
+      <p class="ops-subtle"><strong>Competency key:</strong> ${esc(trainingCompetencyKeyText())}</p>
       ${editing ? trainingPersonFormHtml() : ''}
     </div>
     ${sections}`;
@@ -1551,6 +1568,16 @@
 
   function trainingCompetencyKeyText(){
     return TRAINING_COMPETENCY_LEVELS.map(t => `${t.value} = ${t.label}`).join(' · ');
+  }
+
+  function trainingCompetencyBadgeHtml(level){
+    const label = trainingCompetencyLabel(level);
+    return label ? `<span class="ops-pill ops-muted ops-register-competency">${esc(level)}: ${esc(label)}</span>` : `<span class="ops-subtle">—</span>`;
+  }
+
+  function trainingCompetencyBadgePrintHtml(level){
+    const label = trainingCompetencyLabel(level);
+    return label ? `<span class="pill muted">${esc(level)}: ${esc(label)}</span>` : '—';
   }
 
   function trainingCourseNzqaCodesText(course){
@@ -1740,7 +1767,7 @@
     const archived = sortPeople(state.trainingPeople.filter(p => p.active === false));
     const activeRows = active.map(rowHtml).join('') || '<tr><td colspan="4" class="ops-subtle">No people yet.</td></tr>';
     const archivedRows = archived.map(rowHtml).join('') || '<tr><td colspan="4" class="ops-subtle">No archived people.</td></tr>';
-    const tableHead = '<tr><th>Name</th><th>Type</th><th>Company</th><th>SiteWise competency</th></tr>';
+    const tableHead = '<tr><th>Name</th><th>Type</th><th>Company</th><th>Competency</th></tr>';
     return `<div class="ops-card"><h3>Team members</h3>
       <div class="ops-table-wrap"><table class="ops-table">${tableHead}${activeRows}</table></div>
     </div>
@@ -4684,6 +4711,8 @@
       const courseId = String(d.dataset.opsCourseId);
       if(d.open) state.trainingExpandedCourseIds.add(courseId); else state.trainingExpandedCourseIds.delete(courseId);
     }));
+    byId('opsTrainingMatrixDetails')?.addEventListener('toggle', e => { state.trainingSettingsMatrixOpen = e.target.open; });
+    byId('opsTrainingCatalogDetails')?.addEventListener('toggle', e => { state.trainingSettingsCatalogOpen = e.target.open; });
     document.querySelectorAll('[data-ops-edit-record]').forEach(b => b.addEventListener('click', () => { const rec=state.trainingRecords.find(r=>String(r.id)===String(b.dataset.opsEditRecord)); if(!rec) return; state.editingRecordId=rec.id; state.trainingRecordFormCourseId=rec.course_id; state.trainingRecordFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-delete-record]').forEach(b => b.addEventListener('click', () => deleteTrainingRecord(b.dataset.opsDeleteRecord)));
     document.querySelectorAll('[data-ops-toggle-add-file]').forEach(b => b.addEventListener('click', () => {
