@@ -283,7 +283,8 @@
       .height-module-heading h2{margin:.1rem 0 .1rem 0;font-size:20px;}
       .height-module-heading .ops-subtle{font-size:.92rem;}
       .tabs{position:static!important;top:auto!important;background:transparent!important;margin:.75rem 0 1rem 0!important;display:flex;flex-wrap:wrap;gap:.5rem!important;padding:0!important;}
-      .ops-nav button, .ops-btn { box-sizing:border-box; font:inherit; border:0; border-radius:12px; padding:11px 14px; background:#e2e8f0; color:#0f172a; font-weight:800; cursor:pointer; min-height:42px; line-height:1.3; display:inline-flex; align-items:center; justify-content:center; }
+      .ops-nav button, .ops-btn { box-sizing:border-box; font:inherit; border:0; border-radius:12px; padding:11px 14px; background:#e2e8f0; color:#0f172a; font-weight:800; cursor:pointer; min-height:42px; line-height:1.3; display:inline-flex; align-items:center; justify-content:center; -webkit-appearance:none; -moz-appearance:none; appearance:none; }
+      button.ops-btn::-moz-focus-inner, .ops-nav button::-moz-focus-inner { border:0; padding:0; }
       .ops-nav button.active, .ops-btn.primary { background:#0f766e; color:white; }
       .tabs { align-items:center; gap:.5rem !important; padding:6px 0 12px !important; }
       .tabs .tab, .tabs button.tab { border:0; border-radius:12px !important; padding:11px 14px !important; background:#e2e8f0 !important; color:#0f172a !important; font-weight:800 !important; min-height:42px; white-space:nowrap; }
@@ -319,9 +320,9 @@
       .ops-training-course-body > .ops-add-record-btn { margin:.75rem 0; }
       .ops-training-row-badges { display:grid; grid-template-columns:92px 108px; align-items:center; gap:.4rem; }
       .ops-training-row-badges .ops-pill { justify-self:end; min-width:88px; text-align:center; justify-content:center; }
-      .ops-register-badges { display:grid; grid-template-columns:104px 118px 128px; align-items:center; gap:.4rem; }
-      .ops-register-badges .ops-pill { justify-self:stretch; width:100%; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; }
-      .ops-register-compliant { width:120px; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; }
+      .ops-register-badges { display:grid; grid-template-columns:122px 138px 150px; align-items:center; gap:.4rem; }
+      .ops-register-badges .ops-pill { justify-self:stretch; width:100%; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .ops-register-compliant { width:134px; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; }
       .ops-register-competency { white-space:nowrap; }
       .ops-register-key { font-size:.85rem; color:#334155; background:#f6f9fe; border:1px solid #d9e2f0; border-radius:.75rem; padding:.6rem .85rem; margin:.75rem 0; }
       .ops-register-key strong { color:#0f766e; }
@@ -348,11 +349,11 @@
       .ops-matrix-wrap { max-width:100%; max-height:70vh; overflow:auto; }
       table.ops-matrix-table { min-width:auto; width:auto; font-size:.82rem; table-layout:fixed; }
       .ops-matrix-table th, .ops-matrix-table td { padding:.35rem .5rem; }
-      .ops-matrix-head-cell { position:sticky; top:0; background:#f8fafc; z-index:2; width:112px; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; font-size:.78rem; line-height:1.25; text-align:center; }
-      .ops-matrix-person-head { position:sticky; top:0; left:0; background:#f8fafc; z-index:3; width:170px; text-align:left; }
-      .ops-matrix-person { position:sticky; left:0; background:#fff; z-index:1; width:170px; }
+      .ops-matrix-table th.ops-matrix-head-cell { position:sticky; top:0; background:#f8fafc; z-index:2; width:112px; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; font-size:.78rem; line-height:1.25; text-align:center; }
+      .ops-matrix-table th.ops-matrix-person-head { position:sticky; top:0; left:0; background:#f8fafc; z-index:3; width:170px; text-align:left; }
+      .ops-matrix-table td.ops-matrix-person { position:sticky; left:0; background:#fff; z-index:1; width:170px; }
       .ops-matrix-tabs { margin-bottom:.75rem; }
-      .ops-matrix-cell { text-align:center; vertical-align:middle; }
+      .ops-matrix-table td.ops-matrix-cell { text-align:center; vertical-align:middle; }
       .ops-matrix-cell input { width:18px; height:18px; margin:0; }
       tr.ops-row-link { cursor:pointer; }
       tr.ops-row-link:hover, tr.ops-row-link:focus-visible { background:#f6f9fe; outline:none; }
@@ -386,11 +387,15 @@
       .ops-check-section h4 { margin:.1rem 0 .6rem; }
       .ops-check { display:flex; gap:.5rem; align-items:center; font-weight:700; margin:.35rem 0; }
       .ops-check input { width:auto; }
-      .ops-toggle-pill { cursor:pointer; position:relative; display:inline-flex !important; flex-direction:row !important; align-items:center; width:auto !important; }
+      .ops-toggle-pill { cursor:pointer; position:relative; display:inline-flex !important; flex-direction:row !important; align-items:center; gap:.5rem; width:auto !important; }
       .ops-toggle-pill input { position:absolute; opacity:0; top:0; left:0; right:0; bottom:0; width:100% !important; height:100% !important; margin:0; padding:0 !important; border:0 !important; cursor:pointer; }
-      .ops-toggle-pill .ops-toggle-on, .ops-toggle-pill .ops-toggle-off { display:none; pointer-events:none; }
-      .ops-toggle-pill .ops-toggle-off { display:inline-flex; }
-      .ops-toggle-pill input:checked ~ .ops-toggle-on { display:inline-flex; }
+      .ops-toggle-track { position:relative; display:inline-block; width:44px; height:24px; border-radius:999px; background:#dc2626; flex-shrink:0; transition:background-color .15s ease; }
+      .ops-toggle-track::before { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.35); transition:transform .15s ease; }
+      .ops-toggle-pill input:checked ~ .ops-toggle-track { background:#16a34a; }
+      .ops-toggle-pill input:checked ~ .ops-toggle-track::before { transform:translateX(20px); }
+      .ops-toggle-pill .ops-toggle-on, .ops-toggle-pill .ops-toggle-off { display:none; pointer-events:none; font-weight:800; font-size:.85rem; }
+      .ops-toggle-pill .ops-toggle-off { display:inline-flex; color:#991b1b; }
+      .ops-toggle-pill input:checked ~ .ops-toggle-on { display:inline-flex; color:#166534; }
       .ops-toggle-pill input:checked ~ .ops-toggle-off { display:none; }
 
       .ops-user-card { border:1px solid #dbe3ec; border-radius:.85rem; padding:.8rem; margin:.7rem 0; background:#fff; }
@@ -577,6 +582,7 @@
     window.openLegacyUserTools = openLegacyUserTools;
     window.openHeightQualifications = openHeightQualifications;
     window.generateTrainingRegister = generateTrainingRegister;
+    window.toggleTrainingRegisterOnScreen = toggleTrainingRegisterOnScreen;
     setupLogoHomeClick();
     if(originalShowTab){
       window.showTab = function(id){
@@ -1064,7 +1070,7 @@
     const person = state.myTrainingPerson;
     if(!person) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">No training profile is linked to your account yet. Ask your manager to add you to the Training Matrix.</p></div>`;
     const applicableCourseIds = state.myTrainingMatrix.filter(m => m.applicable).map(m => String(m.course_id));
-    const courses = state.myTrainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).slice().sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    const courses = state.myTrainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).slice().sort((a,b) => String(a.name).localeCompare(String(b.name)));
     const rows = courses.length ? courses.map(c => {
       const entry = myTrainingMatrixEntry(c.id);
       const compulsory = !!entry?.compulsory;
@@ -1076,7 +1082,7 @@
       const evidenceCell = record
         ? (synced ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Synced from Height Equipment.</span>` : `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}`)
         : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
-      return `<tr><td>${esc(c.name)}${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}<br><span class="ops-subtle">${esc(c.category)}</span></td><td>${expiryText}</td><td><span class="ops-training-row-badges"><span>${compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></td></tr>
+      return `<tr><td>${esc(c.name)}${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}<br><span class="ops-subtle">${trainingCourseTypeLabel(c)}</span></td><td>${expiryText}</td><td><span class="ops-training-row-badges"><span>${compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></td></tr>
       <tr><td colspan="3" class="ops-subtle">${evidenceCell}</td></tr>`;
     }).join('') : `<tr><td colspan="3" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
     return `<div class="ops-card">
@@ -1116,14 +1122,14 @@
   }
 
   function trainingCellStatus(record, compulsory){
-    if(!record) return compulsory ? {label:'Missing', pillClass:'ops-bad'} : {label:'Not recorded', pillClass:'ops-muted'};
+    if(!record) return compulsory ? {label:'Not recorded', pillClass:'ops-bad'} : {label:'Not recorded', pillClass:'ops-muted'};
     if(record.status && record.status !== 'Completed') return {label: record.status, pillClass:'ops-warn'};
-    if(!record.expiry_date) return {label:'Compliant', pillClass:'ops-ok'};
+    if(!record.expiry_date) return {label:'In date', pillClass:'ops-ok'};
     const days = daysUntil(record.expiry_date);
-    if(days === null) return {label:'Compliant', pillClass:'ops-ok'};
+    if(days === null) return {label:'In date', pillClass:'ops-ok'};
     if(days < 0) return {label:'Expired', pillClass:'ops-bad'};
     if(days <= 30) return {label:`Expires in ${days}d`, pillClass:'ops-warn'};
-    return {label:'Compliant', pillClass:'ops-ok'};
+    return {label:'In date', pillClass:'ops-ok'};
   }
 
   function contractorTrainingStatus(contractorId){
@@ -1162,12 +1168,16 @@
     return /internal/i.test(String(course?.category || ''));
   }
 
+  function trainingCourseTypeLabel(course){
+    return trainingIsInternalCourse(course) ? 'Internal training' : 'External / formal qualification';
+  }
+
   function trainingSortCourses(courses){
     return courses.slice().sort((a,b) => {
       const oa = (a.display_order === null || a.display_order === undefined) ? Infinity : Number(a.display_order);
       const ob = (b.display_order === null || b.display_order === undefined) ? Infinity : Number(b.display_order);
       if(oa !== ob) return oa - ob;
-      return String(a.category || '').localeCompare(String(b.category || '')) || String(a.name).localeCompare(String(b.name));
+      return String(a.name).localeCompare(String(b.name));
     });
   }
 
@@ -1193,12 +1203,12 @@
       const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
       const roleLabel = person.person_type === 'employee' ? 'Employee' : contractor ? `${contractor.company_name} (${person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor'})` : (person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker');
       const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
-      const personCourses = courses.filter(c => applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+      const personCourses = courses.filter(c => applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.name).localeCompare(String(b.name)));
       const entries = personCourses.map(c => {
         const matrixEntry = trainingMatrixEntry(person.id, c.id);
         const record = trainingLatestRecord(person.id, c.id);
         const status = trainingCellStatus(record, !!matrixEntry?.compulsory);
-        return { courseName: c.name, category: c.category, compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, statusLabel: status.label, pillClass: status.pillClass, compliant: status.pillClass !== 'ops-bad' };
+        return { courseName: c.name, category: trainingCourseTypeLabel(c), compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, statusLabel: status.label, pillClass: status.pillClass, compliant: status.pillClass !== 'ops-bad' };
       });
       return { id: person.id, name: person.full_name, roleLabel, competencyLevel: person.competency_level ?? null, entries };
     });
@@ -1222,7 +1232,7 @@
   }
 
   function trainingRegisterCss(){
-    return `@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#0f766e;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #0f766e;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#0f766e}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #0f766e;border-radius:12px;padding:14px 16px;margin:16px 0;background:#f0fdfa}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px;text-align:center}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.badges{display:grid;grid-template-columns:72px 82px 92px;align-items:center;gap:4px}.badges span.pill{justify-self:start;width:100%;box-sizing:border-box;white-space:nowrap}.pill-compliant{width:92px;box-sizing:border-box;white-space:nowrap}.key{margin:0 0 10px;font-size:11px;color:#334155;background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:8px 12px}.key strong{color:#0f766e}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
+    return `@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#0f766e;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #0f766e;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#0f766e}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #0f766e;border-radius:12px;padding:14px 16px;margin:16px 0;background:#f0fdfa}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px;text-align:center}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.badges{display:grid;grid-template-columns:88px 100px 108px;align-items:center;gap:4px}.badges span.pill{justify-self:start;width:100%;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pill-compliant{width:100px;box-sizing:border-box;white-space:nowrap}.key{margin:0 0 10px;font-size:11px;color:#334155;background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:8px 12px}.key strong{color:#0f766e}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
   }
 
   function trainingRegisterDocHtml(filters){
@@ -1286,7 +1296,7 @@
     const heading = statusFilter !== 'all' ? `Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}` : 'On-screen register';
     const clearBtn = statusFilter !== 'all'
       ? `<button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button>`
-      : `<button class="ops-btn ghost" type="button" onclick="toggleTrainingRegisterOnScreen()">Hide on-screen register</button>`;
+      : `<button class="ops-btn ghost" type="button" onclick="toggleTrainingRegisterOnScreen()">Hide on Screen</button>`;
     return `<div class="ops-card">
       <div class="ops-section-title"><h3>${heading}</h3>${clearBtn}</div>
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th><th>Compliant</th></tr>${rows}</table></div>
@@ -1306,7 +1316,7 @@
       <div class="ops-register-key"><strong>Competency key:</strong> ${esc(trainingCompetencyKeyText())}</div>
       <div class="ops-form">
         <label>People<select id="opsRegisterPersonType">
-          <option value="all" ${f.personType==='all'?'selected':''}>Employees &amp; contractors</option>
+          <option value="all" ${f.personType==='all'?'selected':''}>Employees &amp; Contractors</option>
           <option value="employee" ${f.personType==='employee'?'selected':''}>Employees only</option>
           <option value="contractor" ${f.personType==='contractor'?'selected':''}>Contractors only</option>
         </select></label>
@@ -1322,7 +1332,7 @@
           <option value="compliant" ${f.status==='compliant'?'selected':''}>Compliant</option>
           <option value="not_recorded" ${f.status==='not_recorded'?'selected':''}>Not recorded</option>
         </select></label>
-        <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="button" onclick="generateTrainingRegister()">Generate printable register</button><button class="ops-btn ghost" type="button" onclick="toggleTrainingRegisterOnScreen()">${state.trainingRegisterShowOnScreen ? 'Hide on-screen register' : 'Show on-screen register'}</button></div>
+        <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="button" onclick="generateTrainingRegister()">Generate printable register</button><button class="ops-btn ghost" type="button" onclick="toggleTrainingRegisterOnScreen()">${state.trainingRegisterShowOnScreen ? 'Hide on Screen' : 'Show on Screen'}</button></div>
       </div>
     </div>
     ${trainingRegisterResultsHtml(f)}`;
@@ -1466,7 +1476,7 @@
     return `<details class="ops-card ops-training-course" data-ops-course-id="${course.id}" ${isOpen ? 'open' : ''}>
       <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong></span><span class="ops-training-course-badges"><span>${compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></summary>
       <div class="ops-training-course-body">
-        <p class="ops-subtle">${esc(course.category)}${trainingCourseNzqaCodesText(course) ? ` · NZQA ${esc(trainingCourseNzqaCodesText(course))}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
+        <p class="ops-subtle">${trainingCourseTypeLabel(course)}${trainingCourseNzqaCodesText(course) ? ` · NZQA ${esc(trainingCourseNzqaCodesText(course))}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
         ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost ops-add-record-btn" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
         <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
       </div>
@@ -1483,7 +1493,7 @@
     const canEdit = person.person_type !== 'employee';
     const editing = canEdit && state.trainingPersonFormOpen && String(state.editingTrainingPersonId) === String(person.id);
     const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
-    const courses = state.trainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    const courses = state.trainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.name).localeCompare(String(b.name)));
     const sections = courses.length ? courses.map(c => trainingPersonCourseSectionHtml(person, c)).join('') : `<div class="ops-card"><p class="ops-subtle">No courses are marked as applicable for ${esc(person.full_name)} yet. Set that up in the <a href="#" onclick="showOperations('training-settings');return false;">Training Matrix</a> under Settings.</p></div>`;
     return `<div class="ops-card">
       <button class="ops-btn ghost" type="button" onclick="showOperations('${returnView}')">${backLabel}</button>
@@ -1593,7 +1603,6 @@
     const courseType = editing?.course_type === 'internal' ? 'internal' : 'external';
     return `<form id="opsTrainingCourseForm" class="ops-form" data-course-id="${editing ? editing.id : ''}">
       <label>Course name *<input id="opsCourseName" required value="${esc(editing?.name || '')}"></label>
-      <label>Category<input id="opsCourseCategory" value="${esc(editing?.category || 'Certification')}" placeholder="e.g. Certification, Induction, Internal"></label>
       <label>Type<select id="opsCourseType">
         <option value="external" ${courseType==='external'?'selected':''}>External / formal qualification</option>
         <option value="internal" ${courseType==='internal'?'selected':''}>Internal training</option>
@@ -1602,17 +1611,17 @@
       <label>Display order<input id="opsCourseOrder" type="number" step="10" value="${editing?.display_order ?? ''}" placeholder="Lower shows first in the Matrix"></label>
       <label class="ops-span-2">NZQA code(s)<input id="opsCourseNzqaCodes" value="${esc(trainingCourseNzqaCodesText(editing))}" placeholder="e.g. 12345, 67890 — separate multiple codes with commas"></label>
       <label class="ops-span-2">Description<textarea id="opsCourseDescription">${esc(editing?.description || '')}</textarea></label>
-      <label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}><span class="ops-pill ops-ok ops-toggle-on">Active</span><span class="ops-pill ops-muted ops-toggle-off">Inactive</span></label>
+      ${editing ? '' : `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" checked><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Inactive</span></label>`}
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
     </form>`;
   }
 
   function trainingCatalogHtml(){
     const courses = trainingSortCourses(state.trainingCourses);
-    const rows = courses.map(c => `<tr><td><button type="button" class="ops-btn ghost" data-ops-view-course="${c.id}">${esc(c.name)}</button></td><td>${esc(c.category || '')}</td><td>${trainingIsInternalCourse(c) ? 'Internal' : 'External'}</td><td>${esc(trainingCourseNzqaCodesText(c)) || '—'}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Archived'}</td></tr>`).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    const rows = courses.map(c => `<tr><td><button type="button" class="ops-btn ghost" data-ops-view-course="${c.id}">${esc(c.name)}</button></td><td>${trainingIsInternalCourse(c) ? 'Internal' : 'External'}</td><td>${esc(trainingCourseNzqaCodesText(c)) || '—'}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Archived'}</td></tr>`).join('') || '<tr><td colspan="5" class="ops-subtle">No courses yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Category</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>${rows}</table></div>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>${rows}</table></div>
     </div>`;
   }
 
@@ -1627,11 +1636,14 @@
     const course = state.trainingCourses.find(c => String(c.id) === String(state.trainingViewCourseId));
     if(!course) return `<div class="ops-card"><h3>Course not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-settings')">← Back to Course Catalog</button></div>`;
     const editing = state.trainingCourseFormOpen && String(state.editingCourseId) === String(course.id);
+    const activeBadge = editing
+      ? `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" ${course.active ? 'checked' : ''}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Inactive</span></label>`
+      : `<span class="ops-pill ${course.active ? 'ops-ok' : 'ops-muted'}">${course.active ? 'Active' : 'Archived'}</span>`;
     return `<div class="ops-card">
       <button class="ops-btn ghost" type="button" onclick="showOperations('training-settings')">← Back to Course Catalog</button>
-      <div class="ops-section-title"><h3>${esc(course.name)}</h3><span class="ops-pill ${course.active ? 'ops-ok' : 'ops-muted'}">${course.active ? 'Active' : 'Archived'}</span></div>
+      <div class="ops-section-title"><h3>${esc(course.name)}</h3>${activeBadge}</div>
       ${editing ? trainingCourseFormHtml() : `
-        <p class="ops-subtle">${esc(course.category || '')} · ${trainingIsInternalCourse(course) ? 'Internal training' : 'External / formal qualification'}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
+        <p class="ops-subtle">${trainingIsInternalCourse(course) ? 'Internal training' : 'External / formal qualification'}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
         ${course.higher_level_learning ? `<p><span class="ops-pill ops-ok">Higher-level</span></p>` : ''}
         ${trainingCourseNzqaCodesText(course) ? `<p class="ops-subtle">NZQA code${trainingParseNzqaCodes(trainingCourseNzqaCodesText(course)).length > 1 ? 's' : ''}: ${esc(trainingCourseNzqaCodesText(course))}</p>` : ''}
         ${course.description ? `<p>${esc(course.description)}</p>` : ''}
@@ -1647,7 +1659,6 @@
     const id = form.dataset.courseId;
     const row = {
       name: byId('opsCourseName').value.trim(),
-      category: byId('opsCourseCategory').value.trim() || 'Certification',
       course_type: byId('opsCourseType').value === 'internal' ? 'internal' : 'external',
       validity_period_months: byId('opsCourseValidity').value ? Number(byId('opsCourseValidity').value) : null,
       display_order: byId('opsCourseOrder').value !== '' ? Number(byId('opsCourseOrder').value) : null,
