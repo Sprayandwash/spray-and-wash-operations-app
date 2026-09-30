@@ -321,7 +321,6 @@
       .ops-training-row-badges .ops-pill { justify-self:end; min-width:88px; text-align:center; justify-content:center; }
       .ops-register-badges { display:grid; grid-template-columns:122px 138px 150px; align-items:center; gap:.4rem; }
       .ops-register-badges .ops-pill { justify-self:stretch; width:100%; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .ops-register-compliant { width:134px; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; }
       .ops-register-competency { display:inline-block; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
       .ops-register-key { font-size:.85rem; color:#334155; background:#f6f9fe; border:1px solid #d9e2f0; border-radius:.75rem; padding:.6rem .85rem; margin:.75rem 0; }
       .ops-register-key strong { color:#0f766e; }
@@ -350,7 +349,7 @@
       .ops-matrix-table th, .ops-matrix-table td { padding:.35rem .5rem; }
       .ops-matrix-table th.ops-matrix-head-cell { position:sticky; top:0; background:#f8fafc; z-index:2; width:112px; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; font-size:.78rem; line-height:1.25; text-align:center; }
       .ops-matrix-table th.ops-matrix-person-head { position:sticky; top:0; left:0; background:#f8fafc; z-index:3; width:170px; text-align:left; }
-      .ops-matrix-table td.ops-matrix-person { position:sticky; left:0; background:#fff; z-index:1; width:170px; }
+      .ops-matrix-table td.ops-matrix-person { position:sticky; left:0; background:#fff; z-index:1; width:170px; text-align:center; }
       .ops-matrix-tabs { margin-bottom:.75rem; }
       .ops-matrix-table td.ops-matrix-cell { text-align:center; vertical-align:middle; }
       .ops-matrix-cell input { width:18px; height:18px; margin:0; }
@@ -1033,9 +1032,13 @@
   function trainingEvidenceUploadHtml(recordId){
     const open = String(state.trainingFileMenuOpenId || '') === String(recordId);
     if(!open) return `<button class="ops-btn ghost" type="button" data-ops-toggle-add-file="${recordId}">+ Add file</button>`;
+    const cameraId = `opsEvidenceCamera${recordId}`;
+    const galleryId = `opsEvidenceGallery${recordId}`;
     return `<div class="ops-add-file-group">
-      <label class="ops-btn ghost ops-photo-button">Camera<input type="file" accept="image/*,application/pdf" capture="environment" data-ops-evidence-input="${recordId}"></label>
-      <label class="ops-btn ghost ops-photo-button">Gallery<input type="file" accept="image/*,application/pdf" multiple data-ops-evidence-input="${recordId}"></label>
+      <button class="ops-btn ghost" type="button" data-ops-trigger-file="${cameraId}">Camera</button>
+      <input id="${cameraId}" type="file" accept="image/*,application/pdf" capture="environment" data-ops-evidence-input="${recordId}" hidden>
+      <button class="ops-btn ghost" type="button" data-ops-trigger-file="${galleryId}">Gallery</button>
+      <input id="${galleryId}" type="file" accept="image/*,application/pdf" multiple data-ops-evidence-input="${recordId}" hidden>
       <button class="ops-btn ghost" type="button" data-ops-toggle-add-file="${recordId}">Cancel</button>
     </div>`;
   }
@@ -1277,23 +1280,19 @@
     return `<span class="ops-register-badges">${e.compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : '<span></span>'}${e.higherLevel ? '<span class="ops-pill ops-ok">Higher-level</span>' : '<span></span>'}<span class="ops-pill ${e.pillClass}">${esc(e.statusLabel)}</span></span>`;
   }
 
-  function trainingRegisterCompliantPillHtml(e){
-    return `<span class="ops-pill ${e.compliant ? 'ops-ok' : 'ops-bad'} ops-register-compliant">${e.compliant ? 'Compliant' : 'Non-Compliant'}</span>`;
-  }
-
   function trainingRegisterResultsHtml(filters){
     const data = trainingRegisterBuildData(filters);
     const statusFilter = filters?.status || 'all';
     const sourceRows = statusFilter !== 'all' ? data.statusFilteredPeopleRows : data.peopleRows;
     const rows = sourceRows.flatMap(p => p.entries.length ? p.entries.map(e =>
-      `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td>${esc(e.courseName)}</td><td>${e.completedDate ? nzDate(e.completedDate) : '—'}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${trainingRegisterDetailsBadgesHtml(e)}</td><td>${trainingRegisterCompliantPillHtml(e)}</td></tr>`
-    ) : [`<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td colspan="5" class="ops-subtle">No compulsory or applicable courses assigned yet.</td></tr>`])
-      .join('') || `<tr><td colspan="7" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
+      `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td>${esc(e.courseName)}</td><td>${e.completedDate ? nzDate(e.completedDate) : '—'}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${trainingRegisterDetailsBadgesHtml(e)}</td></tr>`
+    ) : [`<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td colspan="4" class="ops-subtle">No compulsory or applicable courses assigned yet.</td></tr>`])
+      .join('') || `<tr><td colspan="6" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
     const heading = statusFilter !== 'all' ? `Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}` : 'On-screen register';
     const clearBtn = statusFilter !== 'all' ? `<button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button>` : '';
     return `<div class="ops-card">
       <div class="ops-section-title"><h3>${heading}</h3>${clearBtn}</div>
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th><th>Compliant</th></tr>${rows}</table></div>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th></tr>${rows}</table></div>
     </div>`;
   }
 
@@ -1593,7 +1592,7 @@
     return `<form id="opsTrainingCourseForm" class="ops-form" data-course-id="${editing ? editing.id : ''}">
       <label>Course name *<input id="opsCourseName" required value="${esc(editing?.name || '')}"></label>
       <label>Type<select id="opsCourseType">
-        <option value="external" ${courseType==='external'?'selected':''}>External / formal qualification</option>
+        <option value="external" ${courseType==='external'?'selected':''}>External Qualification</option>
         <option value="internal" ${courseType==='internal'?'selected':''}>Internal training</option>
       </select></label>
       <label>Validity (months)<input id="opsCourseValidity" type="number" min="0" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"></label>
@@ -1654,9 +1653,11 @@
       ? await state.sb.from('operations_training_courses').update(row).eq('id', id)
       : await state.sb.from('operations_training_courses').insert({...row, created_by: state.user.id});
     if(r.error) return alert('Could not save course: '+r.error.message);
-    if(state.currentView !== 'training-course-detail'){
-      state.trainingCourseFormOpen = false;
-      state.editingCourseId = '';
+    state.trainingCourseFormOpen = false;
+    state.editingCourseId = '';
+    if(state.currentView === 'training-course-detail'){
+      state.trainingViewCourseId = '';
+      showOperations('training-settings');
     }
     await loadTrainingData(true);
   }
@@ -4704,6 +4705,9 @@
       const recordId = b.dataset.opsToggleAddFile;
       state.trainingFileMenuOpenId = String(state.trainingFileMenuOpenId || '') === String(recordId) ? '' : recordId;
       render();
+    }));
+    document.querySelectorAll('[data-ops-trigger-file]').forEach(b => b.addEventListener('click', () => {
+      byId(b.dataset.opsTriggerFile)?.click();
     }));
     document.querySelectorAll('[data-ops-evidence-input]').forEach(input => input.addEventListener('change', () => {
       const files = Array.from(input.files || []);
