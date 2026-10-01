@@ -1593,7 +1593,7 @@
       <label>Course name *<input id="opsCourseName" required value="${esc(editing?.name || '')}"></label>
       <label>Type<select id="opsCourseType">
         <option value="external" ${courseType==='external'?'selected':''}>External Qualification</option>
-        <option value="internal" ${courseType==='internal'?'selected':''}>Internal training</option>
+        <option value="internal" ${courseType==='internal'?'selected':''}>Internal Training</option>
       </select></label>
       <label>Validity (months)<input id="opsCourseValidity" type="number" min="0" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"></label>
       <label>Display order<input id="opsCourseOrder" type="number" step="10" value="${editing?.display_order ?? ''}" placeholder="Lower shows first in the Matrix"></label>
