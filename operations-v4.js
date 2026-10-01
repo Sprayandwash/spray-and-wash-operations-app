@@ -1073,31 +1073,41 @@
     byId('opsFileModalBackdrop')?.remove();
   }
 
+  function myTrainingCourseSectionHtml(course, compulsory, record, files){
+    const status = trainingCellStatus(record, compulsory);
+    const expiryText = record ? (record.expiry_date ? nzDate(record.expiry_date) : 'No expiry') : 'Not recorded';
+    const synced = record?.source_key === 'height_inspector_qualifications';
+    const evidenceBody = record
+      ? (synced ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Synced from Height Equipment.</span>` : `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}`)
+      : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
+    const isOpen = state.trainingExpandedCourseIds.has(String(course.id));
+    return `<details class="ops-card ops-training-course" data-ops-course-id="${course.id}" ${isOpen ? 'open' : ''}>
+      <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong>${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}</span><span class="ops-training-course-badges"><span>${compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></summary>
+      <div class="ops-training-course-body">
+        <p class="ops-subtle">${trainingCourseTypeLabel(course)} · Expiry: ${expiryText}</p>
+        <p class="ops-subtle">${evidenceBody}</p>
+      </div>
+    </details>`;
+  }
+
   function myTrainingHtml(){
     if(!state.myTrainingLoaded) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">Loading your training records…</p></div>`;
     const person = state.myTrainingPerson;
     if(!person) return `<div class="ops-card"><h3>My Training</h3><p class="ops-subtle">No training profile is linked to your account yet. Ask your manager to add you to the Training Matrix.</p></div>`;
     const applicableCourseIds = state.myTrainingMatrix.filter(m => m.applicable).map(m => String(m.course_id));
     const courses = state.myTrainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).slice().sort((a,b) => String(a.name).localeCompare(String(b.name)));
-    const rows = courses.length ? courses.map(c => {
+    const sections = courses.length ? courses.map(c => {
       const entry = myTrainingMatrixEntry(c.id);
       const compulsory = !!entry?.compulsory;
       const record = myTrainingLatestRecord(c.id);
-      const status = trainingCellStatus(record, compulsory);
-      const expiryText = record ? (record.expiry_date ? nzDate(record.expiry_date) : 'No expiry') : '—';
       const files = record ? state.myTrainingRecordFiles.filter(f => String(f.record_id) === String(record.id)) : [];
-      const synced = record?.source_key === 'height_inspector_qualifications';
-      const evidenceCell = record
-        ? (synced ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Synced from Height Equipment.</span>` : `${trainingEvidenceListHtml(files, false)} ${trainingEvidenceUploadHtml(record.id)}`)
-        : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
-      return `<tr><td>${esc(c.name)}${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}<br><span class="ops-subtle">${trainingCourseTypeLabel(c)}</span></td><td>${expiryText}</td><td><span class="ops-training-row-badges"><span>${compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></td></tr>
-      <tr><td colspan="3" class="ops-subtle">${evidenceCell}</td></tr>`;
-    }).join('') : `<tr><td colspan="3" class="ops-subtle">No qualifications are marked as applicable for you yet.</td></tr>`;
+      return myTrainingCourseSectionHtml(c, compulsory, record, files);
+    }).join('') : `<div class="ops-card"><p class="ops-subtle">No qualifications are marked as applicable for you yet.</p></div>`;
     return `<div class="ops-card">
       <h3>My Training</h3>
       <p class="ops-subtle">${esc(person.full_name)} · a read-only view of your training status. Contact your manager to update a record.</p>
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Qualification</th><th>Expiry</th><th>Status</th></tr>${rows}</table></div>
-    </div>`;
+    </div>
+    ${sections}`;
   }
 
   function trainingDashboardHtml(){
