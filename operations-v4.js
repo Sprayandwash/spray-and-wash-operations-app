@@ -352,7 +352,14 @@
       .ops-matrix-table td.ops-matrix-person { position:sticky; left:0; background:#fff; z-index:1; width:170px; text-align:center; }
       .ops-matrix-tabs { margin-bottom:.75rem; }
       .ops-matrix-table td.ops-matrix-cell { text-align:center; vertical-align:middle; }
-      .ops-matrix-cell input { width:18px; height:18px; margin:0; }
+      .ops-matrix-switch { position:relative; display:inline-block; width:42px; height:20px; border-radius:999px; background:#cbd5e1; border:0; padding:0; margin:0; cursor:pointer; transition:background-color .15s ease; vertical-align:middle; }
+      .ops-matrix-switch::before { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.35); transition:transform .15s ease; }
+      .ops-matrix-switch[data-state="applicable"] { background:#0f766e; }
+      .ops-matrix-switch[data-state="applicable"]::before { transform:translateX(11px); }
+      .ops-matrix-switch[data-state="compulsory"] { background:#dc2626; }
+      .ops-matrix-switch[data-state="compulsory"]::before { transform:translateX(22px); }
+      .ops-matrix-switch:focus-visible { outline:2px solid #0f766e; outline-offset:2px; }
+      .ops-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
       tr.ops-row-link { cursor:pointer; }
       tr.ops-row-link:hover, tr.ops-row-link:focus-visible { background:#f6f9fe; outline:none; }
       tr.ops-row-editing { background:#eef6ff; box-shadow:inset 3px 0 0 #0f766e; }
@@ -1103,6 +1110,14 @@
       </div>`;
   }
 
+  const TRAINING_MATRIX_STATES = ['off', 'applicable', 'compulsory'];
+  const TRAINING_MATRIX_STATE_LABELS = { off: 'Off', applicable: 'Applicable', compulsory: 'Compulsory' };
+
+  function trainingMatrixCellState(entry){
+    if(!entry?.applicable) return 'off';
+    return entry.compulsory ? 'compulsory' : 'applicable';
+  }
+
   function trainingMatrixEntry(personId, courseId){
     return state.trainingMatrix.find(m => String(m.person_id) === String(personId) && String(m.course_id) === String(courseId));
   }
@@ -1261,7 +1276,7 @@
     return `<!doctype html><html><head><meta charset="utf-8"><title>Training &amp; Competency Register</title><style>${trainingRegisterCss()}</style></head><body>
       <div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>
       <div class="page">
-        <div class="head"><div class="brand">Spray &amp; Wash Ltd</div><div class="title">Training &amp; Competency Register</div><div class="muted">${esc(scopeBits.join(' · '))} · Generated ${new Date().toLocaleString('en-NZ')}</div></div>
+        <div class="head"><div class="brand">Spray and Wash Solutions</div><div class="title">Training &amp; Competency Register</div><div class="muted">${esc(scopeBits.join(' · '))} · Generated ${new Date().toLocaleString('en-NZ')}</div></div>
         <div class="summary">
           <div><strong>${summary.peopleCount}</strong><span>People covered</span></div>
           <div><strong>${summary.recordCount}</strong><span>Course requirements tracked</span></div>
@@ -1384,8 +1399,9 @@
       const personTypeLabel = p.person_type === 'employee' ? 'Employee' : p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor';
       const cells = courses.map(c => {
         const entry = trainingMatrixEntry(p.id, c.id);
-        const compulsory = !!entry?.compulsory;
-        return `<td class="ops-matrix-cell"><input type="checkbox" data-ops-matrix-cell data-person="${p.id}" data-course="${c.id}" ${compulsory?'checked':''} title="Required for ${esc(p.full_name)}"></td>`;
+        const cellState = trainingMatrixCellState(entry);
+        const stateLabel = TRAINING_MATRIX_STATE_LABELS[cellState];
+        return `<td class="ops-matrix-cell"><button type="button" class="ops-matrix-switch" data-ops-matrix-cell data-person="${p.id}" data-course="${c.id}" data-state="${cellState}" title="${esc(c.name)} for ${esc(p.full_name)}: ${stateLabel}. Click to change."><span class="ops-sr-only">${esc(c.name)} for ${esc(p.full_name)}: ${stateLabel}</span></button></td>`;
       }).join('');
       return `<tr><td class="ops-matrix-person"><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.full_name)}</button><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
     }).join('');
@@ -1408,8 +1424,11 @@
     render();
   }
 
-  async function toggleTrainingMatrixCell(personId, courseId, required){
-    await setTrainingMatrixCell(personId, courseId, {applicable: required, compulsory: required});
+  async function cycleTrainingMatrixCell(personId, courseId, currentState){
+    const idx = TRAINING_MATRIX_STATES.indexOf(currentState);
+    const next = TRAINING_MATRIX_STATES[(idx + 1) % TRAINING_MATRIX_STATES.length];
+    const patch = next === 'off' ? {applicable: false, compulsory: false} : next === 'applicable' ? {applicable: true, compulsory: false} : {applicable: true, compulsory: true};
+    await setTrainingMatrixCell(personId, courseId, patch);
   }
 
   function openTrainingPerson(personId){
@@ -4689,7 +4708,7 @@
     document.querySelectorAll('[data-ops-edit-training-person]').forEach(b => b.addEventListener('click', () => { state.editingTrainingPersonId=b.dataset.opsEditTrainingPerson; state.trainingPersonFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-toggle-training-person-active]').forEach(cb => cb.addEventListener('change', () => toggleTrainingPersonActive(cb.dataset.opsToggleTrainingPersonActive, cb)));
     document.querySelectorAll('[data-ops-person-competency]').forEach(sel => sel.addEventListener('change', () => setTrainingPersonCompetency(sel.dataset.opsPersonCompetency, sel.value)));
-    document.querySelectorAll('[data-ops-matrix-cell]').forEach(cb => cb.addEventListener('change', () => toggleTrainingMatrixCell(cb.dataset.person, cb.dataset.course, cb.checked)));
+    document.querySelectorAll('[data-ops-matrix-cell]').forEach(btn => btn.addEventListener('click', () => cycleTrainingMatrixCell(btn.dataset.person, btn.dataset.course, btn.dataset.state)));
     document.querySelectorAll('[data-ops-matrix-tab]').forEach(b => b.addEventListener('click', () => { state.trainingMatrixTab = b.dataset.opsMatrixTab; render(); }));
     document.querySelectorAll('[data-ops-open-person]').forEach(b => { const go = () => openTrainingPerson(b.dataset.opsOpenPerson); b.addEventListener('click', go); if(b.tagName !== 'BUTTON') b.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
     document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; render(); }));
