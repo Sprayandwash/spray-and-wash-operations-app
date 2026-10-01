@@ -49,7 +49,7 @@ test('TRAINING-REVIEW-001: dedicated Training manager account can sign in and op
   await openTrainingModule(page);
 });
 
-test('TRAINING-REVIEW-002: Training Matrix is a single-tick required/not-required grid', async ({ page }) => {
+test('TRAINING-REVIEW-002: Training Matrix is a three-state Off/Applicable/Compulsory grid', async ({ page }) => {
   await signIn(page);
   await openTrainingModule(page);
   // The Matrix now lives inside Settings rather than its own top-level tab.
@@ -64,12 +64,12 @@ test('TRAINING-REVIEW-002: Training Matrix is a single-tick required/not-require
   const headerCells = table.locator('tr').first().locator('th');
   await expect(headerCells).toHaveCount(16);
 
-  // The Matrix is a single tick box per person/course cell now (checked =
-  // required), and it carries no completion/expiry status pill — that lives
-  // on the person's own record.
+  // The Matrix is a three-state Off/Applicable/Compulsory switch per
+  // person/course cell now, and it carries no completion/expiry status pill
+  // — that lives on the person's own record.
   const samwiseRow = table.locator('tr', { has: page.locator('button[data-ops-open-person]:text-is("Samwise Gamgee")') });
   await expect(samwiseRow, 'Expected a Training Matrix row for Samwise Gamgee').toHaveCount(1);
-  await expect(samwiseRow.locator('input[type="checkbox"][data-ops-matrix-cell]').first()).toBeVisible();
+  await expect(samwiseRow.locator('button.ops-matrix-switch[data-ops-matrix-cell]').first()).toBeVisible();
 
   // Scoped to the data cells, not the header row - a course's own
   // "Higher-level" badge in the header is a course attribute, not a
