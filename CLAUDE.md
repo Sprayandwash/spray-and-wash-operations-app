@@ -1,5 +1,28 @@
 # Repo instructions for Claude
 
+## Feedback/bug-report sessions — always wait for the explicit go-ahead
+
+During any feedback/bug-report session with Brendan, do not start
+implementing, committing, pushing or building anything — not even a fix
+phrased as a direct instruction ("rename this", "change this colour") —
+until Brendan explicitly confirms he is finished giving feedback and gives
+the go-ahead to proceed.
+
+- Acknowledge/log each item as it comes in, but treat the whole batch as
+  queued until that explicit go-ahead.
+- A single item on its own, however directly worded, is NOT the go-ahead —
+  this applies even to imperative-phrased direct instructions, not just
+  open-ended feedback or bug reports.
+- Once Brendan says he's finished and gives the go-ahead, proceed through
+  the full pipeline for the queued batch as normal.
+
+Confirmed directly by Brendan on 1 Oct 2026, after a direct instruction
+(recolouring the Training Matrix switch) was mistakenly treated as
+immediately buildable mid-feedback-session. This is a standing rule for
+every future session, not a one-off — see also
+`docs/testing/ACCESS-AND-RECOVERY-HANDOVER.md` → "New-chat start checklist"
+item 9, which carries the same rule.
+
 ## Local staging preview — PowerShell one-liner
 
 Before giving Brendan *any* command to preview a staging build locally, read
