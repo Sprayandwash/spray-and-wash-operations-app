@@ -80,6 +80,8 @@ It then retains one labelled `E2E REVIEW —` **Other maintenance** record on th
 
 ## Local UI testing handoff (Step 8-9A)
 
+**Read this whole section before giving any local-preview command.** The one-liner below is the only one to give — verbatim, on its own, never combined with an extraction/`cd` step or otherwise modified. This was re-confirmed with Brendan on 1 Oct 2026 after a combined extract+serve command was given by mistake; see the note at the end of this section.
+
 Whenever the project reaches a Step 8-9A Staging browser review phase (a green Staging build ready to be checked in a browser), always hand the requester both of the following, without waiting to be asked again:
 
 1. **The current `spray-wash-staging-app` artifact** - either download the zip from the latest successful **Build staging app** workflow run and deliver it directly, or give a direct link to that run's Artifacts section so it can be downloaded from there.
@@ -96,3 +98,5 @@ Whenever the project reaches a Step 8-9A Staging browser review phase (a green S
    - **Use `npx.cmd`, not plain `npx`, in PowerShell.** Plain `npx` resolves to `npx.ps1`, which PowerShell's default execution policy blocks with a `PSSecurityException` ("running scripts is disabled on this system") even once Node.js is installed. Calling `npx.cmd` explicitly sidesteps that without changing any execution-policy/security settings. Always give the `npx.cmd` form above, never plain `npx`.
 
 This handoff is a standing requirement for every Step 8-9A phase, not a one-off request. The command given must stay this simple one-liner using `npx.cmd` - do not expand it back into a multi-line self-locating search script, and do not revert to plain `npx`.
+
+**Do not prepend `Expand-Archive`, `cd`, or any other setup to this line.** Extracting the zip and navigating into the extracted folder are separate steps Brendan does himself before running the server one-liner - they are not part of it. On 1 Oct 2026 a combined "extract + cd + serve" command was given instead of the plain one-liner above, which was wrong and had to be corrected. Give exactly the one-liner in the code block above, nothing more, every time - see `CLAUDE.md` at the repo root for the same instruction.
