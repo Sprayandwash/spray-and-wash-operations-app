@@ -354,9 +354,9 @@
       .ops-matrix-table td.ops-matrix-cell { text-align:center; vertical-align:middle; }
       .ops-matrix-switch { position:relative; display:inline-block; width:42px; height:20px; border-radius:999px; background:#cbd5e1; border:0; padding:0; margin:0; cursor:pointer; transition:background-color .15s ease; vertical-align:middle; }
       .ops-matrix-switch::before { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.35); transition:transform .15s ease; }
-      .ops-matrix-switch[data-state="applicable"] { background:#0f766e; }
+      .ops-matrix-switch[data-state="applicable"] { background:#f59e0b; }
       .ops-matrix-switch[data-state="applicable"]::before { transform:translateX(11px); }
-      .ops-matrix-switch[data-state="compulsory"] { background:#dc2626; }
+      .ops-matrix-switch[data-state="compulsory"] { background:#16a34a; }
       .ops-matrix-switch[data-state="compulsory"]::before { transform:translateX(22px); }
       .ops-matrix-switch:focus-visible { outline:2px solid #0f766e; outline-offset:2px; }
       .ops-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
@@ -1082,7 +1082,7 @@
       : `<span class="ops-subtle">Ask your manager to add a record first, then you can attach a scan here.</span>`;
     const isOpen = state.trainingExpandedCourseIds.has(String(course.id));
     return `<details class="ops-card ops-training-course" data-ops-course-id="${course.id}" ${isOpen ? 'open' : ''}>
-      <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong>${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}</span><span class="ops-training-course-badges"><span>${compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></summary>
+      <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong>${synced ? ' <span class="ops-pill ops-muted">Synced</span>' : ''}</span><span class="ops-training-course-badges"><span>${compulsory ? '<span class="ops-pill ops-ok">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></summary>
       <div class="ops-training-course-body">
         <p class="ops-subtle">${trainingCourseTypeLabel(course)} · Expiry: ${expiryText}</p>
         <p class="ops-subtle">${evidenceBody}</p>
@@ -1267,7 +1267,7 @@
     const sourceRows = statusFilter !== 'all' ? data.statusFilteredPeopleRows : data.peopleRows;
     const nameCell = p => esc(p.name);
     const competencyCell = p => trainingCompetencyBadgePrintHtml(p.competencyLevel);
-    const detailsCell = e => `<span class="badges">${e.compulsory ? '<span class="pill bad">Compulsory</span>' : '<span></span>'}${e.higherLevel ? '<span class="pill ok">Higher-level</span>' : '<span></span>'}<span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></span>`;
+    const detailsCell = e => `<span class="badges">${e.compulsory ? '<span class="pill ok">Compulsory</span>' : '<span></span>'}${e.higherLevel ? '<span class="pill ok">Higher-level</span>' : '<span></span>'}<span class="pill ${trainingRegisterPillClass(e.pillClass)}">${esc(e.statusLabel)}</span></span>`;
     const compliantCell = e => `<span class="pill pill-compliant ${e.compliant ? 'ok' : 'bad'}">${e.compliant ? 'Compliant' : 'Non-Compliant'}</span>`;
     const rows = sourceRows.map(p => {
       if(!p.entries.length){
@@ -1302,7 +1302,7 @@
   }
 
   function trainingRegisterDetailsBadgesHtml(e){
-    return `<span class="ops-register-badges">${e.compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : '<span></span>'}${e.higherLevel ? '<span class="ops-pill ops-ok">Higher-level</span>' : '<span></span>'}<span class="ops-pill ${e.pillClass}">${esc(e.statusLabel)}</span></span>`;
+    return `<span class="ops-register-badges">${e.compulsory ? '<span class="ops-pill ops-ok">Compulsory</span>' : '<span></span>'}${e.higherLevel ? '<span class="ops-pill ops-ok">Higher-level</span>' : '<span></span>'}<span class="ops-pill ${e.pillClass}">${esc(e.statusLabel)}</span></span>`;
   }
 
   function trainingRegisterResultsHtml(filters){
@@ -1491,7 +1491,7 @@
     const formOpen = state.trainingRecordFormOpen && String(state.trainingRecordFormCourseId) === String(course.id);
     const isOpen = formOpen || state.trainingExpandedCourseIds.has(String(course.id));
     return `<details class="ops-card ops-training-course" data-ops-course-id="${course.id}" ${isOpen ? 'open' : ''}>
-      <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong></span><span class="ops-training-course-badges"><span>${compulsory ? '<span class="ops-pill ops-bad">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></summary>
+      <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong></span><span class="ops-training-course-badges"><span>${compulsory ? '<span class="ops-pill ops-ok">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></summary>
       <div class="ops-training-course-body">
         <p class="ops-subtle">${trainingCourseTypeLabel(course)}${trainingCourseNzqaCodesText(course) ? ` · NZQA ${esc(trainingCourseNzqaCodesText(course))}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
         ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost ops-add-record-btn" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
