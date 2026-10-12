@@ -1,5 +1,17 @@
 # Repo instructions for Claude
 
+## Standard module UI-testing program
+
+Whenever asked to test a module (a full round of testing, a new module's
+first regression pass, or re-testing an existing one), follow
+`docs/testing/MODULE-UI-TESTING-STANDARD.md` — read it first, every time,
+rather than re-deriving the process. It covers the code audit, the
+self-contained Playwright UI suite, the archive-vs-hard-delete cleanup
+rule, the known-bug-regression-test convention, and the write-capable
+workflow/confirmation pattern, and it cross-references the
+"always wait for the explicit go-ahead" rule immediately below for what
+happens to anything either phase finds.
+
 ## Feedback/bug-report sessions — always wait for the explicit go-ahead
 
 During any feedback/bug-report session with Brendan, do not start

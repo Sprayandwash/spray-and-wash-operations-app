@@ -43,8 +43,20 @@ For any new app change, start at **Step 1 — Define change**, identify the affe
 - Do not change `config.js` unless specifically requested.
 - Production Pages deployment is manual and protected; a merge to `main` is not authority to publish.
 
+## Standard module UI-testing program (new, October 2026)
+
+A repeatable, documented process for testing a module's UI the same way
+every time — code audit (report-only until an explicit go-ahead) plus a
+self-contained, write-capable Playwright suite that exercises every UI
+function and asserts the expected result. See
+[Module UI-testing standard](MODULE-UI-TESTING-STANDARD.md). First applied
+to Training & Qualifications; its suite is
+`tests/e2e/staging/training-full-ui-suite.spec.cjs`, dispatched via
+`.github/workflows/staging-training-full-ui-suite.yml`.
+
 ## Related records
 
+- [Module UI-testing standard](MODULE-UI-TESTING-STANDARD.md)
 - [Production scheduler audit](history/2026-09-07-production-scheduler-audit.md)
 - [Run ledger](RUN-LEDGER.md)
 - [Recovery guide](RECOVERY-GUIDE.md)
