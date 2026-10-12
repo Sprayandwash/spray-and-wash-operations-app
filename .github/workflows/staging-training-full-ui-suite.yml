@@ -74,6 +74,7 @@ jobs:
           test -n "$ref" || { echo 'Staging artifact has no project ref.' >&2; exit 1; }
           test "$ref" != 'twkgfmctuffmkvkmdkct' || { echo 'SAFETY STOP: staging artifact identifies production.' >&2; exit 1; }
           ! grep -F 'twkgfmctuffmkvkmdkct' staging-app/config.js >/dev/null || { echo 'SAFETY STOP: staging artifact config references production.' >&2; exit 1; }
+          echo "E2E_STAGING_PROJECT_REF=$ref" >> "$GITHUB_ENV"
       - name: Serve the isolated Staging app and run the full UI suite
         shell: bash
         run: |
