@@ -34,6 +34,32 @@ function buildFixtureTag(moduleTag) {
  */
 async function signIn(page, { email, password }) {
   const { expect } = require('@playwright/test');
+
+  // Diagnostic-only: surface anything the app itself logs as an error/warning
+  // (e.g. loadTrainingData()'s `console.warn('Training data unavailable:', ...)`
+  // on a failed Promise.all) and any uncaught page exception, in the test's
+  // own stdout — otherwise both are invisible to CI and to a human watching a
+  // failed run, since Playwright does not surface in-page console/exception
+  // output anywhere else. Installed before any navigation so nothing early is
+  // missed.
+  page.on('console', msg => {
+    const type = msg.type();
+    if (type === 'error' || type === 'warning') {
+      console.log(`BROWSER ${type.toUpperCase()}: ${msg.text()}`);
+    }
+  });
+  page.on('pageerror', err => {
+    console.log(`PAGE ERROR: ${err && err.message ? err.message : err}`);
+  });
+  page.on('response', response => {
+    if (response.status() < 400) return;
+    if (!response.url().includes('/rest/v1/')) return;
+    response
+      .text()
+      .then(body => console.log(`REST ERROR: ${response.status()} ${response.url()} — ${body}`))
+      .catch(() => {});
+  });
+
   await page.goto('/');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('STAGING');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('NOT PRODUCTION');
