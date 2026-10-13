@@ -60,6 +60,29 @@ async function signIn(page, { email, password }) {
       .catch(() => {});
   });
 
+  // Diagnostic-only (TRAINING-SUITE-004 investigation, Oct 2026): log every
+  // operations_contractors / operations_training_* request this exact page
+  // sends and how it settles — fired, succeeded, or failed at the network
+  // level — so a timeout can be told apart from "the page never asked" or
+  // "the request never came back", unambiguously scoped to this test's own
+  // browser context (the project's shared Supabase edge logs mix in traffic
+  // from other sessions hitting Staging at the same time).
+  const isTrainingTableUrl = url => /\/rest\/v1\/(operations_contractors|operations_training_[a-z_]+)(\?|$)/.test(url);
+  page.on('request', request => {
+    if (!isTrainingTableUrl(request.url())) return;
+    console.log(`TRAINING REQUEST: ${request.method()} ${request.url()}`);
+  });
+  page.on('requestfinished', request => {
+    if (!isTrainingTableUrl(request.url())) return;
+    request.response().then(r => {
+      console.log(`TRAINING REQUEST FINISHED: ${request.method()} ${request.url()} -> ${r ? r.status() : 'no response'}`);
+    }).catch(() => {});
+  });
+  page.on('requestfailed', request => {
+    if (!isTrainingTableUrl(request.url())) return;
+    console.log(`TRAINING REQUEST FAILED: ${request.method()} ${request.url()} — ${request.failure()?.errorText}`);
+  });
+
   await page.goto('/');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('STAGING');
   await expect(page.locator('#stagingEnvironmentBanner')).toContainText('NOT PRODUCTION');
