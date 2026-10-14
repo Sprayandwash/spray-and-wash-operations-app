@@ -133,7 +133,19 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: 'Add course', exact: true }).click();
 
     const row = catalog.locator('tr', { has: page.getByRole('button', { name: fixture.courseName, exact: true }) });
-    await expect(row, `Expected the new course "${fixture.courseName}" to appear in the Course Catalog`).toHaveCount(1, { timeout: 10_000 });
+    try {
+      await expect(row, `Expected the new course "${fixture.courseName}" to appear in the Course Catalog`).toHaveCount(1, { timeout: 10_000 });
+    } catch (err) {
+      // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-004)
+      const snap = await page.evaluate(() => ({
+        formOpen: !!document.querySelector('#opsTrainingCourseForm'),
+        nameValue: document.querySelector('#opsCourseName')?.value ?? null,
+        rows: [...document.querySelectorAll('#opsTrainingCatalogDetails tr')].length,
+        text: (document.querySelector('#opsShell')?.innerText || '').slice(0, 400)
+      }));
+      console.log('DIAG TRAINING-SUITE-004 course not in catalog: ' + JSON.stringify(snap));
+      throw err;
+    }
     await expect(row).toContainText('External');
     await expect(row).toContainText('99999');
     await expect(row).toContainText('24 months');
