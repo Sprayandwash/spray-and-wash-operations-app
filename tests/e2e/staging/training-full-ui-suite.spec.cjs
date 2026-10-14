@@ -74,19 +74,6 @@ async function openFixturePerson(page) {
 async function openSettingsPanel(page, summaryText) {
   await goToTab(page, 'Settings');
   const details = page.locator('details.ops-collapsible', { has: page.locator('summary h3', { hasText: new RegExp('^\\s*' + summaryText + '\\s*$') }) });
-  // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-004): if the panel never appears, log what the page shows instead.
-  try {
-    await details.waitFor({ state: 'attached', timeout: 15_000 });
-  } catch (err) {
-    const snapshot = await page.evaluate(() => ({
-      shell: (document.querySelector('#opsShell')?.innerText || '').slice(0, 1500),
-      activeNav: document.querySelector('#opsNav .active')?.textContent || null,
-      headings: [...document.querySelectorAll('#opsShell h2, #opsShell h3')].map(h => h.textContent.trim()).slice(0, 40),
-      url: location.href
-    }));
-    console.log('DIAG TRAINING-SUITE-004 panel missing: ' + JSON.stringify(snapshot));
-    throw err;
-  }
   const isOpen = await details.evaluate(el => el.open);
   if (!isOpen) await details.locator('summary').click();
   return details;
@@ -141,19 +128,7 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: 'Add course', exact: true }).click();
 
     const row = catalog.locator('tr', { has: page.getByRole('button', { name: fixture.courseName, exact: true }) });
-    try {
-      await expect(row, `Expected the new course "${fixture.courseName}" to appear in the Course Catalog`).toHaveCount(1, { timeout: 10_000 });
-    } catch (err) {
-      // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-004)
-      const snap = await page.evaluate(() => ({
-        formOpen: !!document.querySelector('#opsTrainingCourseForm'),
-        nameValue: document.querySelector('#opsCourseName')?.value ?? null,
-        rows: [...document.querySelectorAll('#opsTrainingCatalogDetails tr')].length,
-        text: (document.querySelector('#opsShell')?.innerText || '').slice(0, 400)
-      }));
-      console.log('DIAG TRAINING-SUITE-004 course not in catalog: ' + JSON.stringify(snap));
-      throw err;
-    }
+    await expect(row, `Expected the new course "${fixture.courseName}" to appear in the Course Catalog`).toHaveCount(1, { timeout: 10_000 });
     await expect(row).toContainText('External');
     await expect(row).toContainText('99999');
     await expect(row).toContainText('24 months');
@@ -352,7 +327,6 @@ test.describe('Training module — full UI regression suite', () => {
   });
 
   test('TRAINING-SUITE-014: adding a Completed record auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
-    const dialogs = acceptDialogsAndCapture(page); // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-014)
     await signIn(page, config);
     await openTrainingModule(page);
     await openFixturePerson(page);
@@ -363,8 +337,6 @@ test.describe('Training module — full UI regression suite', () => {
     await page.locator('#opsRecordStatus').selectOption('Completed');
     await page.locator('#opsRecordProvider').fill('E2E UI Suite Provider');
     await page.getByRole('button', { name: 'Add record', exact: true }).click();
-    await page.waitForTimeout(3_000);
-    console.log('DIAG TRAINING-SUITE-014 dialogs: ' + JSON.stringify(dialogs));
 
     await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
     const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
