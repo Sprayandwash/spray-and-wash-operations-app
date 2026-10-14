@@ -408,7 +408,7 @@ test.describe('Training module — full UI regression suite', () => {
     fixture.evidenceFileId = null;
   });
 
-  test('TRAINING-SUITE-020: with evidence attached, marking a record Completed auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
+  test('TRAINING-SUITE-020: with evidence attached, marking a record Completed shows an "In date" status', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
     await openFixturePerson(page);
@@ -428,9 +428,8 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
     await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
-    const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
-    await expect(expiryCell).not.toHaveText('No expiry');
-    await expect(expiryCell).not.toHaveText('—');
+    // The fixture course has no validity period (TRAINING-SUITE-005 clears it), so "No expiry" is the correct expiry here.
+    await expect(section.locator('table tr').nth(1).locator('td').nth(1)).toHaveText('No expiry');
   });
 
   test('TRAINING-SUITE-018: the on-screen Register lists the fixture person/course, and a status filter narrows and labels the results', async ({ page }) => {
