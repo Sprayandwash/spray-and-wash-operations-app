@@ -66,6 +66,19 @@ async function goToTab(page, label) {
 async function openSettingsPanel(page, summaryText) {
   await goToTab(page, 'Settings');
   const details = page.locator('details.ops-collapsible', { has: page.getByRole('heading', { name: summaryText, exact: true }) });
+  // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-004): if the panel never appears, log what the page shows instead.
+  try {
+    await details.waitFor({ state: 'attached', timeout: 15_000 });
+  } catch (err) {
+    const snapshot = await page.evaluate(() => ({
+      shell: (document.querySelector('#opsShell')?.innerText || '').slice(0, 1500),
+      activeNav: document.querySelector('#opsNav .active')?.textContent || null,
+      headings: [...document.querySelectorAll('#opsShell h2, #opsShell h3')].map(h => h.textContent.trim()).slice(0, 40),
+      url: location.href
+    }));
+    console.log('DIAG TRAINING-SUITE-004 panel missing: ' + JSON.stringify(snapshot));
+    throw err;
+  }
   const isOpen = await details.evaluate(el => el.open);
   if (!isOpen) await details.locator('summary').click();
   return details;
