@@ -65,7 +65,7 @@ async function goToTab(page, label) {
 
 async function openSettingsPanel(page, summaryText) {
   await goToTab(page, 'Settings');
-  const details = page.locator('details.ops-collapsible', { has: page.getByRole('heading', { name: summaryText, exact: true }) });
+  const details = page.locator('details.ops-collapsible', { has: page.locator('summary h3', { hasText: new RegExp('^\\s*' + summaryText + '\\s*$') }) });
   // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-004): if the panel never appears, log what the page shows instead.
   try {
     await details.waitFor({ state: 'attached', timeout: 15_000 });
