@@ -314,6 +314,8 @@ test.describe('Training module — full UI regression suite', () => {
     await signIn(page, config);
     await openTrainingModule(page);
     const matrix = await openSettingsPanel(page, 'Training Matrix');
+    // TRAINING-SUITE-005 switched the fixture course to Internal, and the Matrix opens on the External tab.
+    await matrix.getByRole('button', { name: /Internal \(\d+\)/ }).click();
     const cell = matrix.locator(`button[data-ops-matrix-cell][data-person="${fixture.personId}"][data-course="${fixture.courseId}"]`);
     await expect(cell, 'Expected a Matrix cell for the fixture person × fixture course').toHaveCount(1, { timeout: 10_000 });
 
