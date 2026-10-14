@@ -169,6 +169,9 @@ test.describe('Training module — full UI regression suite', () => {
     await page.locator('#opsCourseName').fill(fixture.archiveCourseName);
     await page.getByRole('button', { name: 'Add course', exact: true }).click();
     const createdRow = (await openSettingsPanel(page, 'Course Catalog')).locator('tr', { has: page.getByRole('button', { name: fixture.archiveCourseName, exact: true }) });
+    await page.waitForTimeout(4000);
+    console.log('DIAG006 shell: ' + JSON.stringify((await page.locator('#opsShell').innerText()).slice(0, 1800)));
+    console.log('DIAG006 name field: ' + JSON.stringify(await page.locator('#opsCourseName').evaluateAll(a => a.map(e => e.value))));
     await expect(createdRow).toHaveCount(1, { timeout: 10_000 });
     fixture.archiveCourseId = await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).getAttribute('data-ops-view-course');
     expect(fixture.archiveCourseId).toBeTruthy();
