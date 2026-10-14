@@ -47,7 +47,9 @@ const fixture = {
   courseId: null,
   courseName: `${TAG} Course`,
   archiveCourseId: null,
-  archiveCourseName: `${TAG} Archive-Me Course`,
+  // Avoid "archive", "dispose" and "retire" in fixture names: a global click guard in operations-v4.js
+  // (installArchiveDisposeGuard) intercepts any button containing those words and opens a confirm modal.
+  archiveCourseName: `${TAG} Switch-Off Course`,
   recordId: null,
   evidenceFileId: null
 };
@@ -190,17 +192,7 @@ test.describe('Training module — full UI regression suite', () => {
     fixture.archiveCourseId = await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).getAttribute('data-ops-view-course');
     expect(fixture.archiveCourseId).toBeTruthy();
 
-    // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-006): does the row button work after leaving and re-entering Settings?
-    await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click({ timeout: 5_000 });
-    let opened = await page.locator('#opsCourseActive').waitFor({ state: 'attached', timeout: 5_000 }).then(() => true, () => false);
-    console.log('DIAG TRAINING-SUITE-006 direct click opened form: ' + opened);
-    if (!opened) {
-      await goToTab(page, 'Dashboard');
-      const again = (await openSettingsPanel(page, 'Course Catalog')).locator('tr', { has: page.getByRole('button', { name: fixture.archiveCourseName, exact: true }) });
-      await again.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click({ timeout: 5_000 });
-      opened = await page.locator('#opsCourseActive').waitFor({ state: 'attached', timeout: 5_000 }).then(() => true, () => false);
-      console.log('DIAG TRAINING-SUITE-006 click after Dashboard round trip opened form: ' + opened);
-    }
+    await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click();
     await page.locator('#opsCourseActive').uncheck();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
