@@ -178,24 +178,17 @@ test.describe('Training module — full UI regression suite', () => {
     fixture.archiveCourseId = await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).getAttribute('data-ops-view-course');
     expect(fixture.archiveCourseId).toBeTruthy();
 
-    // The Training data refresh that follows creating a course re-renders the catalog a moment after the new
-    // row first appears, which can swallow a click on the old row node. Retry the click until the form opens.
-    await expect(async () => {
-      await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click();
-      try {
-        await expect(page.locator('#opsCourseActive')).toBeAttached({ timeout: 3_000 });
-      } catch (err) {
-        // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-006)
-        const snap = await page.evaluate(id => ({
-          headings: [...document.querySelectorAll('#opsShell h2, #opsShell h3')].map(h => h.textContent.trim()).slice(0, 12),
-          btn: (() => { const b = document.querySelector('[data-ops-view-course="' + id + '"]'); return b ? { text: b.textContent, disabled: b.disabled, connected: b.isConnected } : null; })(),
-          formOpen: !!document.querySelector('#opsTrainingCourseForm'),
-          ids: [...document.querySelectorAll('#opsShell [id]')].map(e => e.id).slice(0, 30)
-        }), fixture.archiveCourseId);
-        console.log('DIAG TRAINING-SUITE-006 after click: ' + JSON.stringify(snap));
-        throw err;
-      }
-    }).toPass({ timeout: 30_000 });
+    // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-006): does the row button work after leaving and re-entering Settings?
+    await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click({ timeout: 5_000 });
+    let opened = await page.locator('#opsCourseActive').waitFor({ state: 'attached', timeout: 5_000 }).then(() => true, () => false);
+    console.log('DIAG TRAINING-SUITE-006 direct click opened form: ' + opened);
+    if (!opened) {
+      await goToTab(page, 'Dashboard');
+      const again = (await openSettingsPanel(page, 'Course Catalog')).locator('tr', { has: page.getByRole('button', { name: fixture.archiveCourseName, exact: true }) });
+      await again.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click({ timeout: 5_000 });
+      opened = await page.locator('#opsCourseActive').waitFor({ state: 'attached', timeout: 5_000 }).then(() => true, () => false);
+      console.log('DIAG TRAINING-SUITE-006 click after Dashboard round trip opened form: ' + opened);
+    }
     await page.locator('#opsCourseActive').uncheck();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
