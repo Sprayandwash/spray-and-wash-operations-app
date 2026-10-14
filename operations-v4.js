@@ -1471,7 +1471,6 @@
       <label>Status<select id="opsRecordStatus">
         <option value="Completed" ${editing?.status==='Completed'?'selected':''}>Completed</option>
         <option value="In progress" ${(!editing||editing.status==='In progress')?'selected':''}>In progress</option>
-        <option value="Failed" ${editing?.status==='Failed'?'selected':''}>Failed</option>
       </select></label>
       <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${editing?.completed_date || today()}"></label>
       <label>Expiry date<input id="opsRecordExpiryDate" type="date" value="${editing?.expiry_date || ''}" placeholder="${course.validity_period_months ? 'Auto if left blank' : 'No expiry'}"></label>
