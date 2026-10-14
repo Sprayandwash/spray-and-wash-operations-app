@@ -47,7 +47,9 @@ const fixture = {
   courseId: null,
   courseName: `${TAG} Course`,
   archiveCourseId: null,
-  archiveCourseName: `${TAG} Archive-Me Course`,
+  // Avoid "archive", "dispose" and "retire" in fixture names: a global click guard in operations-v4.js
+  // (installArchiveDisposeGuard) intercepts any button containing those words and opens a confirm modal.
+  archiveCourseName: `${TAG} Switch-Off Course`,
   recordId: null,
   evidenceFileId: null
 };
@@ -63,9 +65,15 @@ async function goToTab(page, label) {
   await page.locator('#opsNav').getByRole('button', { name: label, exact: true }).click();
 }
 
+async function openFixturePerson(page) {
+  // People are listed under Team members, not on the Training landing (Dashboard) tab.
+  await goToTab(page, 'Team members');
+  await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+}
+
 async function openSettingsPanel(page, summaryText) {
   await goToTab(page, 'Settings');
-  const details = page.locator('details.ops-collapsible', { has: page.getByRole('heading', { name: summaryText, exact: true }) });
+  const details = page.locator('details.ops-collapsible', { has: page.locator('summary h3', { hasText: new RegExp('^\\s*' + summaryText + '\\s*$') }) });
   const isOpen = await details.evaluate(el => el.open);
   if (!isOpen) await details.locator('summary').click();
   return details;
@@ -262,7 +270,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-011: renaming a person is reflected under the contractor and under Team members', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     await expect(page.locator('h3', { hasText: fixture.personName })).toBeVisible();
 
     const renamed = `${fixture.personName} (renamed)`;
@@ -271,15 +279,17 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     fixture.personName = renamed;
 
-    await expect(page.locator('h3', { hasText: renamed })).toBeVisible();
+    await expect(page.locator('h3', { hasText: renamed })).toBeVisible({ timeout: 15_000 });
     await goToTab(page, 'Team members');
-    await expect(page.locator(`tr[data-ops-open-person="${fixture.personId}"]`)).toContainText(renamed);
+    await expect(page.locator(`tr[data-ops-open-person="${fixture.personId}"]`)).toContainText(renamed, { timeout: 10_000 });
   });
 
   test('TRAINING-SUITE-012: the Training Matrix switch cycles Off → Applicable (amber) → Compulsory (green) → Off', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
     const matrix = await openSettingsPanel(page, 'Training Matrix');
+    // TRAINING-SUITE-005 switched the fixture course to Internal, and the Matrix opens on the External tab.
+    await matrix.getByRole('button', { name: /Internal \(\d+\)/ }).click();
     const cell = matrix.locator(`button[data-ops-matrix-cell][data-person="${fixture.personId}"][data-course="${fixture.courseId}"]`);
     await expect(cell, 'Expected a Matrix cell for the fixture person × fixture course').toHaveCount(1, { timeout: 10_000 });
 
@@ -297,7 +307,9 @@ test.describe('Training module — full UI regression suite', () => {
     await expect(cell).toHaveAttribute('data-state', 'off');
 
     // Leave it Compulsory for the record/register tests below.
+    // Each click saves and re-renders, so wait for each state before clicking again.
     await cell.click();
+    await expect(cell).toHaveAttribute('data-state', 'applicable');
     await cell.click();
     await expect(cell).toHaveAttribute('data-state', 'compulsory');
   });
@@ -305,7 +317,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-013: a compulsory course with no record shows "Compulsory" and a "Not recorded" (red) status on the person\'s page', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
 
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await expect(section).toContainText(fixture.courseName);
@@ -313,23 +325,19 @@ test.describe('Training module — full UI regression suite', () => {
     await expect(section.locator('.ops-pill.ops-bad', { hasText: 'Not recorded' })).toBeVisible();
   });
 
-  test('TRAINING-SUITE-014: adding a Completed record auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
+  test('TRAINING-SUITE-014: a new training record defaults to "In progress" (the database rejects Completed without evidence) and shows that status', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click();
     await section.getByRole('button', { name: '+ Add record', exact: true }).click();
 
-    await page.locator('#opsRecordStatus').selectOption('Completed');
+    await expect(page.locator('#opsRecordStatus')).toHaveValue('In progress');
     await page.locator('#opsRecordProvider').fill('E2E UI Suite Provider');
     await page.getByRole('button', { name: 'Add record', exact: true }).click();
 
-    await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
-    const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
-    await expect(expiryCell).not.toHaveText('No expiry');
-    await expect(expiryCell).not.toHaveText('—');
-
+    await expect(section.locator('.ops-pill', { hasText: 'In progress' })).toBeVisible({ timeout: 10_000 });
     const editButton = section.getByRole('button', { name: 'Edit', exact: true });
     await expect(editButton).toHaveCount(1);
     fixture.recordId = await editButton.getAttribute('data-ops-edit-record');
@@ -339,7 +347,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-015 [known-bug regression]: a "Failed" record must be flagged red and surface as a contractor "Fail", not "Pass"', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click(); // course body — including the Edit button — only exists while this <details> is open
     await section.locator(`[data-ops-edit-record="${fixture.recordId}"]`).click();
@@ -366,7 +374,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-016: uploading evidence to a record shows it in the evidence list', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click();
 
@@ -388,13 +396,38 @@ test.describe('Training module — full UI regression suite', () => {
     acceptDialogsAndCapture(page);
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click();
 
     await section.locator(`[data-ops-delete-evidence="${fixture.evidenceFileId}"]`).click();
     await expect(section.locator('.ops-evidence-empty')).toContainText('No files added yet.', { timeout: 10_000 });
     fixture.evidenceFileId = null;
+  });
+
+  test('TRAINING-SUITE-020: with evidence attached, marking a record Completed auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
+    await signIn(page, config);
+    await openTrainingModule(page);
+    await openFixturePerson(page);
+    const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
+    await section.locator('summary').click();
+
+    await section.getByRole('button', { name: '+ Add file', exact: true }).click();
+    await section.locator(`input[data-ops-evidence-input="${fixture.recordId}"][type="file"]`).last().setInputFiles({
+      name: 'e2e-ui-suite-evidence-2.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 E2E UI SUITE TEST FILE — safe to delete\n%%EOF')
+    });
+    await expect(section.getByRole('button', { name: 'e2e-ui-suite-evidence-2.pdf', exact: true })).toBeVisible({ timeout: 15_000 });
+
+    await section.locator(`[data-ops-edit-record="${fixture.recordId}"]`).click();
+    await page.locator('#opsRecordStatus').selectOption('Completed');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+
+    await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
+    const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
+    await expect(expiryCell).not.toHaveText('No expiry');
+    await expect(expiryCell).not.toHaveText('—');
   });
 
   test('TRAINING-SUITE-018: the on-screen Register lists the fixture person/course, and a status filter narrows and labels the results', async ({ page }) => {
@@ -430,7 +463,7 @@ test.describe('Training module — full UI regression suite', () => {
 
       if (fixture.personId && fixture.courseId) {
         await safeCleanup('training record', async () => {
-          await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+          await openFixturePerson(page);
           const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
           await section.locator('summary').click();
           const deleteButton = section.locator(`[data-ops-delete-record]`);
@@ -443,7 +476,7 @@ test.describe('Training module — full UI regression suite', () => {
 
       await safeCleanup('fixture person (archived — the UI has no hard delete for people)', async () => {
         if (!fixture.personId) return;
-        await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+        await openFixturePerson(page);
         const checkbox = page.locator(`input[data-ops-toggle-training-person-active="${fixture.personId}"]`);
         if (await checkbox.isChecked()) await checkbox.uncheck();
       });
