@@ -352,6 +352,7 @@ test.describe('Training module — full UI regression suite', () => {
   });
 
   test('TRAINING-SUITE-014: adding a Completed record auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
+    const dialogs = acceptDialogsAndCapture(page); // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-014)
     await signIn(page, config);
     await openTrainingModule(page);
     await openFixturePerson(page);
@@ -362,6 +363,8 @@ test.describe('Training module — full UI regression suite', () => {
     await page.locator('#opsRecordStatus').selectOption('Completed');
     await page.locator('#opsRecordProvider').fill('E2E UI Suite Provider');
     await page.getByRole('button', { name: 'Add record', exact: true }).click();
+    await page.waitForTimeout(3_000);
+    console.log('DIAG TRAINING-SUITE-014 dialogs: ' + JSON.stringify(dialogs));
 
     await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
     const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
