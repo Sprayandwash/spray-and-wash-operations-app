@@ -65,6 +65,12 @@ async function goToTab(page, label) {
   await page.locator('#opsNav').getByRole('button', { name: label, exact: true }).click();
 }
 
+async function openFixturePerson(page) {
+  // People are listed under Team members, not on the Training landing (Dashboard) tab.
+  await goToTab(page, 'Team members');
+  await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+}
+
 async function openSettingsPanel(page, summaryText) {
   await goToTab(page, 'Settings');
   const details = page.locator('details.ops-collapsible', { has: page.locator('summary h3', { hasText: new RegExp('^\\s*' + summaryText + '\\s*$') }) });
@@ -290,7 +296,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-011: renaming a person is reflected under the contractor and under Team members', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     await expect(page.locator('h3', { hasText: fixture.personName })).toBeVisible();
 
     const renamed = `${fixture.personName} (renamed)`;
@@ -333,7 +339,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-013: a compulsory course with no record shows "Compulsory" and a "Not recorded" (red) status on the person\'s page', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
 
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await expect(section).toContainText(fixture.courseName);
@@ -344,7 +350,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-014: adding a Completed record auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click();
     await section.getByRole('button', { name: '+ Add record', exact: true }).click();
@@ -368,7 +374,7 @@ test.describe('Training module — full UI regression suite', () => {
     test.fail(true, 'Known bug (TRAINING-SUITE-015): a Failed record is coloured/signalled as In progress.');
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click(); // course body — including the Edit button — only exists while this <details> is open
     await section.locator(`[data-ops-edit-record="${fixture.recordId}"]`).click();
@@ -395,7 +401,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-016: uploading evidence to a record shows it in the evidence list', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click();
 
@@ -417,7 +423,7 @@ test.describe('Training module — full UI regression suite', () => {
     acceptDialogsAndCapture(page);
     await signIn(page, config);
     await openTrainingModule(page);
-    await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+    await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
     await section.locator('summary').click();
 
@@ -459,7 +465,7 @@ test.describe('Training module — full UI regression suite', () => {
 
       if (fixture.personId && fixture.courseId) {
         await safeCleanup('training record', async () => {
-          await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+          await openFixturePerson(page);
           const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
           await section.locator('summary').click();
           const deleteButton = section.locator(`[data-ops-delete-record]`);
@@ -472,7 +478,7 @@ test.describe('Training module — full UI regression suite', () => {
 
       await safeCleanup('fixture person (archived — the UI has no hard delete for people)', async () => {
         if (!fixture.personId) return;
-        await page.locator(`[data-ops-open-person="${fixture.personId}"]`).first().click();
+        await openFixturePerson(page);
         const checkbox = page.locator(`input[data-ops-toggle-training-person-active="${fixture.personId}"]`);
         if (await checkbox.isChecked()) await checkbox.uncheck();
       });
