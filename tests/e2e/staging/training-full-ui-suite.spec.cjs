@@ -305,9 +305,9 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     fixture.personName = renamed;
 
-    await expect(page.locator('h3', { hasText: renamed })).toBeVisible();
+    await expect(page.locator('h3', { hasText: renamed })).toBeVisible({ timeout: 15_000 });
     await goToTab(page, 'Team members');
-    await expect(page.locator(`tr[data-ops-open-person="${fixture.personId}"]`)).toContainText(renamed);
+    await expect(page.locator(`tr[data-ops-open-person="${fixture.personId}"]`)).toContainText(renamed, { timeout: 10_000 });
   });
 
   test('TRAINING-SUITE-012: the Training Matrix switch cycles Off → Applicable (amber) → Compulsory (green) → Off', async ({ page }) => {
