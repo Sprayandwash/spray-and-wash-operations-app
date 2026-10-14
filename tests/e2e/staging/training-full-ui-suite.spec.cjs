@@ -182,7 +182,19 @@ test.describe('Training module — full UI regression suite', () => {
     // row first appears, which can swallow a click on the old row node. Retry the click until the form opens.
     await expect(async () => {
       await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click();
-      await expect(page.locator('#opsCourseActive')).toBeAttached({ timeout: 3_000 });
+      try {
+        await expect(page.locator('#opsCourseActive')).toBeAttached({ timeout: 3_000 });
+      } catch (err) {
+        // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-006)
+        const snap = await page.evaluate(id => ({
+          headings: [...document.querySelectorAll('#opsShell h2, #opsShell h3')].map(h => h.textContent.trim()).slice(0, 12),
+          btn: (() => { const b = document.querySelector('[data-ops-view-course="' + id + '"]'); return b ? { text: b.textContent, disabled: b.disabled, connected: b.isConnected } : null; })(),
+          formOpen: !!document.querySelector('#opsTrainingCourseForm'),
+          ids: [...document.querySelectorAll('#opsShell [id]')].map(e => e.id).slice(0, 30)
+        }), fixture.archiveCourseId);
+        console.log('DIAG TRAINING-SUITE-006 after click: ' + JSON.stringify(snap));
+        throw err;
+      }
     }).toPass({ timeout: 30_000 });
     await page.locator('#opsCourseActive').uncheck();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
