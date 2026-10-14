@@ -1149,6 +1149,7 @@
 
   function trainingCellStatus(record, compulsory){
     if(!record) return compulsory ? {label:'Not recorded', pillClass:'ops-bad'} : {label:'Not recorded', pillClass:'ops-muted'};
+    if(record.status === 'Failed') return {label: record.status, pillClass:'ops-bad'};
     if(record.status && record.status !== 'Completed') return {label: record.status, pillClass:'ops-warn'};
     if(!record.expiry_date) return {label:'In date', pillClass:'ops-ok'};
     const days = daysUntil(record.expiry_date);
@@ -1468,8 +1469,8 @@
     const editing = state.trainingRecords.find(r => String(r.id) === String(state.editingRecordId));
     return `<form id="opsTrainingRecordForm" class="ops-form" data-record-id="${editing ? editing.id : ''}" data-person-id="${person.id}" data-course-id="${course.id}">
       <label>Status<select id="opsRecordStatus">
-        <option value="Completed" ${(!editing||editing.status==='Completed')?'selected':''}>Completed</option>
-        <option value="In progress" ${editing?.status==='In progress'?'selected':''}>In progress</option>
+        <option value="Completed" ${editing?.status==='Completed'?'selected':''}>Completed</option>
+        <option value="In progress" ${(!editing||editing.status==='In progress')?'selected':''}>In progress</option>
         <option value="Failed" ${editing?.status==='Failed'?'selected':''}>Failed</option>
       </select></label>
       <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${editing?.completed_date || today()}"></label>
@@ -1709,7 +1710,7 @@
 
   function trainingContractorsHtml(){
     const contractors = state.trainingContractors.slice().sort((a,b) => String(a.company_name).localeCompare(String(b.company_name)));
-    const rows = contractors.map(c => `<tr class="ops-row-link" data-ops-view-contractor="${c.id}" tabindex="0" role="button" aria-label="Open ${esc(c.company_name)}"><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" onclick="event.stopPropagation(); toggleTrainingContractorActive('${c.id}')">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No contractors yet.</td></tr>';
+    const rows = contractors.map(c => `<tr class="ops-row-link" data-ops-view-contractor="${c.id}" tabindex="0" role="button" aria-label="Open ${esc(c.company_name)}"><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No contractors yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
       ${state.trainingContractorFormOpen && !state.editingContractorId ? trainingContractorFormHtml() : ''}
       <p class="ops-subtle">The Training column is a pass/fail signal for this contractor's people against their compulsory training requirements — the single check an HSE review of this contractor's system will draw on. Click a contractor to open its own page and manage its people.</p>
@@ -4729,7 +4730,7 @@
     document.querySelectorAll('[data-ops-save-user-roles]').forEach(b => b.addEventListener('click', () => saveActualUserRoles(b.dataset.opsSaveUserRoles)));
     document.querySelectorAll('[data-ops-create-schedule-task]').forEach(b => b.addEventListener('click', () => createTaskFromSchedule(b.dataset.opsCreateScheduleTask)));
     document.querySelectorAll('[data-ops-edit-contractor]').forEach(b => b.addEventListener('click', () => { state.editingContractorId=b.dataset.opsEditContractor; state.trainingContractorFormOpen=true; render(); }));
-    document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', () => toggleTrainingContractorActive(b.dataset.opsToggleContractorActive)));
+    document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); toggleTrainingContractorActive(b.dataset.opsToggleContractorActive); }));
     document.querySelectorAll('[data-ops-view-contractor]').forEach(b => { const go = () => viewTrainingContractor(b.dataset.opsViewContractor); b.addEventListener('click', go); if(b.tagName !== 'BUTTON') b.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
     document.querySelectorAll('[data-ops-add-person-for-contractor]').forEach(b => b.addEventListener('click', () => { state.prefillContractorId=b.dataset.opsAddPersonForContractor; state.editingTrainingPersonId=''; state.trainingPersonFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-view-course]').forEach(b => b.addEventListener('click', () => openTrainingCourse(b.dataset.opsViewCourse)));
@@ -6608,6 +6609,9 @@
   function installArchiveDisposeGuard(){
     document.addEventListener('click', e => {
       const btn = e.target.closest('button'); if(!btn) return;
+      // Buttons that open a record (course, contractor, person) can carry any user-entered name, so a name
+      // containing "archive", "dispose" or "retire" must not trigger the confirm modal.
+      if(Object.keys(btn.dataset).some(k => k.startsWith('opsView') || k.startsWith('opsOpen'))) return;
       const text = norm(btn.textContent);
       if(!(text.includes('archive') || text.includes('dispose') || text.includes('retire'))) return;
       if(btn.dataset.sw421Confirmed === '1'){ delete btn.dataset.sw421Confirmed; return; }

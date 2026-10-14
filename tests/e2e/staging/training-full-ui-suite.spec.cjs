@@ -223,7 +223,6 @@ test.describe('Training module — full UI regression suite', () => {
   });
 
   test('TRAINING-SUITE-009: deactivating then reactivating a contractor round-trips its Status and button label', async ({ page }) => {
-    test.fail(true, 'Known bug: the Deactivate/Reactivate button in the Contractors list calls toggleTrainingContractorActive() from an inline onclick, but that function is private to operations-v4.js so the click throws a ReferenceError and nothing happens.');
     acceptDialogsAndCapture(page);
     await signIn(page, config);
     await openTrainingModule(page);
@@ -326,7 +325,7 @@ test.describe('Training module — full UI regression suite', () => {
     await expect(section.locator('.ops-pill.ops-bad', { hasText: 'Not recorded' })).toBeVisible();
   });
 
-  test('TRAINING-SUITE-014: adding a Completed record auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
+  test('TRAINING-SUITE-014: a new training record defaults to "In progress" (the database rejects Completed without evidence) and shows that status', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
     await openFixturePerson(page);
@@ -334,15 +333,11 @@ test.describe('Training module — full UI regression suite', () => {
     await section.locator('summary').click();
     await section.getByRole('button', { name: '+ Add record', exact: true }).click();
 
-    await page.locator('#opsRecordStatus').selectOption('Completed');
+    await expect(page.locator('#opsRecordStatus')).toHaveValue('In progress');
     await page.locator('#opsRecordProvider').fill('E2E UI Suite Provider');
     await page.getByRole('button', { name: 'Add record', exact: true }).click();
 
-    await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
-    const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
-    await expect(expiryCell).not.toHaveText('No expiry');
-    await expect(expiryCell).not.toHaveText('—');
-
+    await expect(section.locator('.ops-pill', { hasText: 'In progress' })).toBeVisible({ timeout: 10_000 });
     const editButton = section.getByRole('button', { name: 'Edit', exact: true });
     await expect(editButton).toHaveCount(1);
     fixture.recordId = await editButton.getAttribute('data-ops-edit-record');
@@ -350,7 +345,6 @@ test.describe('Training module — full UI regression suite', () => {
   });
 
   test('TRAINING-SUITE-015 [known-bug regression]: a "Failed" record must be flagged red and surface as a contractor "Fail", not "Pass"', async ({ page }) => {
-    test.fail(true, 'Known bug (TRAINING-SUITE-015): a Failed record is coloured/signalled as In progress.');
     await signIn(page, config);
     await openTrainingModule(page);
     await openFixturePerson(page);
@@ -409,6 +403,31 @@ test.describe('Training module — full UI regression suite', () => {
     await section.locator(`[data-ops-delete-evidence="${fixture.evidenceFileId}"]`).click();
     await expect(section.locator('.ops-evidence-empty')).toContainText('No files added yet.', { timeout: 10_000 });
     fixture.evidenceFileId = null;
+  });
+
+  test('TRAINING-SUITE-020: with evidence attached, marking a record Completed auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
+    await signIn(page, config);
+    await openTrainingModule(page);
+    await openFixturePerson(page);
+    const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
+    await section.locator('summary').click();
+
+    await section.getByRole('button', { name: '+ Add file', exact: true }).click();
+    await section.locator(`input[data-ops-evidence-input="${fixture.recordId}"][type="file"]`).last().setInputFiles({
+      name: 'e2e-ui-suite-evidence-2.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 E2E UI SUITE TEST FILE — safe to delete\n%%EOF')
+    });
+    await expect(section.getByRole('button', { name: 'e2e-ui-suite-evidence-2.pdf', exact: true })).toBeVisible({ timeout: 15_000 });
+
+    await section.locator(`[data-ops-edit-record="${fixture.recordId}"]`).click();
+    await page.locator('#opsRecordStatus').selectOption('Completed');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+
+    await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
+    const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
+    await expect(expiryCell).not.toHaveText('No expiry');
+    await expect(expiryCell).not.toHaveText('—');
   });
 
   test('TRAINING-SUITE-018: the on-screen Register lists the fixture person/course, and a status filter narrows and labels the results', async ({ page }) => {
