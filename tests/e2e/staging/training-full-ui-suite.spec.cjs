@@ -179,6 +179,18 @@ test.describe('Training module — full UI regression suite', () => {
     expect(fixture.archiveCourseId).toBeTruthy();
 
     await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click();
+    // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-006): log what the page shows if the course form never opens.
+    try {
+      await page.locator('#opsCourseActive').waitFor({ state: 'attached', timeout: 15_000 });
+    } catch (err) {
+      const snapshot = await page.evaluate(() => ({
+        shell: (document.querySelector('#opsShell')?.innerText || '').slice(0, 1500),
+        activeNav: document.querySelector('#opsNav .active')?.textContent || null,
+        ids: [...document.querySelectorAll('#opsShell [id]')].map(e => e.id).slice(0, 60)
+      }));
+      console.log('DIAG TRAINING-SUITE-006 course form missing: ' + JSON.stringify(snapshot));
+      throw err;
+    }
     await page.locator('#opsCourseActive').uncheck();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
