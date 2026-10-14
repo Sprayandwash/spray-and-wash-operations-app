@@ -2059,7 +2059,7 @@
     if(!state.sb || revision!==state.authRevision) return;
     state.lastError = '';
     if(!state.user){ state.roles = []; render(); return; }
-    await loadRoles(revision);
+    await loadRoles(revision, resetNavigation);
     if(revision!==state.authRevision) return;
     // Account gates must take precedence over the module landing screen.  A
     // first-password user otherwise remains on Home and the required form is
@@ -2096,11 +2096,29 @@
     }catch(err){ console.warn('Preloaded user setup skipped:', err.message); }
   }
 
-  async function loadRoles(revision=state.authRevision){
+  async function loadRoles(revision=state.authRevision, isNewUser=false){
     const userId=state.user?.id;
     if(!userId || revision!==state.authRevision) return;
-    state.roles = [];
-    state.profile = null;
+    // Only blank out the previous roles/profile when this is genuinely a
+    // different signed-in user. onAuthStateChange can fire more than once
+    // for the SAME user and session — e.g. this page runs two independent
+    // Supabase client instances (this module's own client and the legacy
+    // app.js client, both reading/writing the same auth storage key, which
+    // Supabase itself warns is "undefined behavior" when done concurrently)
+    // and a storage write from one can trigger a redundant auth event on
+    // the other. Clearing state.roles here unconditionally used to leave a
+    // real window — the time it takes this function's own queries to come
+    // back — where every canUseX() check (all gated on state.roles) read as
+    // "no access", so any render() that landed in that window (for example
+    // the one that reveals the Training module's Settings tab once its own
+    // data finishes loading) showed a "<module> access required" message
+    // instead of the real content. Keeping the still-correct roles/profile
+    // in place for a same-user refresh removes that flash entirely; a
+    // genuine user change still clears them immediately, exactly as before.
+    if(isNewUser){
+      state.roles = [];
+      state.profile = null;
+    }
     await claimPreloadedUserSetup();
     if(revision!==state.authRevision) return;
     const r = await state.sb.from('user_roles').select('role').eq('user_id', userId).order('role');
