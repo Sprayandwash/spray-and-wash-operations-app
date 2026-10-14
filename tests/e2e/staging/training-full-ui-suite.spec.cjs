@@ -333,7 +333,9 @@ test.describe('Training module — full UI regression suite', () => {
     await expect(cell).toHaveAttribute('data-state', 'off');
 
     // Leave it Compulsory for the record/register tests below.
+    // Each click saves and re-renders, so wait for each state before clicking again.
     await cell.click();
+    await expect(cell).toHaveAttribute('data-state', 'applicable');
     await cell.click();
     await expect(cell).toHaveAttribute('data-state', 'compulsory');
   });
