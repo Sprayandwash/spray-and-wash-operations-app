@@ -178,19 +178,12 @@ test.describe('Training module — full UI regression suite', () => {
     fixture.archiveCourseId = await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).getAttribute('data-ops-view-course');
     expect(fixture.archiveCourseId).toBeTruthy();
 
-    await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click();
-    // TEMPORARY DIAGNOSTIC (TRAINING-SUITE-006): log what the page shows if the course form never opens.
-    try {
-      await page.locator('#opsCourseActive').waitFor({ state: 'attached', timeout: 15_000 });
-    } catch (err) {
-      const snapshot = await page.evaluate(() => ({
-        shell: (document.querySelector('#opsShell')?.innerText || '').slice(0, 1500),
-        activeNav: document.querySelector('#opsNav .active')?.textContent || null,
-        ids: [...document.querySelectorAll('#opsShell [id]')].map(e => e.id).slice(0, 60)
-      }));
-      console.log('DIAG TRAINING-SUITE-006 course form missing: ' + JSON.stringify(snapshot));
-      throw err;
-    }
+    // The Training data refresh that follows creating a course re-renders the catalog a moment after the new
+    // row first appears, which can swallow a click on the old row node. Retry the click until the form opens.
+    await expect(async () => {
+      await createdRow.getByRole('button', { name: fixture.archiveCourseName, exact: true }).click();
+      await expect(page.locator('#opsCourseActive')).toBeAttached({ timeout: 3_000 });
+    }).toPass({ timeout: 30_000 });
     await page.locator('#opsCourseActive').uncheck();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
