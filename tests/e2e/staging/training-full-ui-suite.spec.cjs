@@ -344,31 +344,18 @@ test.describe('Training module — full UI regression suite', () => {
     expect(fixture.recordId).toBeTruthy();
   });
 
-  test('TRAINING-SUITE-015 [known-bug regression]: a "Failed" record must be flagged red and surface as a contractor "Fail", not "Pass"', async ({ page }) => {
+  test('TRAINING-SUITE-015: the record Status list only offers statuses the database accepts (no "Failed")', async ({ page }) => {
+    // operations_training_records_status_check allows only Scheduled / In progress / Completed / Expired, so a "Failed"
+    // option could never be saved. Regression guard for it being removed from the form.
     await signIn(page, config);
     await openTrainingModule(page);
     await openFixturePerson(page);
     const section = page.locator(`details[data-ops-course-id="${fixture.courseId}"]`);
-    await section.locator('summary').click(); // course body — including the Edit button — only exists while this <details> is open
+    await section.locator('summary').click();
     await section.locator(`[data-ops-edit-record="${fixture.recordId}"]`).click();
-    await page.locator('#opsRecordStatus').selectOption('Failed');
-    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-
-    const statusPill = section.locator('.ops-training-course-badges .ops-pill').last();
-    await expect(statusPill, 'Label text should still say Failed').toHaveText('Failed', { timeout: 10_000 });
-    await expect(
-      statusPill,
-      'operations-v4.js trainingCellStatus() (~line 1152) maps any non-"Completed" status, including "Failed", to pillClass "ops-warn" (amber) instead of "ops-bad" (red) — ' +
-      'a failed compulsory course currently renders with the same colour as merely "In progress".'
-    ).toHaveClass(/ops-bad/);
-
-    await goToTab(page, 'Contractors');
-    const contractorRow = page.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`);
-    await expect(
-      contractorRow,
-      'contractorTrainingStatus() (~line 1161-1178) only treats pillClass "ops-bad" as a failure, so a "Failed" record (pillClass "ops-warn") never trips the contractor-level "Fail" signal — ' +
-      'the Contractors screen\'s own description calls this "the single check an HSE review…will draw on" (operations-v4.js ~line 1715).'
-    ).toContainText('Fail');
+    const options = await page.locator('#opsRecordStatus option').allTextContents();
+    expect(options).not.toContain('Failed');
+    for (const status of options) expect(['Scheduled', 'In progress', 'Completed', 'Expired']).toContain(status);
   });
 
   test('TRAINING-SUITE-016: uploading evidence to a record shows it in the evidence list', async ({ page }) => {
@@ -405,7 +392,7 @@ test.describe('Training module — full UI regression suite', () => {
     fixture.evidenceFileId = null;
   });
 
-  test('TRAINING-SUITE-020: with evidence attached, marking a record Completed auto-computes the expiry date and shows an "In date" status', async ({ page }) => {
+  test('TRAINING-SUITE-020: with evidence attached, marking a record Completed shows an "In date" status', async ({ page }) => {
     await signIn(page, config);
     await openTrainingModule(page);
     await openFixturePerson(page);
@@ -425,9 +412,8 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
     await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
-    const expiryCell = section.locator('table tr').nth(1).locator('td').nth(1);
-    await expect(expiryCell).not.toHaveText('No expiry');
-    await expect(expiryCell).not.toHaveText('—');
+    // The fixture course has no validity period (TRAINING-SUITE-005 clears it), so "No expiry" is the correct expiry here.
+    await expect(section.locator('table tr').nth(1).locator('td').nth(1)).toHaveText('No expiry');
   });
 
   test('TRAINING-SUITE-018: the on-screen Register lists the fixture person/course, and a status filter narrows and labels the results', async ({ page }) => {
