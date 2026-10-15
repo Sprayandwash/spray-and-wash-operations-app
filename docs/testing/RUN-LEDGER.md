@@ -35,6 +35,7 @@ This is a compact, append-only index of meaningful Admin test runs and fixes. It
 
 | 7 Sep 2026 | Production and Staging scheduler audit | — | Confirmed inert | Read-only query found both environments' notification-scheduler cron jobs `active`, running every 15 minutes, with no committed migration or workflow creating either. Delivery confirmed off in both environments via settings row and backend kill-switch. See [detailed record](history/2026-09-07-production-scheduler-audit.md). |
 | 7 Sep 2026 | Scheduler job definitions formalized in docs | — | Documented | Added a committed reference of the exact live `cron.job` command text for all four Staging and Production notification-scheduler jobs, plus two read-only GitHub Actions workflows that compare live state against it on demand. No job was created, altered, or removed. See [reference](history/2026-09-07-scheduler-job-definitions-reference.md). |
+| 15 Oct 2026 | Training & Qualifications full UI suite | — | Passed | 20 of 20 tests passed on Staging against `main` after PRs 249 and 250 (run `38660298425`). Earlier runs found four app defects, now fixed (REG-141 to REG-145). |
 
 ## Recording rule
 
