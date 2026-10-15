@@ -54,6 +54,10 @@ to Training & Qualifications; its suite is
 `tests/e2e/staging/training-full-ui-suite.spec.cjs`, dispatched via
 `.github/workflows/staging-training-full-ui-suite.yml`.
 
+Status (15 Oct 2026): all 20 tests pass on Staging against `main` (run
+`38660298425`). Defects found and fixed: REG-141 to REG-145. Leftover
+`E2E-UI-SUITE-TRAINING-` test courses remain on Staging pending approval to delete.
+
 ## Related records
 
 - [Module UI-testing standard](MODULE-UI-TESTING-STANDARD.md)

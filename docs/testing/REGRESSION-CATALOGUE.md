@@ -10,6 +10,7 @@ The permanent, complete catalogue is [../regression-catalogue.md](../regression-
 | Vehicle Checks | Agreed regression testing completed for this programme phase. | Existing browser/read-only and controlled test evidence is retained in the master catalogue and workflows. |
 | Maintenance | Agreed regression testing completed for this programme phase. | Existing browser/read-only and controlled test evidence is retained in the master catalogue and workflows. |
 | Admin | Agreed Admin regression testing completed. | Read-only run `33060709477` passed; controlled claim-and-role run `33105862362` passed with cleanup and automatic history archive. |
+| Training & Qualifications | Full UI suite (20 tests) passing on staging after PRs 249 and 250 (run `38660298425`). Four app defects fixed: REG-141 to REG-145. | See [module UI-testing standard](MODULE-UI-TESTING-STANDARD.md). |
 
 ## Naming note
 

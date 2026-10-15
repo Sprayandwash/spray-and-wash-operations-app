@@ -214,7 +214,7 @@ Admin) are recorded there.
   section status pills, adding a training record (incl. auto-computed
   expiry) and editing one, evidence file upload/removal, the on-screen
   Register and its status filter, and the printable Register popup.
-- Two known-bug regression tests: `TRAINING-SUITE-003` ("My Training" has
+- Two known-bug regression tests (015 was later retitled as a guard that the Status list never offers "Failed"; see REG-145): `TRAINING-SUITE-003` ("My Training" has
   no server-side row filter — the browser receives every person's training
   rows) and `TRAINING-SUITE-015` (a "Failed" record is coloured/signalled
   the same as "In progress", so it never trips the contractor-level Fail
