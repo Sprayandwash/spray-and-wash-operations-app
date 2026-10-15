@@ -56,7 +56,11 @@ to Training & Qualifications; its suite is
 
 Status (15 Oct 2026): all 20 tests pass on Staging against `main` (run
 `38660298425`). Defects found and fixed: REG-141 to REG-145. Leftover
-`E2E-UI-SUITE-TRAINING-` test courses remain on Staging pending approval to delete.
+`E2E-UI-SUITE-TRAINING-` test courses remain on Staging pending cleanup.
+The mid-round handover of 14 Oct 2026 is kept for history in the
+[Training module handover](TRAINING-MODULE-HANDOVER-OCT2026.md); its
+open items were resolved as above (the `TRAINING-SUITE-004` cause was a
+locator issue, not an auth race).
 
 ## Related records
 
@@ -67,3 +71,4 @@ Status (15 Oct 2026): all 20 tests pass on Staging against `main` (run
 - [Access and recovery handover](ACCESS-AND-RECOVERY-HANDOVER.md)
 - [Mobile UI audit plan](MOBILE-UI-AUDIT-PLAN.md)
 - [Master regression catalogue](../regression-catalogue.md)
+- [Training module handover (in progress)](TRAINING-MODULE-HANDOVER-OCT2026.md)

@@ -34,6 +34,42 @@ Start with read-only checks: repository details, `main`, open pull requests, wor
 4. If a browser session is already authenticated to the Sprayandwash GitHub account, use it for Actions pages and protected deployment approval.
 5. Only after those routes fail, report the exact failed capability. Never ask for a personal token or secret in chat.
 
+### Session-level authorization is separate from account-level connection (confirmed 14 Oct 2026)
+
+Read access working is not evidence that write access works, and the
+account-level connection showing correctly configured is not evidence that
+*this session* has it either. These are two different layers:
+
+- **Account-level:** claude.ai → Settings → Connectors → "GitHub
+  Integration" → "Claude GitHub App". Its "Check repository status" box
+  (type `owner/repo`) reports whether Claude Code cloud sessions *in
+  general* can work in a given repository.
+- **Session-level:** each session/task has its own fixed "authorized
+  repository set", established when that session/task was created. A
+  `git push` or `gh api` write call that fails with `access denied by the
+  git proxy: ... is not in this session's authorized repository set` is a
+  session-level failure, even when the account-level check above is green.
+
+**The gotcha:** granting or fixing access at the account level does **not**
+retroactively attach to a session that was already running when the fix
+was made. If the account-level check is green but push still fails in the
+current session, the fix is to start a **new** session/task with the
+repository attached as a connected source from the outset — not to keep
+retrying in the same session, reconnect the same connector again, or
+assume some other cause. This was confirmed directly: the connector showed
+"Claude Code cloud sessions can work in
+Sprayandwash/spray-and-wash-operations-app" in green, and `git push`/`gh
+api` still failed with the exact same 403 in the session that had just
+diagnosed and fixed `TRAINING-SUITE-004`, because that session predated the
+fix.
+
+Do not use the GitHub web-editor workaround (opening a file's blob view and
+using "More file actions" → "Edit file...") as a substitute for real git
+access. As of 13 Oct 2026 that route is explicitly blocked by the Claude
+Code auto-mode classifier (`[Auto-Mode Bypass]`) specifically because it
+looked like a way around missing real access — it is a closed door on
+purpose, not a connectivity issue to route around.
+
 ### GitHub Actions and staging browser tests
 
 GitHub Actions is the preferred authenticated test runner. Staging credentials are held as Actions secrets and must never be copied into chat, source, logs or documentation.
@@ -84,12 +120,27 @@ The repository's `docs/SUPABASE-RECOVERY-AUTOMATION.md` describes the separate b
 
 ## New-chat start checklist
 
-1. Read `docs/testing/CURRENT-STATE.md`, `RUN-LEDGER.md`, `RECOVERY-GUIDE.md` and this file from the current `main` branch.
-2. Confirm remote `main`, recent Actions and any open pull requests before proposing work.
-3. Check which GitHub, browser and Supabase tools are already available before asking the user to do anything.
-4. Start each change at Step 1. Use Step 9A whenever a read-only review can answer the question.
-5. Obtain a fresh explicit approval immediately before every Step 9B run. Confirm cleanup after any such run.
-6. When working or reporting on progress, always state which numbered Step of this process (1-6, 7, 8-9A, 9B, 10A, 10B) the work is on or up to.
-7. At every Step 8-9A phase, hand over the current `spray-wash-staging-app` artifact plus the PowerShell commands to run it locally, per `docs/STAGING-BROWSER-TESTING.md`, without waiting to be asked.
-8. Before that Step 8-9A handoff, confirm the staging build's source commit (`main`) actually contains every previously-applied fix relevant to the area under review — e.g. via `git log`/`git diff` against the last confirmed-good commit — so a stale local server or an unmerged branch is never mistaken for a missing fix.
-9. During a feedback/bug-report session, do not start implementing, committing, pushing or building anything yet — not even a fix phrased as a direct instruction ("rename this", "change this colour") — until Brendan explicitly confirms he is finished giving feedback and gives the go-ahead to proceed. Acknowledge/log each item as it comes in and treat the whole batch as queued until that explicit go-ahead; a single item on its own, however directly worded, is not the go-ahead. Confirmed directly by Brendan on 1 Oct 2026, after a direct instruction (recolouring the Training Matrix switch) was mistakenly treated as immediately buildable mid-feedback-session. This is a standing rule for every future session, not a one-off.
+1. **Before anything else, verify every connection this task will actually
+   need — don't just check that a connector/tool is present, confirm it
+   works.** At minimum: GitHub (read **and** write — see "Session-level
+   authorization is separate from account-level connection" above for the
+   exact gotcha to check first, since this is the one most likely to look
+   fine and not be), Supabase, and browser/device control if the task will
+   need GitHub Actions workflow dispatch or staging UI review. If something
+   needed is missing or doesn't actually work when tried, stop and tell the
+   user exactly what's missing and how to fix it (the relevant section
+   above says how, per connection) — don't start reading further steps,
+   don't propose any work, and don't attempt a workaround for a capability
+   that's genuinely unavailable. This is a standing rule for every future
+   chat on this project, confirmed 14 Oct 2026 after a chat lost real time
+   finding out mid-task — rather than at the very start — that it had no
+   GitHub write access.
+2. Read `docs/testing/CURRENT-STATE.md`, `RUN-LEDGER.md`, `RECOVERY-GUIDE.md` and this file from the current `main` branch.
+3. Confirm remote `main`, recent Actions and any open pull requests before proposing work.
+4. Check which GitHub, browser and Supabase tools are already available before asking the user to do anything — item 1 above now covers this in more depth; treat that as the authoritative version of this step.
+5. Start each change at Step 1. Use Step 9A whenever a read-only review can answer the question.
+6. Obtain a fresh explicit approval immediately before every Step 9B run. Confirm cleanup after any such run.
+7. When working or reporting on progress, always state which numbered Step of this process (1-6, 7, 8-9A, 9B, 10A, 10B) the work is on or up to.
+8. At every Step 8-9A phase, hand over the current `spray-wash-staging-app` artifact plus the PowerShell commands to run it locally, per `docs/STAGING-BROWSER-TESTING.md`, without waiting to be asked.
+9. Before that Step 8-9A handoff, confirm the staging build's source commit (`main`) actually contains every previously-applied fix relevant to the area under review — e.g. via `git log`/`git diff` against the last confirmed-good commit — so a stale local server or an unmerged branch is never mistaken for a missing fix.
+10. During a feedback/bug-report session, do not start implementing, committing, pushing or building anything yet — not even a fix phrased as a direct instruction ("rename this", "change this colour") — until Brendan explicitly confirms he is finished giving feedback and gives the go-ahead to proceed. Acknowledge/log each item as it comes in and treat the whole batch as queued until that explicit go-ahead; a single item on its own, however directly worded, is not the go-ahead. Confirmed directly by Brendan on 1 Oct 2026, after a direct instruction (recolouring the Training Matrix switch) was mistakenly treated as immediately buildable mid-feedback-session. This is a standing rule for every future session, not a one-off.
