@@ -54,16 +54,13 @@ to Training & Qualifications; its suite is
 `tests/e2e/staging/training-full-ui-suite.spec.cjs`, dispatched via
 `.github/workflows/staging-training-full-ui-suite.yml`.
 
-**In progress as of 14 Oct 2026:** the Training module's code audit is
-complete and `TRAINING-SUITE-004`'s root cause (a dual-Supabase-client auth
-race — see diff in Appendix A) is fixed but not yet merged to `main` — the
-round was handed to a new chat mid-flight because the diagnosing session
-never had GitHub write access. Two code-audit findings (Register
-mislabelling a Failed record as Compliant; a new training record defaulting
-to a "Completed" status the evidence-required DB trigger then rejects) and
-two known-bug regression tests (`TRAINING-SUITE-003`, `TRAINING-SUITE-015`)
-remain unfixed pending Brendan's explicit go-ahead. Full state and next
-steps: [Training module handover](TRAINING-MODULE-HANDOVER-OCT2026.md).
+Status (15 Oct 2026): all 20 tests pass on Staging against `main` (run
+`38660298425`). Defects found and fixed: REG-141 to REG-145. Leftover
+`E2E-UI-SUITE-TRAINING-` test courses remain on Staging pending cleanup.
+The mid-round handover of 14 Oct 2026 is kept for history in the
+[Training module handover](TRAINING-MODULE-HANDOVER-OCT2026.md); its
+open items were resolved as above (the `TRAINING-SUITE-004` cause was a
+locator issue, not an auth race).
 
 ## Related records
 
