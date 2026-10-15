@@ -54,6 +54,17 @@ to Training & Qualifications; its suite is
 `tests/e2e/staging/training-full-ui-suite.spec.cjs`, dispatched via
 `.github/workflows/staging-training-full-ui-suite.yml`.
 
+**In progress as of 14 Oct 2026:** the Training module's code audit is
+complete and `TRAINING-SUITE-004`'s root cause (a dual-Supabase-client auth
+race — see diff in Appendix A) is fixed but not yet merged to `main` — the
+round was handed to a new chat mid-flight because the diagnosing session
+never had GitHub write access. Two code-audit findings (Register
+mislabelling a Failed record as Compliant; a new training record defaulting
+to a "Completed" status the evidence-required DB trigger then rejects) and
+two known-bug regression tests (`TRAINING-SUITE-003`, `TRAINING-SUITE-015`)
+remain unfixed pending Brendan's explicit go-ahead. Full state and next
+steps: [Training module handover](TRAINING-MODULE-HANDOVER-OCT2026.md).
+
 ## Related records
 
 - [Module UI-testing standard](MODULE-UI-TESTING-STANDARD.md)
@@ -63,3 +74,4 @@ to Training & Qualifications; its suite is
 - [Access and recovery handover](ACCESS-AND-RECOVERY-HANDOVER.md)
 - [Mobile UI audit plan](MOBILE-UI-AUDIT-PLAN.md)
 - [Master regression catalogue](../regression-catalogue.md)
+- [Training module handover (in progress)](TRAINING-MODULE-HANDOVER-OCT2026.md)

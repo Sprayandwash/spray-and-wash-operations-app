@@ -1,5 +1,22 @@
 # Repo instructions for Claude
 
+## First step in every chat — verify connections before any work
+
+Before reading further or proposing any work, verify every connection this
+task will actually need (GitHub — read **and** write — Supabase, and
+browser/device control if relevant), not just that a tool/connector is
+present. See `docs/testing/ACCESS-AND-RECOVERY-HANDOVER.md` → "New-chat
+start checklist" item 1, and that file's "Session-level authorization is
+separate from account-level connection" section for a GitHub-specific
+gotcha worth reading before assuming access works. If something needed is
+missing, stop and say exactly what's missing and how to fix it rather than
+working around it. Confirmed as a standing rule 14 Oct 2026, after a chat
+diagnosed and fixed a real bug with no GitHub write access, didn't
+discover that until trying to push, and needed a full access-recovery
+back-and-forth plus a mid-round chat handover as a result — see
+`docs/testing/TRAINING-MODULE-HANDOVER-OCT2026.md` for that handover in
+full.
+
 ## Standard module UI-testing program
 
 Whenever asked to test a module (a full round of testing, a new module's
@@ -33,7 +50,7 @@ Confirmed directly by Brendan on 1 Oct 2026, after a direct instruction
 immediately buildable mid-feedback-session. This is a standing rule for
 every future session, not a one-off — see also
 `docs/testing/ACCESS-AND-RECOVERY-HANDOVER.md` → "New-chat start checklist"
-item 9, which carries the same rule.
+item 10, which carries the same rule.
 
 ## Staging build handoff — deliver the zip directly, don't just link it
 
