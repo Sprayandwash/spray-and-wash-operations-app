@@ -222,7 +222,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await s.getByRole('button', { name: '+ Add file', exact: true }).click();
     await s.locator(`input[data-ops-evidence-input="${fx.recordId}"][type="file"]`).last().setInputFiles(pdf('FIX-Evidence-2.PDF'));
     await expect(s.locator('.ops-field-error')).toContainText('already attached');
-    await expect(s.getByRole('button', { name: /fix-evidence-2\.pdf/i })).toHaveCount(1);
+    await expect(s.locator('.ops-evidence-link', { hasText: /fix-evidence-2\.pdf/i })).toHaveCount(1);
 
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(s.locator('.ops-record-current')).toContainText('Edited provider', { timeout: 10_000 });

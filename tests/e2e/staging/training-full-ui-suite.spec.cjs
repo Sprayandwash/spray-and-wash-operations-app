@@ -179,8 +179,7 @@ test.describe('Training module — full UI regression suite', () => {
 
     const catalogAfter = await openSettingsPanel(page, 'Course Catalog');
     // Archived courses now live in a collapsed "Archived courses" list under the catalog.
-    await catalogAfter.locator('.ops-archived-list summary').click();
-    const rowAfter = catalogAfter.locator('.ops-archived-list tr', { has: page.getByRole('button', { name: fixture.archiveCourseName, exact: true }) });
+    const rowAfter = catalogAfter.locator('.ops-archived-list tr', { hasText: fixture.archiveCourseName });
     await expect(rowAfter).toContainText('Archived');
 
     const matrix = await openSettingsPanel(page, 'Training Matrix');

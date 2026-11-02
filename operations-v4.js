@@ -136,6 +136,7 @@
     const last = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
     return new Date(Date.UTC(ty, tm, Math.min(d, last))).toISOString().slice(0, 10);
   }
+  function opsKeepOpen(key){ return state.keepOpen && state.keepOpen[key] ? 'open' : ''; }
   function opsClearFormErrors(root){
     root.querySelectorAll('.ops-field-error, .ops-form-error').forEach(n => n.remove());
     root.querySelectorAll('.ops-field-invalid').forEach(n => n.classList.remove('ops-field-invalid'));
@@ -1897,7 +1898,7 @@
     return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
       <div class="ops-table-wrap"><table class="ops-table">${head}${rows}</table></div>
-      ${archived.length ? `<details class="ops-archived-list"><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-archived-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
+      ${archived.length ? `<details class="ops-archived-list" data-ops-keep-open="archived-courses" ${opsKeepOpen('archived-courses')}><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-archived-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
     </div>`;
   }
 
@@ -2065,7 +2066,7 @@
       <p class="ops-subtle">The Training column is a pass/fail signal for this contractor's people against their compulsory training requirements — the single check an HSE review of this contractor's system will draw on. Click a contractor to open its own page and manage its people.</p>
       <div class="ops-table-wrap"><table class="ops-table">${head}${rows}</table></div>
     </div>
-    ${archived.length ? `<details class="ops-card ops-collapsible">
+    ${archived.length ? `<details class="ops-card ops-collapsible" data-ops-keep-open="archived-contractors" ${opsKeepOpen('archived-contractors')}>
       <summary><h3>Archived contractors <span class="ops-attention-count">${archived.length}</span></h3></summary>
       <div class="ops-collapsible-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archived.map(trainingContractorRowHtml).join('')}</table></div></div>
     </details>` : ''}`;
@@ -5247,6 +5248,7 @@
     document.querySelectorAll('[data-ops-matrix-tab]').forEach(b => b.addEventListener('click', () => { state.trainingMatrixTab = b.dataset.opsMatrixTab; render(); }));
     document.querySelectorAll('[data-ops-open-person]').forEach(b => { const go = () => openTrainingPerson(b.dataset.opsOpenPerson); b.addEventListener('click', go); if(b.tagName !== 'BUTTON') b.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
     document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; state.trainingEvidenceError=null; render(); }));
+    document.querySelectorAll('details[data-ops-keep-open]').forEach(d => d.addEventListener('toggle', () => { state.keepOpen = state.keepOpen || {}; state.keepOpen[d.dataset.opsKeepOpen] = d.open; }));
     document.querySelectorAll('details.ops-training-course').forEach(d => d.addEventListener('toggle', () => {
       const courseId = String(d.dataset.opsCourseId);
       if(d.open) state.trainingExpandedCourseIds.add(courseId); else state.trainingExpandedCourseIds.delete(courseId);
