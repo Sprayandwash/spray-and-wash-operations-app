@@ -702,7 +702,7 @@
       .ops-register-badges > span:empty { display:none; }
       /* Course drag-to-reorder */
       .ops-catalog-table { min-width:0; }
-      .ops-grip-cell { width:34px; white-space:nowrap; padding-left:.5rem; padding-right:0; }
+      .ops-catalog-table th.ops-grip-cell, .ops-catalog-table td.ops-grip-cell, .ops-grip-cell { width:30px; max-width:30px; box-sizing:border-box; white-space:nowrap; padding-left:.4rem !important; padding-right:0 !important; }
       .ops-grip { cursor:grab; color:#7a8aa3; font-weight:900; letter-spacing:-2px; user-select:none; }
       tr[data-ops-course-row] { cursor:grab; }
       tr.ops-dragging { opacity:.45; }
