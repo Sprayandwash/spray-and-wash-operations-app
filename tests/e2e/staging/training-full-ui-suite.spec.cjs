@@ -222,24 +222,25 @@ test.describe('Training module — full UI regression suite', () => {
     await expect(rowAfter).toContainText('021 555 0100');
   });
 
-  test('TRAINING-SUITE-009: deactivating then reactivating a contractor round-trips its Status and button label', async ({ page }) => {
+  test('TRAINING-SUITE-009: archiving then reinstating a contractor moves it between the main list and the Archived contractors list', async ({ page }) => {
     acceptDialogsAndCapture(page);
     await signIn(page, config);
-    await openTrainingModule(page);
+    await openTraining(page);
     await goToTab(page, 'Contractors');
     let row = page.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`);
-    await row.getByRole('button', { name: 'Deactivate', exact: true }).click();
+    await row.locator('label.ops-toggle-pill').click();
 
     await goToTab(page, 'Contractors');
-    row = page.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`);
-    await expect(row).toContainText('Inactive');
-    await expect(row.getByRole('button', { name: 'Reactivate', exact: true })).toBeVisible();
+    const archived = page.locator('details.ops-collapsible', { hasText: 'Archived contractors' });
+    await expect(archived.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`)).toHaveCount(1, { timeout: 10_000 });
+    await expect(archived.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"] input[data-ops-toggle-contractor-active]`)).not.toBeChecked();
 
-    await row.getByRole('button', { name: 'Reactivate', exact: true }).click();
+    await archived.locator('summary').click();
+    await archived.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"] label.ops-toggle-pill`).click();
     await goToTab(page, 'Contractors');
-    row = page.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`);
-    await expect(row).toContainText('Active');
-    await expect(row.getByRole('button', { name: 'Deactivate', exact: true })).toBeVisible();
+    row = page.locator('table.ops-table').first().locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`);
+    await expect(row).toHaveCount(1, { timeout: 10_000 });
+    await expect(row.locator('input[data-ops-toggle-contractor-active]')).toBeChecked();
   });
 
   test('TRAINING-SUITE-010: adding a person under a contractor lists them there and under Team members', async ({ page }) => {
@@ -413,7 +414,7 @@ test.describe('Training module — full UI regression suite', () => {
 
     await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
     // The fixture course has no validity period (TRAINING-SUITE-005 clears it), so "No expiry" is the correct expiry here.
-    await expect(section.locator('table tr').nth(1).locator('td').nth(1)).toHaveText('No expiry');
+    await expect(section.locator('.ops-record-current')).toContainText('No expiry');
   });
 
   test('TRAINING-SUITE-018: the on-screen Register lists the fixture person/course, and a status filter narrows and labels the results', async ({ page }) => {
@@ -471,8 +472,8 @@ test.describe('Training module — full UI regression suite', () => {
         if (!fixture.contractorId) return;
         await goToTab(page, 'Contractors');
         const row = page.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`);
-        const deactivate = row.getByRole('button', { name: 'Deactivate', exact: true });
-        if (await deactivate.count()) await deactivate.click();
+        const toggle = row.locator('input[data-ops-toggle-contractor-active]');
+        if (await toggle.count() && await toggle.isChecked()) await toggle.evaluate(el => el.click());
       });
 
       for (const [label, courseId] of [['fixture course', fixture.courseId], ['throwaway archive-test course', fixture.archiveCourseId]]) {

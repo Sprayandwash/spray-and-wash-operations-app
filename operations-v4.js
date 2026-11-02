@@ -128,6 +128,48 @@
   function nzDate(value){ if(!value) return '—'; const raw=String(value); if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){const [y,m,d]=raw.split('-');return `${d}/${m}/${y}`;} const dt=new Date(raw); return Number.isNaN(dt.getTime()) ? esc(value) : dt.toLocaleDateString('en-NZ',{timeZone:APP_TIME_ZONE}); }
   function addDays(dateStr, days){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCDate(dt.getUTCDate()+Number(days||0)); return dt.toISOString().slice(0,10); }
   function addMonths(dateStr, months){ const [y,m,d]=(dateStr||today()).split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCMonth(dt.getUTCMonth()+Number(months||0)); return dt.toISOString().slice(0,10); }
+  function addMonthsClamped(dateStr, months){
+    const [y,m,d] = String(dateStr).split('-').map(Number);
+    const total = (m - 1) + Number(months || 0);
+    const ty = y + Math.floor(total / 12);
+    const tm = ((total % 12) + 12) % 12;
+    const last = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(ty, tm, Math.min(d, last))).toISOString().slice(0, 10);
+  }
+  function opsClearFormErrors(root){
+    root.querySelectorAll('.ops-field-error, .ops-form-error').forEach(n => n.remove());
+    root.querySelectorAll('.ops-field-invalid').forEach(n => n.classList.remove('ops-field-invalid'));
+    root.querySelectorAll('[aria-invalid]').forEach(n => n.removeAttribute('aria-invalid'));
+  }
+  function opsFieldError(el, msg){
+    if(!el) return;
+    const holder = el.closest('label') || el.parentElement;
+    holder.classList.add('ops-field-invalid');
+    const d = document.createElement('div');
+    d.className = 'ops-field-error';
+    d.setAttribute('role', 'alert');
+    d.textContent = msg;
+    holder.appendChild(d);
+    el.setAttribute('aria-invalid', 'true');
+    const clear = () => { holder.classList.remove('ops-field-invalid'); d.remove(); el.removeAttribute('aria-invalid'); el.removeEventListener('input', clear); el.removeEventListener('change', clear); };
+    el.addEventListener('input', clear);
+    el.addEventListener('change', clear);
+  }
+  function opsFormError(form, msg){
+    let d = form.querySelector('.ops-form-error');
+    if(!d){
+      d = document.createElement('div');
+      d.className = 'ops-form-error ops-span-2';
+      d.setAttribute('role', 'alert');
+      const actions = form.querySelector('.ops-actions');
+      if(actions) actions.parentNode.insertBefore(d, actions); else form.appendChild(d);
+    }
+    d.textContent = msg;
+  }
+  function opsFocusFirstError(form){
+    const el = form.querySelector('.ops-field-invalid input, .ops-field-invalid select, .ops-field-invalid textarea, .ops-field-invalid [tabindex]') || form.querySelector('.ops-field-invalid');
+    if(el){ el.scrollIntoView({block:'center'}); if(el.focus) el.focus({preventScroll:true}); }
+  }
   function daysUntil(dateStr){ if(!dateStr) return null; const d = new Date(dateStr + 'T00:00:00'); const n = new Date(today() + 'T00:00:00'); return Math.ceil((d - n) / 86400000); }
   function experienceSince(dateStr){
     if(!dateStr) return null;
@@ -544,6 +586,40 @@
       .v415-compact-card{padding:12px!important;}
       .v415-card-hidden{display:none!important;}
       @media (max-width: 720px){ .ops-header { flex-direction:column; } .ops-table { min-width:620px; } .ops-logo-setting{grid-template-columns:1fr}.ops-machinery-sides{grid-template-columns:1fr}.ops-log-filter{grid-template-columns:1fr}.ops-log-entry summary{grid-template-columns:1fr;gap:.25rem} }
+      /* Training fixes (Nov 2026): even spacing, clearly separated forms, red field errors, record cards */
+      #operations.ops-v4 { padding-top:1.25rem; }
+      .ops-home-row { margin-bottom:.9rem; }
+      .ops-header { margin-bottom:1.25rem; }
+      .ops-nav { margin:1.25rem 0; }
+      .ops-section-title { margin-bottom:1rem; }
+      .ops-card > .ops-btn:not(:last-child) { margin-bottom:.9rem; }
+      .ops-card > .ops-section-title + .ops-table-wrap, .ops-card > form + .ops-table-wrap, .ops-card > p + .ops-table-wrap { margin-top:1rem; }
+      .ops-form-panel { background:#f3f9fd !important; border:2px solid #9fc5e0 !important; border-radius:1rem; padding:1.1rem 1.1rem 1.25rem; margin:1rem 0 1.5rem; box-shadow:0 4px 14px rgba(0,59,115,.08); }
+      .ops-form-panel.ops-form-adding { border-left:8px solid #0f766e !important; }
+      .ops-form-panel.ops-form-editing { border-left:8px solid #d97706 !important; background:#fffaf0 !important; }
+      .ops-form-title { margin:0; color:#003b73; font-size:1.05rem; }
+      .ops-form-panel .ops-actions { margin-top:.5rem; }
+      .ops-field-invalid input, .ops-field-invalid select, .ops-field-invalid textarea { border-color:#dc2626 !important; background:#fef2f2 !important; outline:2px solid rgba(220,38,38,.18); }
+      .ops-field-invalid.ops-record-form-evidence { border:2px solid #dc2626; border-radius:.8rem; background:#fef2f2; padding:.6rem; }
+      .ops-field-error { color:#b91c1c; font-size:.88rem; font-weight:700; margin-top:.3rem; line-height:1.35; }
+      .ops-form-error { color:#991b1b; background:#fee2e2; border:1px solid #fca5a5; border-radius:.7rem; padding:.6rem .8rem; font-weight:700; }
+      .ops-record-card { border:1px solid #cfe0ee; border-radius:.9rem; padding:.9rem 1rem; margin:.9rem 0; background:#fff; }
+      .ops-record-current { border:2px solid #0f766e; box-shadow:0 3px 10px rgba(15,118,110,.10); }
+      .ops-record-tag { display:inline-block; font-size:.75rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0f766e; margin-bottom:.4rem; }
+      .ops-record-previous { background:#f5f7fa; border-color:#e1e6ed; color:#4b5a70; font-size:.93rem; }
+      .ops-record-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.6rem 1rem; margin:0 0 .6rem; }
+      .ops-record-grid dt { font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; color:#65758b; }
+      .ops-record-grid dd { margin:.1rem 0 0; font-weight:700; word-break:break-word; }
+      .ops-record-wide { grid-column:1 / -1; }
+      .ops-record-evidence-title { font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; color:#65758b; margin-bottom:.2rem; }
+      .ops-record-actions { margin-top:.75rem; }
+      .ops-prev-records { margin-top:1rem; border:1px dashed #b8c4d4; border-radius:.9rem; padding:.4rem .9rem .6rem; background:#fafbfc; }
+      .ops-prev-records > summary { cursor:pointer; font-weight:800; color:#4b5a70; padding:.4rem 0; }
+      .ops-record-editing { scroll-margin-top:12px; }
+      .ops-danger-zone { margin-top:1.5rem; padding:1rem; border:1px solid #fca5a5; border-radius:.9rem; background:#fff7f7; }
+      .ops-danger-zone h4 { margin:0 0 .4rem; color:#991b1b; }
+      .ops-archived-list { margin-top:1.25rem; }
+      .ops-archived-list > summary h4 { display:inline; margin:0; }
     `;
     const style = document.createElement('style');
     style.id = 'operationsV4Styles';
@@ -850,6 +926,7 @@
     renderModuleHome();
     refreshTopUserSummary();
     if(scrollToTop) window.scrollTo({top:0, left:0, behavior:'auto'});
+    opsNavRecord();
   }
 
   function openHeightModule(){
@@ -972,15 +1049,33 @@
 
   const TRAINING_EVIDENCE_MAX_BYTES = 15 * 1024 * 1024;
 
+  let lastEvidenceError = '';
+  function trainingFileKey(name){ return String(name || '').trim().toLowerCase(); }
   async function uploadEvidenceFile(personId, recordId, file){
-    if(file.size > TRAINING_EVIDENCE_MAX_BYTES){ alert(`"${file.name}" is larger than 15MB and was not uploaded.`); return null; }
+    lastEvidenceError = '';
+    if(file.size > TRAINING_EVIDENCE_MAX_BYTES){ lastEvidenceError = `"${file.name}" is larger than 15MB and was not uploaded. Choose a smaller file.`; return null; }
     const clean = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = `${personId}/${recordId}/${Date.now()}-${clean}`;
     const up = await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).upload(path, file, { cacheControl:'3600', upsert:false, contentType:file.type || 'application/octet-stream' });
-    if(up.error){ alert('Evidence upload failed: '+up.error.message); return null; }
+    if(up.error){ lastEvidenceError = `"${file.name}" could not be uploaded: ${up.error.message}`; return null; }
     const r = await state.sb.from('operations_training_record_files').insert({ record_id: recordId, storage_path: path, file_name: file.name, file_size_bytes: file.size, uploaded_by: state.user.id }).select().single();
-    if(r.error){ alert('Evidence could not be saved: '+r.error.message); await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).remove([path]); return null; }
+    if(r.error){ lastEvidenceError = `"${file.name}" could not be saved: ${r.error.message}`; await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).remove([path]); return null; }
     return r.data;
+  }
+
+  // Uploads a batch to an existing record. Files whose name matches one already on the record are
+  // skipped and reported, so the same file cannot be attached twice.
+  async function uploadEvidenceBatch(personId, recordId, files, existingFiles){
+    const seen = new Set(existingFiles.map(f => trainingFileKey(f.file_name)));
+    const added = [];
+    const problems = [];
+    for(const file of files){
+      const key = trainingFileKey(file.name);
+      if(seen.has(key)){ problems.push(`"${file.name}" is already attached to this record. Rename the file if it is a different document.`); continue; }
+      const row = await uploadEvidenceFile(personId, recordId, file);
+      if(row){ added.push(row); seen.add(key); } else if(lastEvidenceError){ problems.push(lastEvidenceError); }
+    }
+    return { added, problems };
   }
 
   async function addTrainingEvidenceAdmin(recordId, files){
@@ -988,10 +1083,10 @@
     const record = state.trainingRecords.find(r => String(r.id) === String(recordId));
     if(!record) return;
     if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment. Evidence is managed there.');
-    for(const file of files){
-      const row = await uploadEvidenceFile(record.person_id, recordId, file);
-      if(row) state.trainingRecordFiles.push(row);
-    }
+    const existing = state.trainingRecordFiles.filter(f => String(f.record_id) === String(recordId));
+    const result = await uploadEvidenceBatch(record.person_id, recordId, files, existing);
+    result.added.forEach(row => state.trainingRecordFiles.push(row));
+    state.trainingEvidenceError = result.problems.length ? { recordId, msg: result.problems.join(' ') } : null;
     render();
   }
 
@@ -1000,10 +1095,10 @@
     const record = state.myTrainingRecords.find(r => String(r.id) === String(recordId));
     if(!person || !record) return;
     if(record.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment. Evidence is managed there.');
-    for(const file of files){
-      const row = await uploadEvidenceFile(person.id, recordId, file);
-      if(row) state.myTrainingRecordFiles.push(row);
-    }
+    const existing = state.myTrainingRecordFiles.filter(f => String(f.record_id) === String(recordId));
+    const result = await uploadEvidenceBatch(person.id, recordId, files, existing);
+    result.added.forEach(row => state.myTrainingRecordFiles.push(row));
+    state.trainingEvidenceError = result.problems.length ? { recordId, msg: result.problems.join(' ') } : null;
     render();
   }
 
@@ -1038,7 +1133,8 @@
 
   function trainingEvidenceUploadHtml(recordId){
     const open = String(state.trainingFileMenuOpenId || '') === String(recordId);
-    if(!open) return `<button class="ops-btn ghost" type="button" data-ops-toggle-add-file="${recordId}">+ Add file</button>`;
+    const evErr = trainingEvidenceErrorHtml(recordId);
+    if(!open) return `<button class="ops-btn ghost" type="button" data-ops-toggle-add-file="${recordId}">+ Add file</button>${evErr}`;
     const cameraId = `opsEvidenceCamera${recordId}`;
     const galleryId = `opsEvidenceGallery${recordId}`;
     return `<div class="ops-add-file-group">
@@ -1047,7 +1143,7 @@
       <button class="ops-btn ghost" type="button" data-ops-trigger-file="${galleryId}">Gallery</button>
       <input id="${galleryId}" type="file" accept="image/*,application/pdf" multiple data-ops-evidence-input="${recordId}" hidden>
       <button class="ops-btn ghost" type="button" data-ops-toggle-add-file="${recordId}">Cancel</button>
-    </div>`;
+    </div>${evErr}`;
   }
 
   async function showTrainingEvidenceViewer(fileId){
@@ -1154,7 +1250,7 @@
     if(!record.expiry_date) return {label:'In date', pillClass:'ops-ok'};
     const days = daysUntil(record.expiry_date);
     if(days === null) return {label:'In date', pillClass:'ops-ok'};
-    if(days < 0) return {label:'Expired', pillClass:'ops-bad'};
+    if(days <= 0) return {label:'Expired', pillClass:'ops-bad'};
     if(days <= 30) return {label:`Expires in ${days}d`, pillClass:'ops-warn'};
     return {label:'In date', pillClass:'ops-ok'};
   }
@@ -1435,11 +1531,18 @@
     render();
   }
 
-  async function cycleTrainingMatrixCell(personId, courseId, currentState){
-    const idx = TRAINING_MATRIX_STATES.indexOf(currentState);
-    const next = TRAINING_MATRIX_STATES[(idx + 1) % TRAINING_MATRIX_STATES.length];
-    const patch = next === 'off' ? {applicable: false, compulsory: false} : next === 'applicable' ? {applicable: true, compulsory: false} : {applicable: true, compulsory: true};
-    await setTrainingMatrixCell(personId, courseId, patch);
+  // Clicks are queued and each one reads the cell's current saved state, so several quick clicks each
+  // advance the cell one step instead of being lost while the page redraws.
+  let trainingMatrixQueue = Promise.resolve();
+  function cycleTrainingMatrixCell(personId, courseId){
+    trainingMatrixQueue = trainingMatrixQueue.then(async () => {
+      const current = trainingMatrixCellState(trainingMatrixEntry(personId, courseId));
+      const idx = TRAINING_MATRIX_STATES.indexOf(current);
+      const next = TRAINING_MATRIX_STATES[(idx + 1) % TRAINING_MATRIX_STATES.length];
+      const patch = next === 'off' ? {applicable: false, compulsory: false} : next === 'applicable' ? {applicable: true, compulsory: false} : {applicable: true, compulsory: true};
+      await setTrainingMatrixCell(personId, courseId, patch);
+    }).catch(err => console.warn('Matrix update failed:', err && err.message ? err.message : err));
+    return trainingMatrixQueue;
   }
 
   function openTrainingPerson(personId){
@@ -1451,32 +1554,60 @@
     showOperations('training-person');
   }
 
-  function trainingRecordRowHtml(r){
+  function trainingRecordCardHtml(r, opts){
+    const current = !!(opts && opts.current);
     const files = state.trainingRecordFiles.filter(f => String(f.record_id) === String(r.id));
     const synced = r.source_key === 'height_inspector_qualifications';
-    const statusCell = `${esc(r.status || 'Completed')}${synced ? ' <span class="ops-pill ops-muted">Synced from Height Equipment</span>' : ''}`;
-    const actionsCell = synced
+    const st = r.status === 'Completed' ? trainingCellStatus(r, false) : null;
+    const statusHtml = `${esc(r.status || 'Completed')}${st ? ` <span class="ops-pill ${st.pillClass}">${esc(st.label)}</span>` : ''}${synced ? ' <span class="ops-pill ops-muted">Synced from Height Equipment</span>' : ''}`;
+    const actions = synced
       ? `<span class="ops-subtle">Managed in Height Equipment</span>`
       : `<button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button>`;
     const evidenceBody = synced
       ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Evidence syncs automatically from Height Equipment.</span>`
       : `${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(r.id)}`;
-    return `<tr><td>${r.completed_date ? nzDate(r.completed_date) : '—'}</td><td>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</td><td>${statusCell}</td><td>${esc(r.provider_or_trainer || '—')}</td><td>${esc(r.notes || '')}</td><td>${actionsCell}</td></tr>
-    <tr><td colspan="6" class="ops-subtle">${evidenceBody}</td></tr>`;
+    return `<div class="ops-record-card ${current ? 'ops-record-current' : 'ops-record-previous'}" data-ops-record-card="${r.id}">
+      ${current ? '<div class="ops-record-tag">Current record</div>' : ''}
+      <dl class="ops-record-grid">
+        <div><dt>Completed</dt><dd>${r.completed_date ? nzDate(r.completed_date) : '—'}</dd></div>
+        <div><dt>Expiry</dt><dd>${r.expiry_date ? nzDate(r.expiry_date) : 'No expiry'}</dd></div>
+        <div><dt>Status</dt><dd>${statusHtml}</dd></div>
+        <div><dt>Provider</dt><dd>${esc(r.provider_or_trainer || '—')}</dd></div>
+        ${r.reference_number ? `<div><dt>Reference</dt><dd>${esc(r.reference_number)}</dd></div>` : ''}
+        ${r.notes ? `<div class="ops-record-wide"><dt>Notes</dt><dd>${esc(r.notes)}</dd></div>` : ''}
+      </dl>
+      <div class="ops-record-evidence"><div class="ops-record-evidence-title">Evidence</div>${evidenceBody}</div>
+      <div class="ops-actions ops-record-actions">${actions}</div>
+    </div>`;
+  }
+
+  function trainingEvidenceErrorHtml(recordId){
+    const e = state.trainingEvidenceError;
+    return e && String(e.recordId) === String(recordId) ? `<div class="ops-field-error" role="alert">${esc(e.msg)}</div>` : '';
   }
 
   function trainingRecordFormHtml(person, course){
     const editing = state.trainingRecords.find(r => String(r.id) === String(state.editingRecordId));
-    return `<form id="opsTrainingRecordForm" class="ops-form" data-record-id="${editing ? editing.id : ''}" data-person-id="${person.id}" data-course-id="${course.id}">
+    const months = Number(course.validity_period_months || 0);
+    const completed = editing ? (editing.completed_date || '') : today();
+    let expiry = editing ? (editing.expiry_date || '') : '';
+    if(!expiry && months && completed) expiry = addMonthsClamped(completed, months);
+    const files = editing ? state.trainingRecordFiles.filter(f => String(f.record_id) === String(editing.id)) : [];
+    const evidenceBlock = editing
+      ? `<div class="ops-span-2 ops-record-form-evidence" id="opsRecordEvidenceBlock"><div class="ops-record-evidence-title">Evidence</div>${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(editing.id)}</div>`
+      : `<div class="ops-span-2 ops-record-form-evidence" id="opsRecordEvidenceBlock"><label>Evidence file(s)<input id="opsRecordNewFiles" type="file" accept="image/*,application/pdf" multiple></label><p class="ops-subtle">Add the certificate or a photo of it. Needed before a record can be marked Completed.</p></div>`;
+    return `<form id="opsTrainingRecordForm" class="ops-form ops-form-panel ${editing ? 'ops-form-editing' : ''}" novalidate data-record-id="${editing ? editing.id : ''}" data-person-id="${person.id}" data-course-id="${course.id}" data-validity-months="${months || ''}">
+      <h4 class="ops-span-2 ops-form-title">${editing ? 'Editing this record' : 'Add a training record'}</h4>
       <label>Status<select id="opsRecordStatus">
         <option value="Completed" ${editing?.status==='Completed'?'selected':''}>Completed</option>
         <option value="In progress" ${(!editing||editing.status==='In progress')?'selected':''}>In progress</option>
       </select></label>
-      <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${editing?.completed_date || today()}"></label>
-      <label>Expiry date<input id="opsRecordExpiryDate" type="date" value="${editing?.expiry_date || ''}" placeholder="${course.validity_period_months ? 'Auto if left blank' : 'No expiry'}"></label>
-      <label>Provider / trainer<input id="opsRecordProvider" value="${esc(editing?.provider_or_trainer || '')}"></label>
-      <label>Reference number<input id="opsRecordReference" value="${esc(editing?.reference_number || '')}"></label>
-      <label class="ops-span-2">Notes<textarea id="opsRecordNotes">${esc(editing?.notes || '')}</textarea></label>
+      <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${completed}"></label>
+      <label>Expiry date<input id="opsRecordExpiryDate" type="date" value="${expiry}" ${months ? '' : 'placeholder="No expiry"'}>${months ? `<span class="ops-subtle">Fills in automatically (${months} months after the completed date). You can change it.</span>` : ''}</label>
+      <label>Provider / trainer<input id="opsRecordProvider" maxlength="200" value="${esc(editing?.provider_or_trainer || '')}"></label>
+      <label>Reference number<input id="opsRecordReference" maxlength="100" value="${esc(editing?.reference_number || '')}"></label>
+      <label class="ops-span-2">Notes<textarea id="opsRecordNotes" maxlength="2000">${esc(editing?.notes || '')}</textarea></label>
+      ${evidenceBlock}
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add record'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingRecordEditor">Cancel</button></div>
     </form>`;
   }
@@ -1487,15 +1618,25 @@
     const matrixEntry = trainingMatrixEntry(person.id, course.id);
     const compulsory = !!matrixEntry?.compulsory;
     const status = trainingCellStatus(latest, compulsory);
-    const rows = records.map(r => trainingRecordRowHtml(r)).join('') || `<tr><td colspan="6" class="ops-subtle">No records yet.</td></tr>`;
     const formOpen = state.trainingRecordFormOpen && String(state.trainingRecordFormCourseId) === String(course.id);
+    const editingRec = formOpen && state.editingRecordId ? records.find(r => String(r.id) === String(state.editingRecordId)) : null;
     const isOpen = formOpen || state.trainingExpandedCourseIds.has(String(course.id));
+    let body;
+    if(editingRec){
+      const others = records.filter(r => String(r.id) !== String(editingRec.id));
+      body = `<div class="ops-record-editing" data-ops-editing-card>${trainingRecordFormHtml(person, course)}</div>
+        ${others.length ? `<details class="ops-prev-records"><summary>Other records (${others.length})</summary>${others.map(r => trainingRecordCardHtml(r, {current:false})).join('')}</details>` : ''}`;
+    } else {
+      const addArea = formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost ops-add-record-btn" type="button" data-ops-add-record="${course.id}">+ Add record</button>`;
+      const currentCard = latest ? trainingRecordCardHtml(latest, {current:true}) : `<p class="ops-subtle">No records yet.</p>`;
+      const previous = records.slice(1);
+      body = `${addArea}${currentCard}${previous.length ? `<details class="ops-prev-records"><summary>Previous records (${previous.length})</summary>${previous.map(r => trainingRecordCardHtml(r, {current:false})).join('')}</details>` : ''}`;
+    }
     return `<details class="ops-card ops-training-course" data-ops-course-id="${course.id}" ${isOpen ? 'open' : ''}>
       <summary><span class="ops-training-course-title"><strong>${esc(course.name)}</strong></span><span class="ops-training-course-badges"><span>${compulsory ? '<span class="ops-pill ops-ok">Compulsory</span>' : ''}</span><span class="ops-pill ${status.pillClass}">${esc(status.label)}</span></span></summary>
       <div class="ops-training-course-body">
         <p class="ops-subtle">${trainingCourseTypeLabel(course)}${trainingCourseNzqaCodesText(course) ? ` · NZQA ${esc(trainingCourseNzqaCodesText(course))}` : ''}${course.validity_period_months ? ` · Valid ${course.validity_period_months} months` : ' · No expiry'}</p>
-        ${formOpen ? trainingRecordFormHtml(person, course) : `<button class="ops-btn ghost ops-add-record-btn" type="button" data-ops-add-record="${course.id}">+ Add record</button>`}
-        <div class="ops-table-wrap"><table class="ops-table"><tr><th>Completed</th><th>Expiry</th><th>Status</th><th>Provider</th><th>Notes</th><th>Actions</th></tr>${rows}</table></div>
+        ${body}
       </div>
     </details>`;
   }
@@ -1532,41 +1673,147 @@
     ${sections}`;
   }
 
+  const TRAINING_MIN_DATE = '2000-01-01';
+  const TRAINING_MAX_YEARS_AHEAD = 5;
+
+  // Returns a list of {el, msg} problems with the dates on a record. Pure so it can be unit tested.
+  function trainingRecordDateProblems(completed, expiry, todayStr){
+    const out = [];
+    if(completed){
+      if(completed < TRAINING_MIN_DATE) out.push({field:'completed', msg:'This date looks wrong (before 2000). Check the year.'});
+      else if(completed > todayStr) out.push({field:'completed', msg:'The completed date cannot be in the future. Use today or an earlier date.'});
+    }
+    if(expiry){
+      if(expiry < TRAINING_MIN_DATE) out.push({field:'expiry', msg:'This date looks wrong (before 2000). Check the year.'});
+      else if(completed && completed >= TRAINING_MIN_DATE && expiry <= completed) out.push({field:'expiry', msg:'The expiry date must be after the completed date.'});
+      else {
+        const base = completed && completed >= TRAINING_MIN_DATE ? completed : todayStr;
+        if(expiry > addMonthsClamped(base, TRAINING_MAX_YEARS_AHEAD * 12)) out.push({field:'expiry', msg:`This expiry is more than ${TRAINING_MAX_YEARS_AHEAD} years after the ${completed ? 'completed date' : 'current date'}. Check the year.`});
+      }
+    }
+    return out;
+  }
+
   async function saveTrainingRecord(e){
     e.preventDefault();
     if(!canUseTraining()) return alert('Only Admin or Training manager users can edit training records.');
+    if(state.savingTrainingRecord) return;
     const form = e.target;
+    opsClearFormErrors(form);
     const id = form.dataset.recordId;
     const existingRecord = id ? state.trainingRecords.find(x => String(x.id) === String(id)) : null;
-    if(existingRecord?.source_key === 'height_inspector_qualifications') return alert('This record is synced from Height Equipment and can only be edited there.');
+    if(existingRecord?.source_key === 'height_inspector_qualifications') return opsFormError(form, 'This record is synced from Height Equipment and can only be edited there.');
     const personId = form.dataset.personId;
     const courseId = form.dataset.courseId;
     const course = state.trainingCourses.find(c => String(c.id) === String(courseId));
-    const completedDate = byId('opsRecordCompletedDate').value || null;
-    let expiryDate = byId('opsRecordExpiryDate').value || null;
-    if(!expiryDate && completedDate && course?.validity_period_months){
-      expiryDate = addMonths(completedDate, course.validity_period_months);
+    const statusEl = byId('opsRecordStatus');
+    const completedEl = byId('opsRecordCompletedDate');
+    const expiryEl = byId('opsRecordExpiryDate');
+    const statusValue = statusEl.value;
+    const completedDate = completedEl.value || null;
+    let expiryDate = expiryEl.value || null;
+    if(!expiryDate && completedDate && course?.validity_period_months && completedDate >= TRAINING_MIN_DATE){
+      expiryDate = addMonthsClamped(completedDate, course.validity_period_months);
     }
+
+    let problems = 0;
+    const flag = (el, msg) => { opsFieldError(el, msg); problems++; };
+    if(statusValue === 'Completed' && !completedDate) flag(completedEl, 'Enter the date this was completed, or set the status to In progress.');
+    trainingRecordDateProblems(completedDate, expiryDate, today()).forEach(p => flag(p.field === 'completed' ? completedEl : expiryEl, p.msg));
+
+    const fileInput = byId('opsRecordNewFiles');
+    const newFiles = fileInput ? Array.from(fileInput.files || []) : [];
+    const existingFiles = existingRecord ? state.trainingRecordFiles.filter(f => String(f.record_id) === String(existingRecord.id)) : [];
+    if(statusValue === 'Completed' && existingFiles.length + newFiles.length === 0){
+      flag(fileInput || byId('opsRecordEvidenceBlock'), 'Add at least one evidence file (a certificate or a photo of it) before marking this Completed. Choose the file here, then save.');
+    }
+    const seen = new Set(existingFiles.map(f => trainingFileKey(f.file_name)));
+    const dupes = newFiles.filter(f => { const k = trainingFileKey(f.name); if(seen.has(k)) return true; seen.add(k); return false; });
+    if(dupes.length) flag(fileInput, `${dupes.map(f => `"${f.name}"`).join(', ')} appears more than once. Remove the duplicate or rename the file.`);
+    const big = newFiles.filter(f => f.size > TRAINING_EVIDENCE_MAX_BYTES);
+    if(big.length) flag(fileInput, `${big.map(f => `"${f.name}"`).join(', ')} is larger than 15MB. Choose a smaller file.`);
+    if(problems){ opsFocusFirstError(form); return; }
+
     const row = {
       person_id: personId,
       course_id: courseId,
-      status: byId('opsRecordStatus').value,
+      status: statusValue,
       completed_date: completedDate,
       expiry_date: expiryDate,
       provider_or_trainer: byId('opsRecordProvider').value.trim() || null,
       reference_number: byId('opsRecordReference').value.trim() || null,
       notes: byId('opsRecordNotes').value.trim() || null
     };
-    const r = id
-      ? await state.sb.from('operations_training_records').update(row).eq('id', id).select().single()
-      : await state.sb.from('operations_training_records').insert({...row, created_by: state.user.id}).select().single();
-    if(r.error) return alert('Could not save the training record: '+r.error.message);
-    const idx = state.trainingRecords.findIndex(x => String(x.id) === String(r.data.id));
-    if(idx >= 0) state.trainingRecords[idx] = r.data; else state.trainingRecords.push(r.data);
-    state.trainingRecordFormOpen = false;
-    state.editingRecordId = '';
-    state.trainingRecordFormCourseId = '';
-    render();
+    const submit = form.querySelector('button[type="submit"]');
+    const submitLabel = submit ? submit.textContent : '';
+    state.savingTrainingRecord = true;
+    if(submit){ submit.disabled = true; submit.textContent = 'Saving…'; }
+    try{
+      let saved;
+      if(id){
+        const r = await state.sb.from('operations_training_records').update(row).eq('id', id).select().single();
+        if(r.error) return opsFormError(form, 'Could not save the record: ' + r.error.message);
+        saved = r.data;
+      } else {
+        // The database refuses Completed without evidence, so a new Completed record is created In progress,
+        // its files are attached, and it is then marked Completed.
+        const r = await state.sb.from('operations_training_records').insert({...row, status: statusValue === 'Completed' ? 'In progress' : statusValue, created_by: state.user.id}).select().single();
+        if(r.error) return opsFormError(form, 'Could not save the record: ' + r.error.message);
+        saved = r.data;
+        const idx0 = state.trainingRecords.findIndex(x => String(x.id) === String(saved.id));
+        if(idx0 >= 0) state.trainingRecords[idx0] = saved; else state.trainingRecords.push(saved);
+        const up = await uploadEvidenceBatch(personId, saved.id, newFiles, []);
+        up.added.forEach(f => state.trainingRecordFiles.push(f));
+        if(up.problems.length){
+          // Keep what was saved and reopen it for editing so nothing typed is lost.
+          state.trainingEvidenceError = { recordId: saved.id, msg: up.problems.join(' ') + ' The record was saved as In progress. Add the file below, then mark it Completed.' };
+          state.editingRecordId = saved.id;
+          state.trainingRecordFormCourseId = courseId;
+          state.trainingRecordFormOpen = true;
+          render();
+          return;
+        }
+        if(statusValue === 'Completed'){
+          const r2 = await state.sb.from('operations_training_records').update({status: 'Completed'}).eq('id', saved.id).select().single();
+          if(r2.error){
+            state.trainingEvidenceError = { recordId: saved.id, msg: 'The record and files were saved, but it could not be marked Completed: ' + r2.error.message };
+            state.editingRecordId = saved.id; state.trainingRecordFormCourseId = courseId; state.trainingRecordFormOpen = true;
+            render();
+            return;
+          }
+          saved = r2.data;
+        }
+      }
+      const idx = state.trainingRecords.findIndex(x => String(x.id) === String(saved.id));
+      if(idx >= 0) state.trainingRecords[idx] = saved; else state.trainingRecords.push(saved);
+      state.trainingEvidenceError = null;
+      state.trainingRecordFormOpen = false;
+      state.editingRecordId = '';
+      state.trainingRecordFormCourseId = '';
+      render();
+    } finally {
+      state.savingTrainingRecord = false;
+      const stillThere = byId('opsTrainingRecordForm')?.querySelector('button[type="submit"]');
+      if(stillThere){ stillThere.disabled = false; stillThere.textContent = submitLabel; }
+    }
+  }
+
+  // Keeps Expiry date in step with the Completed date (completed + the course's validity), unless the
+  // person has typed their own expiry date.
+  function bindTrainingRecordForm(){
+    const form = byId('opsTrainingRecordForm');
+    if(!form) return;
+    const months = Number(form.dataset.validityMonths || 0);
+    const completedEl = byId('opsRecordCompletedDate');
+    const expiryEl = byId('opsRecordExpiryDate');
+    if(!months || !completedEl || !expiryEl) return;
+    const calc = v => (v && v >= TRAINING_MIN_DATE) ? addMonthsClamped(v, months) : '';
+    let prev = completedEl.value;
+    completedEl.addEventListener('change', () => {
+      const wasAuto = expiryEl.value === '' || expiryEl.value === calc(prev);
+      prev = completedEl.value;
+      if(wasAuto) expiryEl.value = calc(completedEl.value);
+    });
   }
 
   async function deleteTrainingRecord(id){
@@ -1618,27 +1865,37 @@
   function trainingCourseFormHtml(){
     const editing = state.trainingCourses.find(c => String(c.id) === String(state.editingCourseId));
     const courseType = editing?.course_type === 'internal' ? 'internal' : 'external';
-    return `<form id="opsTrainingCourseForm" class="ops-form" data-course-id="${editing ? editing.id : ''}">
-      <label>Course name *<input id="opsCourseName" required value="${esc(editing?.name || '')}"></label>
+    return `<form id="opsTrainingCourseForm" class="ops-form ops-form-panel ${editing ? '' : 'ops-form-adding'}" novalidate data-course-id="${editing ? editing.id : ''}">
+      <h4 class="ops-span-2 ops-form-title">${editing ? 'Course details' : 'Add a course'}</h4>
+      <label>Course name *<input id="opsCourseName" required maxlength="100" value="${esc(editing?.name || '')}"><span class="ops-subtle">Up to 100 characters.</span></label>
       <label>Type<select id="opsCourseType">
         <option value="external" ${courseType==='external'?'selected':''}>External Qualification</option>
         <option value="internal" ${courseType==='internal'?'selected':''}>Internal Training</option>
       </select></label>
-      <label>Validity (months)<input id="opsCourseValidity" type="number" min="0" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"></label>
-      <label>Display order<input id="opsCourseOrder" type="number" step="10" value="${editing?.display_order ?? ''}" placeholder="Lower shows first in the Matrix"></label>
+      <label>Validity (months)<input id="opsCourseValidity" type="number" min="1" max="120" step="1" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"><span class="ops-subtle">Whole months, 1 to 120.</span></label>
+      <label>Display order<input id="opsCourseOrder" type="number" min="0" max="9999" step="1" value="${editing?.display_order ?? ''}" placeholder="Lower shows first in the Matrix"></label>
       <label class="ops-span-2">NZQA code(s)<input id="opsCourseNzqaCodes" value="${esc(trainingCourseNzqaCodesText(editing))}" placeholder="e.g. 12345, 67890 — separate multiple codes with commas"></label>
-      <label class="ops-span-2">Description<textarea id="opsCourseDescription">${esc(editing?.description || '')}</textarea></label>
-      ${editing ? '' : `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" checked><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Inactive</span></label>`}
+      <label class="ops-span-2">Description<textarea id="opsCourseDescription" maxlength="1000">${esc(editing?.description || '')}</textarea></label>
+      ${editing ? '' : `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" checked><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>`}
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
     </form>`;
   }
 
+  function trainingCatalogRowHtml(c){
+    return `<tr><td><button type="button" class="ops-btn ghost" data-ops-view-course="${c.id}">${esc(c.name)}</button></td><td>${trainingIsInternalCourse(c) ? 'Internal' : 'External'}</td><td>${esc(trainingCourseNzqaCodesText(c)) || '—'}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Archived'}</td></tr>`;
+  }
+
   function trainingCatalogHtml(){
     const courses = trainingSortCourses(state.trainingCourses);
-    const rows = courses.map(c => `<tr><td><button type="button" class="ops-btn ghost" data-ops-view-course="${c.id}">${esc(c.name)}</button></td><td>${trainingIsInternalCourse(c) ? 'Internal' : 'External'}</td><td>${esc(trainingCourseNzqaCodesText(c)) || '—'}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Archived'}</td></tr>`).join('') || '<tr><td colspan="5" class="ops-subtle">No courses yet.</td></tr>';
+    const active = courses.filter(c => c.active !== false);
+    const archived = courses.filter(c => c.active === false);
+    const head = '<tr><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>';
+    const rows = active.map(trainingCatalogRowHtml).join('') || '<tr><td colspan="5" class="ops-subtle">No courses yet.</td></tr>';
+    const archivedRows = archived.map(trainingCatalogRowHtml).join('');
     return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>${rows}</table></div>
+      <div class="ops-table-wrap"><table class="ops-table">${head}${rows}</table></div>
+      ${archived.length ? `<details class="ops-collapsible ops-archived-list"><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-collapsible-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
     </div>`;
   }
 
@@ -1652,69 +1909,164 @@
   function trainingCourseDetailHtml(){
     const course = state.trainingCourses.find(c => String(c.id) === String(state.trainingViewCourseId));
     if(!course) return `<div class="ops-card"><h3>Course not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-settings')">← Back to Course Catalog</button></div>`;
-    const activeBadge = `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" ${course.active ? 'checked' : ''}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Inactive</span></label>`;
+    const activeBadge = `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" ${course.active ? 'checked' : ''}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>`;
     return `<div class="ops-card">
       <button class="ops-btn ghost" type="button" onclick="showOperations('training-settings')">← Back to Course Catalog</button>
       <div class="ops-section-title"><h3>${esc(course.name)}</h3>${activeBadge}</div>
       ${course.higher_level_learning ? `<p><span class="ops-pill ops-ok">Higher-level</span></p>` : ''}
       ${trainingCourseFormHtml()}
+      ${trainingCourseDeleteHtml(course)}
     </div>`;
   }
+
+  function trainingCourseUsage(courseId){
+    const records = state.trainingRecords.filter(r => String(r.course_id) === String(courseId)).length;
+    const assigned = state.trainingMatrix.filter(m => String(m.course_id) === String(courseId) && (m.applicable || m.compulsory)).length;
+    return { records, assigned };
+  }
+
+  function trainingCourseDeleteHtml(course){
+    const use = trainingCourseUsage(course.id);
+    if(use.records > 0){
+      return `<div class="ops-danger-zone"><h4>Delete course</h4><p class="ops-subtle">This course has ${use.records} training record${use.records === 1 ? '' : 's'}, so it cannot be deleted. Switch it to Archived above to keep it without deleting it.</p></div>`;
+    }
+    return `<div class="ops-danger-zone"><h4>Delete course</h4><p class="ops-subtle">This course has no training records, so it can be deleted permanently${use.assigned ? ` (it is set as applicable for ${use.assigned} ${use.assigned === 1 ? 'person' : 'people'} in the Matrix, and that will be removed too)` : ''}. This cannot be undone. To keep it for later, archive it instead.</p><button class="ops-btn danger" type="button" data-ops-delete-course="${course.id}">Delete course</button><div id="opsCourseDeleteError"></div></div>`;
+  }
+
+  async function deleteTrainingCourse(courseId){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can delete courses.');
+    const course = state.trainingCourses.find(c => String(c.id) === String(courseId));
+    if(!course) return;
+    const errBox = byId('opsCourseDeleteError');
+    if(errBox) errBox.innerHTML = '';
+    // Re-check against fresh data, so a record added elsewhere is never lost.
+    const fresh = await state.sb.from('operations_training_records').select('id', {count:'exact', head:true}).eq('course_id', courseId);
+    if(fresh.error){ if(errBox) errBox.innerHTML = `<div class="ops-field-error" role="alert">Could not check whether this course is in use: ${esc(fresh.error.message)}</div>`; return; }
+    if((fresh.count || 0) > 0){
+      if(errBox) errBox.innerHTML = `<div class="ops-field-error" role="alert">This course now has ${fresh.count} training record(s), so it cannot be deleted. Archive it instead.</div>`;
+      await loadTrainingData(true);
+      return;
+    }
+    if(!confirm(`Delete "${course.name}" permanently? This cannot be undone.`)) return;
+    const r = await state.sb.from('operations_training_courses').delete().eq('id', courseId);
+    if(r.error){
+      if(errBox) errBox.innerHTML = `<div class="ops-field-error" role="alert">Could not delete this course: ${esc(r.error.message)}. Archive it instead.</div>`;
+      return;
+    }
+    state.trainingViewCourseId = '';
+    state.editingCourseId = '';
+    state.trainingCourseFormOpen = false;
+    await loadTrainingData(true);
+    showOperations('training-settings');
+  }
+
+  function trainingNameKey(name){ return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
 
   async function saveTrainingCourse(e){
     e.preventDefault();
     if(!canUseTraining()) return alert('Only Admin or Training manager users can edit the course catalog.');
+    if(state.savingTrainingCourse) return;
     const form = e.target;
+    opsClearFormErrors(form);
     const id = form.dataset.courseId;
-    const row = {
-      name: byId('opsCourseName').value.trim(),
-      course_type: byId('opsCourseType').value === 'internal' ? 'internal' : 'external',
-      validity_period_months: byId('opsCourseValidity').value ? Number(byId('opsCourseValidity').value) : null,
-      display_order: byId('opsCourseOrder').value !== '' ? Number(byId('opsCourseOrder').value) : null,
-      description: byId('opsCourseDescription').value.trim() || null,
-      active: byId('opsCourseActive').checked
-    };
-    const nzqaCodes = trainingParseNzqaCodes(byId('opsCourseNzqaCodes').value);
-    row.nzqa_codes = nzqaCodes;
-    row.nzqa_code = nzqaCodes[0] || null;
-    if(!row.name) return alert('Course name is required.');
-    const r = id
-      ? await state.sb.from('operations_training_courses').update(row).eq('id', id)
-      : await state.sb.from('operations_training_courses').insert({...row, created_by: state.user.id});
-    if(r.error) return alert('Could not save course: '+r.error.message);
-    state.trainingCourseFormOpen = false;
-    state.editingCourseId = '';
-    if(state.currentView === 'training-course-detail'){
-      state.trainingViewCourseId = '';
-      showOperations('training-settings');
+    const nameEl = byId('opsCourseName');
+    const validityEl = byId('opsCourseValidity');
+    const orderEl = byId('opsCourseOrder');
+    const descEl = byId('opsCourseDescription');
+    const codesEl = byId('opsCourseNzqaCodes');
+    const name = nameEl.value.trim().replace(/\s+/g, ' ');
+    let problems = 0;
+    const flag = (el, msg) => { opsFieldError(el, msg); problems++; };
+    if(!name) flag(nameEl, 'Enter a course name.');
+    else if(name.length > 100) flag(nameEl, `The name is ${name.length} characters. The limit is 100. Shorten it.`);
+    else {
+      const clash = state.trainingCourses.find(c => String(c.id) !== String(id) && trainingNameKey(c.name) === trainingNameKey(name));
+      if(clash) flag(nameEl, `A course called "${clash.name}" already exists${clash.active === false ? ' (archived). Open it from the Archived courses list instead.' : '. Open it from the list, or choose a different name.'}`);
     }
-    await loadTrainingData(true);
+    let validity = null;
+    if(validityEl.value.trim() !== ''){
+      const v = Number(validityEl.value);
+      if(!Number.isInteger(v) || v < 1 || v > 120) flag(validityEl, 'Enter a whole number of months from 1 to 120, or leave it blank if the course does not expire.');
+      else validity = v;
+    }
+    let order = null;
+    if(orderEl.value.trim() !== ''){
+      const v = Number(orderEl.value);
+      if(!Number.isInteger(v) || v < 0 || v > 9999) flag(orderEl, 'Enter a whole number from 0 to 9999, or leave it blank.');
+      else order = v;
+    }
+    const nzqaCodes = trainingParseNzqaCodes(codesEl.value);
+    if(nzqaCodes.some(c => c.length > 20)) flag(codesEl, 'Each NZQA code must be 20 characters or fewer. Separate several codes with commas.');
+    if(descEl.value.length > 1000) flag(descEl, 'The description is too long. The limit is 1000 characters.');
+    if(problems){ opsFocusFirstError(form); return; }
+    const row = {
+      name,
+      course_type: byId('opsCourseType').value === 'internal' ? 'internal' : 'external',
+      validity_period_months: validity,
+      display_order: order,
+      description: descEl.value.trim() || null,
+      active: byId('opsCourseActive').checked,
+      nzqa_codes: nzqaCodes,
+      nzqa_code: nzqaCodes[0] || null
+    };
+    const submit = form.querySelector('button[type="submit"]');
+    state.savingTrainingCourse = true;
+    if(submit) submit.disabled = true;
+    try{
+      const r = id
+        ? await state.sb.from('operations_training_courses').update(row).eq('id', id)
+        : await state.sb.from('operations_training_courses').insert({...row, created_by: state.user.id});
+      if(r.error) return opsFormError(form, 'Could not save the course: ' + r.error.message);
+      state.trainingCourseFormOpen = false;
+      state.editingCourseId = '';
+      if(state.currentView === 'training-course-detail'){
+        state.trainingViewCourseId = '';
+        showOperations('training-settings');
+      }
+      await loadTrainingData(true);
+    } finally {
+      state.savingTrainingCourse = false;
+      const again = byId('opsTrainingCourseForm')?.querySelector('button[type="submit"]');
+      if(again) again.disabled = false;
+    }
   }
 
   function trainingContractorFormHtml(){
     const editing = state.trainingContractors.find(c => String(c.id) === String(state.editingContractorId));
-    return `<form id="opsTrainingContractorForm" class="ops-form" data-contractor-id="${editing ? editing.id : ''}">
-      <label>Company name *<input id="opsContractorName" required value="${esc(editing?.company_name || '')}"></label>
+    return `<form id="opsTrainingContractorForm" class="ops-form ops-form-panel ${editing ? '' : 'ops-form-adding'}" novalidate data-contractor-id="${editing ? editing.id : ''}">
+      <h4 class="ops-span-2 ops-form-title">${editing ? 'Contractor details' : 'Add a contractor'}</h4>
+      <label>Company name *<input id="opsContractorName" required maxlength="150" value="${esc(editing?.company_name || '')}"></label>
       <label>Type *<select id="opsContractorType" required>
         <option value="sole_trader" ${(!editing || editing.contractor_type==='sole_trader') ? 'selected' : ''}>Sole trader</option>
         <option value="company" ${editing?.contractor_type==='company' ? 'selected' : ''}>Company</option>
       </select></label>
-      <label>Contact name<input id="opsContractorContactName" value="${esc(editing?.contact_name || '')}"></label>
-      <label>Contact phone<input id="opsContractorContactPhone" value="${esc(editing?.contact_phone || '')}"></label>
-      <label>Contact email<input id="opsContractorContactEmail" type="email" value="${esc(editing?.contact_email || '')}"></label>
-      <label class="ops-check"><input id="opsContractorActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
+      <label>Contact name<input id="opsContractorContactName" maxlength="150" value="${esc(editing?.contact_name || '')}"></label>
+      <label>Contact phone<input id="opsContractorContactPhone" maxlength="40" value="${esc(editing?.contact_phone || '')}"></label>
+      <label>Contact email<input id="opsContractorContactEmail" type="email" maxlength="200" value="${esc(editing?.contact_email || '')}"></label>
+      <label class="ops-check ops-toggle-pill"><input id="opsContractorActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add contractor'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingContractorEditor">Cancel</button></div>
     </form>`;
   }
 
+  function trainingContractorRowHtml(c){
+    return `<tr class="ops-row-link" data-ops-view-contractor="${c.id}" tabindex="0" role="button" aria-label="Open ${esc(c.company_name)}"><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td><label class="ops-check ops-toggle-pill" data-ops-stop-row><input type="checkbox" data-ops-toggle-contractor-active="${c.id}" ${c.active ? 'checked' : ''}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label></td></tr>`;
+  }
+
   function trainingContractorsHtml(){
     const contractors = state.trainingContractors.slice().sort((a,b) => String(a.company_name).localeCompare(String(b.company_name)));
-    const rows = contractors.map(c => `<tr class="ops-row-link" data-ops-view-contractor="${c.id}" tabindex="0" role="button" aria-label="Open ${esc(c.company_name)}"><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td>${c.active ? 'Active' : 'Inactive'}</td><td><button class="ops-btn ghost" type="button" data-ops-toggle-contractor-active="${c.id}">${c.active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="ops-subtle">No contractors yet.</td></tr>';
+    const active = contractors.filter(c => c.active !== false);
+    const archived = contractors.filter(c => c.active === false);
+    const head = '<tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Training</th><th>Status</th></tr>';
+    const rows = active.map(trainingContractorRowHtml).join('') || '<tr><td colspan="6" class="ops-subtle">No contractors yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
       ${state.trainingContractorFormOpen && !state.editingContractorId ? trainingContractorFormHtml() : ''}
       <p class="ops-subtle">The Training column is a pass/fail signal for this contractor's people against their compulsory training requirements — the single check an HSE review of this contractor's system will draw on. Click a contractor to open its own page and manage its people.</p>
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Training</th><th>Status</th><th></th></tr>${rows}</table></div>
-    </div>`;
+      <div class="ops-table-wrap"><table class="ops-table">${head}${rows}</table></div>
+    </div>
+    ${archived.length ? `<details class="ops-card ops-collapsible">
+      <summary><h3>Archived contractors <span class="ops-attention-count">${archived.length}</span></h3></summary>
+      <div class="ops-collapsible-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archived.map(trainingContractorRowHtml).join('')}</table></div></div>
+    </details>` : ''}`;
   }
 
   function viewTrainingContractor(id){
@@ -1737,11 +2089,11 @@
       <div class="ops-section-title"><h3>${esc(contractor.company_name)} <span class="ops-subtle">(${typeLabel})</span></h3>
         <div class="ops-actions">
           <button class="ops-btn ghost" type="button" data-ops-edit-contractor="${contractor.id}">Edit</button>
-          <button class="ops-btn primary" type="button" data-ops-add-person-for-contractor="${contractor.id}">+ Add person</button>
+          ${contractor.contractor_type === 'sole_trader' && people.length >= 1 ? '' : `<button class="ops-btn primary" type="button" data-ops-add-person-for-contractor="${contractor.id}">+ Add person</button>`}
         </div>
       </div>
       ${editingContractor ? trainingContractorFormHtml() : ''}
-      <p class="ops-subtle">People linked to ${esc(contractor.company_name)} only, so this contractor's own training records and evidence stay scoped to just their people.</p>
+      <p class="ops-subtle">People linked to ${esc(contractor.company_name)} only, so this contractor's own training records and evidence stay scoped to just their people.${contractor.contractor_type === 'sole_trader' ? ' A sole trader has one person, who is both the contact and the worker.' : ''}</p>
       ${showFormAtTop ? trainingPersonFormHtml() : ''}
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Status</th></tr>${rows}</table></div>
     </div>`;
@@ -1752,13 +2104,14 @@
     const preselectedContractorId = editing?.contractor_id || state.prefillContractorId || '';
     const contractors = state.trainingContractors.filter(c => c.active !== false || String(c.id) === String(preselectedContractorId));
     const contractorOptions = contractors.map(c => `<option value="${c.id}" ${String(preselectedContractorId) === String(c.id) ? 'selected' : ''}>${esc(c.company_name)} (${c.contractor_type === 'sole_trader' ? 'Sole trader' : 'Company'})</option>`).join('');
-    return `<form id="opsTrainingPersonForm" class="ops-form" data-person-id="${editing ? editing.id : ''}">
+    return `<form id="opsTrainingPersonForm" class="ops-form ops-form-panel ${editing ? '' : 'ops-form-adding'}" novalidate data-person-id="${editing ? editing.id : ''}">
+      <h4 class="ops-span-2 ops-form-title">${editing ? 'Person details' : 'Add a person'}</h4>
       <label>Contractor *<select id="opsPersonContractorId" required ${contractors.length ? '' : 'disabled'}>
         <option value="">Select a contractor…</option>
         ${contractorOptions}
       </select></label>
-      <label>Full name *<input id="opsPersonFullName" required value="${esc(editing?.full_name || '')}"></label>
-      <label class="ops-check"><input id="opsPersonActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}> Active</label>
+      <label>Full name *<input id="opsPersonFullName" required maxlength="150" value="${esc(editing?.full_name || '')}"></label>
+      <label class="ops-check ops-toggle-pill"><input id="opsPersonActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>
       <p class="ops-span-2 ops-subtle">Person type (sole trader or subcontractor worker) is set automatically from the contractor's type above. Add the contractor first if it isn't listed.</p>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit" ${contractors.length ? '' : 'disabled'}>${editing ? 'Save changes' : 'Add person'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingPersonEditor">Cancel</button></div>
     </form>`;
@@ -1795,26 +2148,47 @@
   async function saveTrainingPerson(e){
     e.preventDefault();
     if(!canUseTraining()) return alert('Only Admin or Training manager users can add subcontractor people.');
+    if(state.savingTrainingPerson) return;
     const form = e.target;
+    opsClearFormErrors(form);
     const id = form.dataset.personId;
-    const contractorId = byId('opsPersonContractorId').value;
-    const contractor = state.trainingContractors.find(c => String(c.id) === String(contractorId));
-    if(!contractor) return alert('Select a contractor first.');
+    const contractorEl = byId('opsPersonContractorId');
+    const nameEl = byId('opsPersonFullName');
+    const contractor = state.trainingContractors.find(c => String(c.id) === String(contractorEl.value));
+    const fullName = nameEl.value.trim().replace(/\s+/g, ' ');
+    let problems = 0;
+    const flag = (el, msg) => { opsFieldError(el, msg); problems++; };
+    if(!contractor) flag(contractorEl, 'Choose a contractor. Add the contractor first if it is not listed.');
+    if(!fullName) flag(nameEl, 'Enter the person\'s full name.');
+    else if(fullName.length > 150) flag(nameEl, 'The name is too long. The limit is 150 characters.');
+    if(contractor && contractor.contractor_type === 'sole_trader'){
+      const others = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractor.id) && String(p.id) !== String(id));
+      if(others.length) flag(contractorEl, `"${contractor.company_name}" is a sole trader, so it can only have one person (${others[0].full_name}). Change the contractor's type to Company if it has workers.`);
+    }
+    if(problems){ opsFocusFirstError(form); return; }
     const row = {
       person_type: contractor.contractor_type === 'sole_trader' ? 'sole_trader' : 'subcontractor_worker',
       contractor_id: contractor.id,
-      full_name: byId('opsPersonFullName').value.trim(),
+      full_name: fullName,
       active: byId('opsPersonActive').checked
     };
-    if(!row.full_name) return alert('Full name is required.');
-    const r = id
-      ? await state.sb.from('operations_training_people').update(row).eq('id', id)
-      : await state.sb.from('operations_training_people').insert({...row, created_by: state.user.id});
-    if(r.error) return alert('Could not save person: '+r.error.message);
-    state.trainingPersonFormOpen = false;
-    state.editingTrainingPersonId = '';
-    state.prefillContractorId = '';
-    await loadTrainingData(true);
+    const submit = form.querySelector('button[type="submit"]');
+    state.savingTrainingPerson = true;
+    if(submit) submit.disabled = true;
+    try{
+      const r = id
+        ? await state.sb.from('operations_training_people').update(row).eq('id', id)
+        : await state.sb.from('operations_training_people').insert({...row, created_by: state.user.id});
+      if(r.error) return opsFormError(form, 'Could not save the person: ' + r.error.message);
+      state.trainingPersonFormOpen = false;
+      state.editingTrainingPersonId = '';
+      state.prefillContractorId = '';
+      await loadTrainingData(true);
+    } finally {
+      state.savingTrainingPerson = false;
+      const again = byId('opsTrainingPersonForm')?.querySelector('button[type="submit"]');
+      if(again) again.disabled = false;
+    }
   }
 
   async function toggleTrainingPersonActive(id, checkboxEl){
@@ -1844,33 +2218,68 @@
   async function saveTrainingContractor(e){
     e.preventDefault();
     if(!canUseTraining()) return alert('Only Admin or Training manager users can edit contractors.');
+    if(state.savingTrainingContractor) return;
     const form = e.target;
+    opsClearFormErrors(form);
     const id = form.dataset.contractorId;
+    const nameEl = byId('opsContractorName');
+    const emailEl = byId('opsContractorContactEmail');
+    const phoneEl = byId('opsContractorContactPhone');
+    const typeEl = byId('opsContractorType');
+    const name = nameEl.value.trim().replace(/\s+/g, ' ');
+    let problems = 0;
+    const flag = (el, msg) => { opsFieldError(el, msg); problems++; };
+    if(!name) flag(nameEl, 'Enter the company or trading name.');
+    else if(name.length > 150) flag(nameEl, 'The name is too long. The limit is 150 characters.');
+    else {
+      const clash = state.trainingContractors.find(c => String(c.id) !== String(id) && trainingNameKey(c.company_name) === trainingNameKey(name));
+      if(clash) flag(nameEl, `A contractor called "${clash.company_name}" already exists${clash.active === false ? ' (archived). Open it from the Archived contractors list instead.' : '.'}`);
+    }
+    const email = emailEl.value.trim();
+    if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) flag(emailEl, 'Enter a valid email address, for example name@company.co.nz.');
+    const phone = phoneEl.value.trim();
+    if(phone && !/^[0-9+()\-\s.]{6,40}$/.test(phone)) flag(phoneEl, 'Enter a valid phone number using digits, spaces, + ( ) or -.');
+    if(id && typeEl.value === 'sole_trader'){
+      const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(id));
+      if(people.length > 1) flag(typeEl, `This contractor has ${people.length} people, so it cannot be a sole trader. Keep it as a Company, or archive the extra people first.`);
+    }
+    if(problems){ opsFocusFirstError(form); return; }
     const row = {
-      company_name: byId('opsContractorName').value.trim(),
-      contractor_type: byId('opsContractorType').value,
+      company_name: name,
+      contractor_type: typeEl.value,
       contact_name: byId('opsContractorContactName').value.trim() || null,
-      contact_phone: byId('opsContractorContactPhone').value.trim() || null,
-      contact_email: byId('opsContractorContactEmail').value.trim() || null,
+      contact_phone: phone || null,
+      contact_email: email || null,
       active: byId('opsContractorActive').checked
     };
-    if(!row.company_name) return alert('Company name is required.');
-    const r = id
-      ? await state.sb.from('operations_contractors').update(row).eq('id', id)
-      : await state.sb.from('operations_contractors').insert({...row, created_by: state.user.id});
-    if(r.error) return alert('Could not save contractor: '+r.error.message);
-    state.trainingContractorFormOpen = false;
-    state.editingContractorId = '';
-    await loadTrainingData(true);
+    const submit = form.querySelector('button[type="submit"]');
+    state.savingTrainingContractor = true;
+    if(submit) submit.disabled = true;
+    try{
+      const r = id
+        ? await state.sb.from('operations_contractors').update(row).eq('id', id)
+        : await state.sb.from('operations_contractors').insert({...row, created_by: state.user.id});
+      if(r.error) return opsFormError(form, 'Could not save the contractor: ' + r.error.message);
+      state.trainingContractorFormOpen = false;
+      state.editingContractorId = '';
+      await loadTrainingData(true);
+    } finally {
+      state.savingTrainingContractor = false;
+      const again = byId('opsTrainingContractorForm')?.querySelector('button[type="submit"]');
+      if(again) again.disabled = false;
+    }
   }
 
-  async function toggleTrainingContractorActive(id){
+  async function toggleTrainingContractorActive(id, checkboxEl){
     const contractor = state.trainingContractors.find(c => String(c.id) === String(id));
     if(!contractor) return;
-    if(!canUseTraining()) return alert('Only Admin or Training manager users can change contractors.');
-    if(contractor.active && !confirm(`Deactivate "${contractor.company_name}"?`)) return;
+    if(!canUseTraining()){ if(checkboxEl) checkboxEl.checked = contractor.active; return alert('Only Admin or Training manager users can change contractors.'); }
+    if(contractor.active && !confirm(`Archive "${contractor.company_name}"? This can be undone at any time by reinstating them.`)){
+      if(checkboxEl) checkboxEl.checked = contractor.active;
+      return;
+    }
     const r = await state.sb.from('operations_contractors').update({active: !contractor.active}).eq('id', id);
-    if(r.error) return alert('Could not update contractor: '+r.error.message);
+    if(r.error){ if(checkboxEl) checkboxEl.checked = contractor.active; return alert('Could not update contractor: '+r.error.message); }
     await loadTrainingData(true);
   }
 
@@ -2009,6 +2418,62 @@
     return `<button type="button" class="ops-branch-card ${cls}" onclick="${action}">${appIcon(icon)}<span><strong>${esc(title)}</strong>${body?`<span class="ops-subtle">${esc(body)}</span>`:''}</span></button>`;
   }
 
+  // Browser history for in-app navigation: each screen is a history entry, so Back and Forward work and a
+  // refresh returns to the same screen.
+  let opsRestoringNav = false;
+  const OPS_NAV_MODULES = ['training', 'my-training', 'ops-management', 'admin', 'vehicle-checks', 'home'];
+  function opsNavSnapshot(){
+    return { module: state.currentModule, view: state.currentView, personId: state.trainingViewPersonId || '', contractorId: state.viewingContractorId || '', courseId: state.trainingViewCourseId || '', returnView: state.trainingPersonReturnView || '', userId: state.user?.id || '' };
+  }
+  function opsNavRecord(){
+    if(opsRestoringNav || !state.navRestored || !OPS_NAV_MODULES.includes(state.currentModule)) return;
+    const snap = opsNavSnapshot();
+    try{ sessionStorage.setItem('opsNav', JSON.stringify(snap)); }catch(_e){}
+    try{
+      const prev = history.state && history.state.opsNav;
+      if(prev && JSON.stringify(prev) === JSON.stringify(snap)) return;
+      if(prev) history.pushState({opsNav: snap}, ''); else history.replaceState({opsNav: snap}, '');
+    }catch(_e){}
+  }
+  function opsNavApply(snap){
+    if(!snap) return;
+    opsRestoringNav = true;
+    try{
+      if(snap.module === 'home' || !snap.module){ showModuleHome(); return; }
+      state.trainingViewPersonId = snap.personId || state.trainingViewPersonId;
+      state.viewingContractorId = snap.contractorId || state.viewingContractorId;
+      state.trainingViewCourseId = snap.courseId || state.trainingViewCourseId;
+      state.trainingPersonReturnView = snap.returnView || state.trainingPersonReturnView;
+      state.trainingRecordFormOpen = false; state.editingRecordId = ''; state.trainingRecordFormCourseId = '';
+      state.trainingContractorFormOpen = false; state.trainingCourseFormOpen = false; state.trainingPersonFormOpen = false;
+      if(snap.module === 'training'){
+        state.currentModule = 'training'; setTopTabsMode('none');
+        showOperations(snap.view);
+        loadTrainingData();
+      } else if(snap.module === 'my-training'){
+        openMyTrainingModule();
+      } else if(snap.module === 'ops-management'){
+        state.currentModule = 'ops-management'; setTopTabsMode('none'); showOperations(snap.view);
+      } else if(snap.module === 'admin'){
+        openAdminModule(snap.view);
+      } else if(snap.module === 'vehicle-checks'){
+        openVehicleChecksModule();
+      }
+    } finally { opsRestoringNav = false; }
+  }
+  function opsNavRestoreAfterReload(){
+    if(state.navRestored) return;
+    state.navRestored = true;
+    let snap = null;
+    try{ snap = JSON.parse(sessionStorage.getItem('opsNav') || 'null'); }catch(_e){}
+    const usable = snap && snap.module && snap.module !== 'home' && !(snap.userId && snap.userId !== (state.user?.id || '')) && (state.currentModule === 'home' || !state.currentModule);
+    if(usable) opsNavApply(snap); else opsNavRecord();
+  }
+  window.addEventListener('popstate', e => {
+    const snap = e.state && e.state.opsNav;
+    if(snap) opsNavApply(snap);
+  });
+
   function showOperations(view){
     state.currentView = view || state.currentView || 'vehicle-checks';
     if(state.currentView === 'vehicles' || state.currentView === 'washing') state.currentView = 'assets';
@@ -2023,6 +2488,7 @@
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
     render();
     window.scrollTo({top:0, left:0, behavior:'auto'});
+    opsNavRecord();
   }
 
   function updateExternalTabVisibility(){ /* V4.0.3 uses the module dashboard instead of top-level Operations tabs. */ }
@@ -2083,6 +2549,7 @@
     }
     if(revision!==state.authRevision) return;
     await loadAll();
+    opsNavRestoreAfterReload();
   }
 
 
@@ -2214,12 +2681,48 @@
     }
   }
 
+  // Re-rendering rebuilds the page from saved data. Without this, anything typed into an open form
+  // (and the scroll position) is lost whenever something else triggers a render, for example
+  // adding an evidence file while editing a record.
+  let opsFormDraft = null;
+  let opsLastViewKey = '';
+  function opsFormSignature(form){
+    return form.id + '|' + ['recordId','personId','courseId','contractorId'].map(k => k + '=' + (form.dataset[k] || '')).join('&');
+  }
+  function opsCaptureFormDraft(shell){
+    const form = shell.querySelector('form[id^="opsTraining"]');
+    if(!form) return null;
+    const fields = {};
+    form.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+      if(el.type === 'file' || el.type === 'hidden') return;
+      fields[el.id] = el.type === 'checkbox' || el.type === 'radio' ? { checked: el.checked } : { value: el.value };
+    });
+    return { sig: opsFormSignature(form), fields };
+  }
+  function opsRestoreFormDraft(shell, draft){
+    if(!draft) return;
+    const form = shell.querySelector('form[id^="opsTraining"]');
+    if(!form || opsFormSignature(form) !== draft.sig) return;
+    Object.keys(draft.fields).forEach(id => {
+      const el = form.querySelector('#' + id);
+      if(!el) return;
+      const f = draft.fields[id];
+      if('checked' in f) el.checked = f.checked; else el.value = f.value;
+    });
+  }
   function render(){
     const shell = byId('opsShell');
     if(!shell) return;
     updateExternalTabVisibility();
+    const draft = opsCaptureFormDraft(shell);
+    const viewKey = [state.currentModule, state.currentView, state.trainingViewPersonId, state.viewingContractorId, state.trainingViewCourseId].join('|');
+    const keepScroll = viewKey === opsLastViewKey;
+    const scrollY = window.scrollY;
+    opsLastViewKey = viewKey;
     shell.innerHTML = headerHtml() + (state.lastError ? `<div class="ops-error">${esc(state.lastError)}</div>` : '') + bodyHtml();
+    opsRestoreFormDraft(shell, draft);
     bindRenderedEvents();
+    if(keepScroll && Math.abs(window.scrollY - scrollY) > 1) window.scrollTo({top:scrollY, left:0, behavior:'auto'});
     refreshTopUserSummary();
     document.dispatchEvent(new CustomEvent('sw:operations-rendered'));
     if(state.currentModule === 'home') renderModuleHome();
@@ -4659,6 +5162,7 @@
       state.currentView = btn.dataset.opsView;
       state.openTaskId='';
       render();
+      opsNavRecord();
       // The full backup panel is supplied by the separately loaded backup
       // module. Mount it after this view's final DOM has rendered.
       if(btn.dataset.opsView === 'admin-settings') window.setTimeout(() => window.SWBackupV4083?.mount?.(), 0);
@@ -4729,27 +5233,37 @@
     document.querySelectorAll('[data-ops-save-user-roles]').forEach(b => b.addEventListener('click', () => saveActualUserRoles(b.dataset.opsSaveUserRoles)));
     document.querySelectorAll('[data-ops-create-schedule-task]').forEach(b => b.addEventListener('click', () => createTaskFromSchedule(b.dataset.opsCreateScheduleTask)));
     document.querySelectorAll('[data-ops-edit-contractor]').forEach(b => b.addEventListener('click', () => { state.editingContractorId=b.dataset.opsEditContractor; state.trainingContractorFormOpen=true; render(); }));
-    document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); toggleTrainingContractorActive(b.dataset.opsToggleContractorActive); }));
+    document.querySelectorAll('[data-ops-stop-row]').forEach(l => l.addEventListener('click', e => e.stopPropagation()));
+    document.querySelectorAll('[data-ops-toggle-contractor-active]').forEach(cb => cb.addEventListener('change', () => toggleTrainingContractorActive(cb.dataset.opsToggleContractorActive, cb)));
     document.querySelectorAll('[data-ops-view-contractor]').forEach(b => { const go = () => viewTrainingContractor(b.dataset.opsViewContractor); b.addEventListener('click', go); if(b.tagName !== 'BUTTON') b.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
     document.querySelectorAll('[data-ops-add-person-for-contractor]').forEach(b => b.addEventListener('click', () => { state.prefillContractorId=b.dataset.opsAddPersonForContractor; state.editingTrainingPersonId=''; state.trainingPersonFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-view-course]').forEach(b => b.addEventListener('click', () => openTrainingCourse(b.dataset.opsViewCourse)));
     document.querySelectorAll('[data-ops-edit-training-person]').forEach(b => b.addEventListener('click', () => { state.editingTrainingPersonId=b.dataset.opsEditTrainingPerson; state.trainingPersonFormOpen=true; render(); }));
     document.querySelectorAll('[data-ops-toggle-training-person-active]').forEach(cb => cb.addEventListener('change', () => toggleTrainingPersonActive(cb.dataset.opsToggleTrainingPersonActive, cb)));
     document.querySelectorAll('[data-ops-person-competency]').forEach(sel => sel.addEventListener('change', () => setTrainingPersonCompetency(sel.dataset.opsPersonCompetency, sel.value)));
-    document.querySelectorAll('[data-ops-matrix-cell]').forEach(btn => btn.addEventListener('click', () => cycleTrainingMatrixCell(btn.dataset.person, btn.dataset.course, btn.dataset.state)));
+    document.querySelectorAll('[data-ops-matrix-cell]').forEach(btn => btn.addEventListener('click', () => cycleTrainingMatrixCell(btn.dataset.person, btn.dataset.course)));
     document.querySelectorAll('[data-ops-matrix-tab]').forEach(b => b.addEventListener('click', () => { state.trainingMatrixTab = b.dataset.opsMatrixTab; render(); }));
     document.querySelectorAll('[data-ops-open-person]').forEach(b => { const go = () => openTrainingPerson(b.dataset.opsOpenPerson); b.addEventListener('click', go); if(b.tagName !== 'BUTTON') b.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
-    document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; render(); }));
+    document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; state.trainingEvidenceError=null; render(); }));
     document.querySelectorAll('details.ops-training-course').forEach(d => d.addEventListener('toggle', () => {
       const courseId = String(d.dataset.opsCourseId);
       if(d.open) state.trainingExpandedCourseIds.add(courseId); else state.trainingExpandedCourseIds.delete(courseId);
     }));
     byId('opsTrainingMatrixDetails')?.addEventListener('toggle', e => { state.trainingSettingsMatrixOpen = e.target.open; });
     byId('opsTrainingCatalogDetails')?.addEventListener('toggle', e => { state.trainingSettingsCatalogOpen = e.target.open; });
-    document.querySelectorAll('[data-ops-edit-record]').forEach(b => b.addEventListener('click', () => { const rec=state.trainingRecords.find(r=>String(r.id)===String(b.dataset.opsEditRecord)); if(!rec) return; state.editingRecordId=rec.id; state.trainingRecordFormCourseId=rec.course_id; state.trainingRecordFormOpen=true; render(); }));
+    document.querySelectorAll('[data-ops-edit-record]').forEach(b => b.addEventListener('click', () => {
+      const rec=state.trainingRecords.find(r=>String(r.id)===String(b.dataset.opsEditRecord)); if(!rec) return;
+      state.editingRecordId=rec.id; state.trainingRecordFormCourseId=rec.course_id; state.trainingRecordFormOpen=true; state.trainingEvidenceError=null;
+      // Only the course being edited stays open, so it is obvious which record is being changed.
+      state.trainingExpandedCourseIds = new Set([String(rec.course_id)]);
+      render();
+      const card = document.querySelector('[data-ops-editing-card]');
+      if(card) card.scrollIntoView({block:'start', behavior:'auto'});
+    }));
     document.querySelectorAll('[data-ops-delete-record]').forEach(b => b.addEventListener('click', () => deleteTrainingRecord(b.dataset.opsDeleteRecord)));
     document.querySelectorAll('[data-ops-toggle-add-file]').forEach(b => b.addEventListener('click', () => {
       const recordId = b.dataset.opsToggleAddFile;
+      state.trainingEvidenceError = null;
       state.trainingFileMenuOpenId = String(state.trainingFileMenuOpenId || '') === String(recordId) ? '' : recordId;
       render();
     }));
@@ -4760,6 +5274,7 @@
       const files = Array.from(input.files || []);
       if(!files.length) return;
       const recordId = input.dataset.opsEvidenceInput;
+      state.trainingEvidenceError = null;
       state.trainingFileMenuOpenId = '';
       if(state.currentView === 'my-training') addMyTrainingEvidence(recordId, files); else addTrainingEvidenceAdmin(recordId, files);
       input.value = '';
@@ -4767,8 +5282,10 @@
     document.querySelectorAll('[data-ops-view-evidence]').forEach(b => b.addEventListener('click', () => showTrainingEvidenceViewer(b.dataset.opsViewEvidence)));
     document.querySelectorAll('[data-ops-delete-evidence]').forEach(b => b.addEventListener('click', () => deleteTrainingEvidence(b.dataset.opsDeleteEvidence)));
     byId('opsTrainingRecordForm')?.addEventListener('submit', saveTrainingRecord);
+    bindTrainingRecordForm();
     byId('opsTrainingContractorForm')?.addEventListener('submit', saveTrainingContractor);
     byId('opsTrainingCourseForm')?.addEventListener('submit', saveTrainingCourse);
+    document.querySelectorAll('[data-ops-delete-course]').forEach(b => b.addEventListener('click', () => deleteTrainingCourse(b.dataset.opsDeleteCourse)));
     byId('opsTrainingPersonForm')?.addEventListener('submit', saveTrainingPerson);
     ['certFilterType','certFilterStatus','certFilterResult','certFilterDue'].forEach(id => byId(id)?.addEventListener('change', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); }));
     byId('certFilterSearch')?.addEventListener('input', () => { certSetFilterFromDom(); renderCertificateFilterSelector(); });
