@@ -19,6 +19,7 @@ module.exports = defineConfig({
   reporter: [['line'], ['html', { open: 'never' }]],
   use: {
     baseURL: staging.baseURL,
+    actionTimeout: 15_000,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
     video: 'retain-on-failure'

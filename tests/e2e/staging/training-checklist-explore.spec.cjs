@@ -8,7 +8,7 @@ const { buildFixtureTag, signIn, safeCleanup } = require('../support/ui-suite-he
 // find bugs for the queued batch, not to gate a build. Test-only; changes no
 // app code. Everything created is tagged CHECK-... and archived/deleted at
 // the end through the UI.
-test.describe.configure({ mode: 'serial' });
+
 test.setTimeout(240_000);
 
 const config = getStagingTrainingConfig();
@@ -111,8 +111,6 @@ test.describe('Training checklist — exploratory', () => {
       note(h2 ? 'OK' : 'FINDING', '1.4', h2 ? 'still inside Training after reload (tab not checked)' : 'reload drops out of the Training module to the home screen');
     });
     await observe('spacing', async () => {
-      await page.goto('/');
-      await signIn(page, config);
       await openTraining(page);
       for (const t of ['Dashboard', 'Team members', 'Contractors', 'Settings', 'Register']) {
         await tab(page, t);
@@ -479,10 +477,12 @@ test.describe('Training checklist — exploratory', () => {
       }
     });
     await safeCleanup('contractors', async () => {
-      for (const id of [fx.contractorId, fx.soleId]) {
+      await tab(page, 'Contractors');
+      const ids = await page.locator('tr[data-ops-view-contractor]').evaluateAll(els => els.filter(e => /CHECK-/.test(e.textContent)).map(e => e.getAttribute('data-ops-view-contractor')));
+      for (const id of ids) {
         await tab(page, 'Contractors');
         const b = page.locator(`tr[data-ops-view-contractor="${id}"]`).getByRole('button', { name: 'Deactivate', exact: true });
-        if (await b.count()) await b.click();
+        if (await b.count()) { await b.click(); await page.waitForTimeout(600); }
       }
     });
     await safeCleanup('courses', async () => {
