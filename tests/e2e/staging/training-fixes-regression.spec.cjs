@@ -33,6 +33,9 @@ async function openTraining(page) {
   await expect(card).toBeVisible({ timeout: 15_000 });
   await card.click();
   await expect(page.locator('#opsShell h2')).toHaveText('Training');
+  // Let the background data load finish so a late redraw cannot wipe a form the test is filling in.
+  await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
+  await page.waitForTimeout(400);
 }
 const goToTab = (page, label) => page.locator('#opsNav').getByRole('button', { name: label, exact: true }).click();
 async function openPanel(page, name) {
