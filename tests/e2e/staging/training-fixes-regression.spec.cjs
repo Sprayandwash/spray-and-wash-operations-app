@@ -480,7 +480,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await expect(page.locator('details.ops-training-course[open]')).toHaveCount(0);
   });
 
-  test('FIX-014: courses are reordered by dragging or the arrows, there is no Display order field, and the order is kept', async ({ page }) => {
+  test('FIX-014: courses are reordered by dragging only (no arrow buttons), there is no Display order field, and the order is kept', async ({ page }) => {
     acceptDialogsAndCapture(page);
     await signIn(page, config);
     await openTraining(page);
@@ -494,12 +494,9 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     let ids = await idx();
     expect(ids).toContain(fx.courseId);
     expect(ids).toContain(fx.courseBId);
-    // Arrow: move B up one place and it must jump past whatever is above it.
-    const before = ids.indexOf(fx.courseBId);
-    if (before > 0) {
-      await cat.locator(`[data-ops-course-move="${fx.courseBId}"][data-dir="-1"]`).click();
-      await expect.poll(async () => (await idx()).indexOf(fx.courseBId)).toBe(before - 1);
-    }
+    await expect(page.locator('[data-ops-course-move]')).toHaveCount(0);
+    const gripW = await page.locator('th.ops-grip-cell').evaluate(e => e.getBoundingClientRect().width);
+    expect(gripW, 'grip column should be narrow').toBeLessThanOrEqual(50);
     // Drag: put B directly above A, then A directly above B.
     const rowA = () => page.locator(`tr[data-ops-course-row="${fx.courseId}"]`);
     const rowB = () => page.locator(`tr[data-ops-course-row="${fx.courseBId}"]`);
@@ -529,15 +526,67 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     expect(fit.tableRight, 'the Register table should not run past the right edge of its card').toBeLessThanOrEqual(fit.right + 1);
     expect(fit.wrapScroll, 'the Register table should fit without sideways scrolling on a desktop screen').toBeLessThanOrEqual(1);
 
-    await page.locator(`[data-ops-register-select="${fx.personId}"]`).first().check();
-    const dl = page.locator('[data-ops-download-register-evidence]');
-    await expect(dl).toContainText('1 selected');
+    // Table is view-only; the key line is not on screen.
+    await expect(page.locator('[data-ops-register-select]')).toHaveCount(0);
+    await expect(page.locator('.ops-register-key')).toHaveCount(0);
+    // Evidence panel: search, pick, summary, download.
+    const panel = page.locator('#opsEvidencePanel');
+    await expect(panel).toBeVisible();
+    await panel.locator('#opsEvidenceSearch').fill(fx.personName);
+    const row = panel.locator('[data-ops-evidence-row]:visible', { hasText: fx.personName });
+    await expect(row).toHaveCount(1);
+    await row.locator('input').check();
+    await expect(panel.locator('#opsEvidenceSummary')).toContainText(/1 person selected · \d+ files?/);
+    await panel.locator('[data-ops-evidence-quick="clear"]').click();
+    await expect(panel.locator('#opsEvidenceSummary')).toContainText('0 people selected');
+    await panel.locator('[data-ops-evidence-quick="employees"]').click();
+    await expect(panel.locator('#opsEvidenceSummary')).not.toContainText('0 people selected');
+    await panel.locator('[data-ops-evidence-quick="clear"]').click();
+    await row.locator('input').check();
+    const dl = panel.locator('#opsEvidenceDownload');
     const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), dl.click()]);
     expect(download.suggestedFilename()).toMatch(/^training-evidence-\d{4}-\d{2}-\d{2}\.zip$/);
 
     await openPerson(page);
     const s = await openSection(page);
     await expect(s.locator('[data-ops-download-record]').first()).toBeAttached();
+  });
+
+  test('FIX-019: round 3 layouts - person header on one row, two-column record form, matrix fixed widths', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    await openPerson(page);
+    const head = await page.evaluate(() => {
+      const h = document.querySelector('.ops-person-head'); const kids = [...h.children].filter(e => !e.classList.contains('ops-person-head-actions')).map(e => e.getBoundingClientRect());
+      return { sameRow: kids.every(k => Math.abs(k.top - kids[0].top) < 30), height: h.getBoundingClientRect().height };
+    });
+    expect(head.sameRow, 'back button, name and designation share a row').toBeTruthy();
+    let s = await openSection(page);
+    await s.getByRole('button', { name: '+ Add record', exact: true }).click();
+    await expect(page.locator('#opsTrainingRecordForm')).not.toContainText('Fills in automatically');
+    const lay = await page.evaluate(() => {
+      const r = id => document.getElementById(id).closest('label').getBoundingClientRect();
+      return { status: r('opsRecordStatus'), completed: r('opsRecordCompletedDate'), expiry: r('opsRecordExpiryDate'), provider: r('opsRecordProvider'), ref: r('opsRecordReference'), notes: r('opsRecordNotes') };
+    });
+    expect(Math.abs(lay.status.top - lay.completed.top)).toBeLessThan(4);
+    expect(Math.abs(lay.completed.top - lay.expiry.top)).toBeLessThan(4);
+    expect(lay.provider.top).toBeGreaterThan(lay.status.bottom - 2);
+    expect(Math.abs(lay.provider.top - lay.ref.top)).toBeLessThan(4);
+    expect(lay.notes.left).toBeGreaterThan(lay.expiry.right - 4);
+    expect(lay.notes.height).toBeGreaterThan(lay.status.height * 1.8);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await goToTab(page, 'Settings');
+    const mat = await openPanel(page, 'Training Matrix').catch(() => null);
+    const w = await page.evaluate(() => {
+      const t = document.querySelector('.ops-matrix-table'); if (!t) return null;
+      const heads = [...t.querySelectorAll('th.ops-matrix-head-cell')].map(e => Math.round(e.getBoundingClientRect().width));
+      return { person: Math.round(t.querySelector('th.ops-matrix-person-head').getBoundingClientRect().width), heads };
+    });
+    if (w) {
+      expect(w.person).toBeLessThanOrEqual(151);
+      expect(new Set(w.heads).size, 'all course columns the same width').toBe(1);
+    }
   });
 
   test('FIX-016: when a Completed record is refused for missing evidence only the evidence box is red', async ({ page }) => {
