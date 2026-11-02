@@ -178,7 +178,9 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
     const catalogAfter = await openSettingsPanel(page, 'Course Catalog');
-    const rowAfter = catalogAfter.locator('tr', { has: page.getByRole('button', { name: fixture.archiveCourseName, exact: true }) });
+    // Archived courses now live in a collapsed "Archived courses" list under the catalog.
+    await catalogAfter.locator('.ops-archived-list summary').click();
+    const rowAfter = catalogAfter.locator('.ops-archived-list tr', { has: page.getByRole('button', { name: fixture.archiveCourseName, exact: true }) });
     await expect(rowAfter).toContainText('Archived');
 
     const matrix = await openSettingsPanel(page, 'Training Matrix');
@@ -480,6 +482,8 @@ test.describe('Training module — full UI regression suite', () => {
         await safeCleanup(`${label} (archived — the UI has no hard delete for courses)`, async () => {
           if (!courseId) return;
           const catalog = await openSettingsPanel(page, 'Course Catalog');
+          const archivedList = catalog.locator('.ops-archived-list');
+          if (await archivedList.count() && !(await archivedList.evaluate(el => el.open))) await archivedList.locator('summary').click();
           const link = catalog.locator(`[data-ops-view-course="${courseId}"]`);
           if (!(await link.count())) return;
           await link.click();

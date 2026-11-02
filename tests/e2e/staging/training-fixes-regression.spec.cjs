@@ -113,7 +113,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await expect(page.locator('#opsTrainingCourseForm .ops-field-error')).toContainText('Enter a course name');
     await tryAdd(fx.courseName.toUpperCase() + '  ');
     await expect(page.locator('#opsTrainingCourseForm .ops-field-error')).toContainText('already exists');
-    await tryAdd(`${TAG} ` + 'L'.repeat(120));
+    // fill() respects maxlength, so set the value directly to prove the code check as well as the input limit.
+    await expect(page.locator('#opsCourseName')).toHaveAttribute('maxlength', '100');
+    await page.locator('#opsCourseName').evaluate((el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, `${TAG} ` + 'L'.repeat(120));
+    await page.getByRole('button', { name: 'Add course', exact: true }).click();
     await expect(page.locator('#opsTrainingCourseForm .ops-field-error')).toContainText('limit is 100');
     await tryAdd(`${TAG} NegValidity`, -1);
     await expect(page.locator('#opsTrainingCourseForm .ops-field-error')).toContainText('1 to 120');
@@ -409,6 +412,19 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
           await goToTab(page, 'Contractors');
           const cb = page.locator(`tr[data-ops-view-contractor="${id}"] input[data-ops-toggle-contractor-active]`);
           if (await cb.count() && await cb.isChecked()) { await cb.evaluate(el => el.click()); await page.waitForTimeout(800); }
+        }
+      });
+      await safeCleanup('stray courses from this suite', async () => {
+        for (let round = 0; round < 6; round++) {
+          const cat = await openPanel(page, 'Course Catalog');
+          const archivedList = cat.locator('.ops-archived-list');
+          if (await archivedList.count() && !(await archivedList.evaluate(el => el.open))) await archivedList.locator('summary').click();
+          const ids = await cat.locator('[data-ops-view-course]').evaluateAll(els => els.filter(e => /E2E-UI-SUITE-TRAINFIX-/.test(e.textContent) && !/Course$/.test(e.textContent.trim())).map(e => e.getAttribute('data-ops-view-course')));
+          if (!ids.length) break;
+          await cat.locator(`[data-ops-view-course="${ids[0]}"]`).click();
+          const del = page.getByRole('button', { name: 'Delete course', exact: true });
+          if (await del.count()) await del.click(); else break;
+          await page.waitForTimeout(1200);
         }
       });
       await safeCleanup('courses', async () => {
