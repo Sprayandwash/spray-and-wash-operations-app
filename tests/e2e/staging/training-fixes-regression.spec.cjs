@@ -545,12 +545,18 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await signIn(page, config);
     await openTraining(page);
     await openPerson(page);
+    const findTmp = async () => {
+      const sec = await openSection(page);
+      const prev = sec.locator('details.ops-prev-records');
+      for (let i = 0; i < await prev.count(); i++) if (!(await prev.nth(i).evaluate(e => e.open))) await prev.nth(i).locator('summary').click();
+      return sec.locator('[data-ops-record-card]', { hasText: 'Tmp red-field check' });
+    };
     let s = await openSection(page);
     await s.getByRole('button', { name: '+ Add record', exact: true }).click();
     await page.locator('#opsRecordProvider').fill('Tmp red-field check');
     await page.getByRole('button', { name: 'Add record', exact: true }).click();
-    const card = (await openSection(page)).locator('[data-ops-record-card]', { hasText: 'Tmp red-field check' });
-    await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(async () => { await expect(await findTmp()).toBeVisible({ timeout: 2000 }); }).toPass({ timeout: 20_000 });
+    const card = await findTmp();
     await card.locator('[data-ops-edit-record]').click();
     await page.locator('#opsRecordStatus').selectOption('Completed');
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
@@ -560,8 +566,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await expect(page.locator('#opsRecordProvider')).not.toHaveCSS('border-top-color', 'rgb(220, 38, 38)');
     // Tidy up: cancel and delete the temporary record.
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    s = await openSection(page);
-    const tmp = s.locator('[data-ops-record-card]', { hasText: 'Tmp red-field check' });
+    const tmp = await findTmp();
     await tmp.locator('[data-ops-delete-record]').click();
     await expect(tmp).toHaveCount(0, { timeout: 15_000 });
   });
