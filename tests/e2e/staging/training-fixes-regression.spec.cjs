@@ -398,6 +398,8 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await page.locator('#opsContractorAdminPhone').fill('021 555 0199');
     await page.locator('#opsContractorAdminWorks').uncheck();
     await page.locator('.ops-business-details > summary').click();
+    await expect(page.locator('.ops-business-details'), 'Business details should open when its heading is clicked').toHaveJSProperty('open', true, { timeout: 5000 });
+    console.log('BUSINESS DETAILS BOX', JSON.stringify(await page.locator('.ops-business-details').evaluate(d => ({open: d.open, h: d.getBoundingClientRect().height, inner: getComputedStyle(d.querySelector('.ops-form')).display}))));
     await page.locator('#opsContractorLegalName').fill(`${TAG} Holdings Limited`);
     await page.locator('#opsContractorNzbn').fill('123');
     await page.getByRole('button', { name: 'Add contractor', exact: true }).click();
