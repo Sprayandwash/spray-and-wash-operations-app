@@ -68,6 +68,9 @@ just the link.
 
 ## Local staging preview — PowerShell one-liner
 
+**Every time a staging zip is handed over, include this one-liner in the same message — always,
+without waiting to be asked** (confirmed directly by Brendan, 2 Nov 2026, after a zip was sent without it).
+
 Before giving Brendan *any* command to preview a staging build locally, read
 **`docs/STAGING-BROWSER-TESTING.md` → "Local UI testing handoff (Step 8-9A)"**
 first. It contains the exact, already-agreed one-liner:
