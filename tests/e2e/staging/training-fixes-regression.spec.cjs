@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { getStagingTrainingConfig } = require('../support/staging-training-config.cjs');
-const { buildFixtureTag, signIn, acceptDialogsAndCapture, safeCleanup } = require('../support/ui-suite-helpers.cjs');
+const { buildFixtureTag, signIn, acceptDialogsAndCapture, withPopup, safeCleanup } = require('../support/ui-suite-helpers.cjs');
 
 // Regression suite for the Nov 2026 Training fixes (items raised by Brendan during his user check).
 // Same rules as training-full-ui-suite.spec.cjs: everything is created and removed through the real UI,
@@ -18,6 +18,8 @@ const fx = {
   adminCoId: null,
   personName: `${TAG} Worker`,
   courseName: `${TAG} Course`,
+  courseBName: `${TAG} Course B`,
+  courseBId: null,
   contractorId: null, soleId: null, personId: null, courseId: null,
   recordId: null
 };
@@ -208,6 +210,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     const top = await s.locator('[data-ops-editing-card]').evaluate(el => Math.round(el.getBoundingClientRect().top));
     const atBottom = await page.evaluate(() => window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 2);
     expect(top < 160 || atBottom, `the record being edited should be scrolled to the top of the page (top=${top}px)`).toBeTruthy();
+    // ...and is not hidden behind the sticky banner/header bars.
+    const hidden = await s.locator('[data-ops-editing-card]').evaluate(el => { let b = 0; document.querySelectorAll('header, #stagingEnvironmentBanner').forEach(h => { const pos = getComputedStyle(h).position; if(pos === 'sticky' || pos === 'fixed') b = Math.max(b, h.getBoundingClientRect().bottom); }); const t = el.getBoundingClientRect().top; return {t, b}; });
+    const atBottom2 = await page.evaluate(() => window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 2);
+    expect(hidden.t >= hidden.b - 1 || atBottom2, `the edited record starts at ${hidden.t}px but the bars cover the top ${hidden.b}px`).toBeTruthy();
     // Other course sections are collapsed.
     await expect(page.locator('details.ops-training-course[open]')).toHaveCount(1);
 
@@ -409,6 +415,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     const adminRow = page.locator('tr', { has: page.getByText(`${TAG} Office Admin`, { exact: true }) });
     await expect(adminRow).toContainText('Company administrator');
     await expect(adminRow).toContainText('021 555 0199');
+    await expect(page.locator('.ops-contacts-line')).toContainText('Primary contact:');
 
     // Administrators who do not work on jobs are not in the Matrix.
     const matrix = await openPanel(page, 'Training Matrix');
@@ -423,6 +430,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await page.locator('#opsPersonIsAdmin').check();
     await page.getByRole('button', { name: 'Add person', exact: true }).click();
     await expect(page.locator('tr', { has: page.getByText(`${TAG} Working Admin`, { exact: true }) })).toContainText('Administrator and worker', { timeout: 10_000 });
+    await expect(page.locator('.ops-contacts-line')).toContainText('Contacts:');
     await expect(page.locator('tr', { has: page.getByText(`${TAG} Office Admin`, { exact: true }) })).toHaveCount(1);
     const matrix2 = await openPanel(page, 'Training Matrix');
     await expect(matrix2.getByText(`${TAG} Working Admin`).first()).toBeVisible();
@@ -437,6 +445,174 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await page.locator('#opsPersonNeedsTraining').uncheck();
     await page.getByRole('button', { name: 'Add person', exact: true }).click();
     await expect(page.locator('#opsTrainingPersonForm .ops-field-error')).toContainText('no role');
+  });
+
+  test('FIX-013: a person\'s courses start collapsed, opening one closes the others, and Edit lands below the header bars', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    await addCourseViaUi(page, fx.courseBName, 12);
+    const cat = await openPanel(page, 'Course Catalog');
+    const brow = cat.locator('tr', { has: page.getByRole('button', { name: fx.courseBName, exact: true }) });
+    await expect(brow).toHaveCount(1, { timeout: 10_000 });
+    fx.courseBId = await brow.getByRole('button', { name: fx.courseBName, exact: true }).getAttribute('data-ops-view-course');
+    const m = await openPanel(page, 'Training Matrix');
+    const cell = m.locator(`button[data-ops-matrix-cell][data-person="${fx.personId}"][data-course="${fx.courseBId}"]`);
+    await cell.click();
+    await expect(cell).toHaveAttribute('data-state', 'applicable');
+
+    await openPerson(page);
+    const sections = page.locator('details.ops-training-course');
+    await expect(sections).toHaveCount(2);
+    await expect(page.locator('details.ops-training-course[open]')).toHaveCount(0);
+    const a = section(page), b = page.locator(`details[data-ops-course-id="${fx.courseBId}"]`);
+    await a.locator('summary').first().click();
+    await expect(a).toHaveJSProperty('open', true);
+    await b.locator('summary').first().click();
+    await expect(b).toHaveJSProperty('open', true);
+    await expect(a).toHaveJSProperty('open', false);
+    await b.locator('summary').first().click();
+    await expect(page.locator('details.ops-training-course[open]')).toHaveCount(0);
+  });
+
+  test('FIX-014: courses are reordered by dragging or the arrows, there is no Display order field, and the order is kept', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    let cat = await openPanel(page, 'Course Catalog');
+    await cat.getByRole('button', { name: '+ Add course', exact: true }).click();
+    await expect(page.locator('#opsCourseOrder')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    const idx = async () => (await page.locator('tr[data-ops-course-row]').evaluateAll(els => els.map(e => e.getAttribute('data-ops-course-row'))));
+    cat = await openPanel(page, 'Course Catalog');
+    let ids = await idx();
+    expect(ids).toContain(fx.courseId);
+    expect(ids).toContain(fx.courseBId);
+    // Arrow: move B up one place and it must jump past whatever is above it.
+    const before = ids.indexOf(fx.courseBId);
+    if (before > 0) {
+      await cat.locator(`[data-ops-course-move="${fx.courseBId}"][data-dir="-1"]`).click();
+      await expect.poll(async () => (await idx()).indexOf(fx.courseBId)).toBe(before - 1);
+    }
+    // Drag: put B directly above A, then A directly above B.
+    const rowA = () => page.locator(`tr[data-ops-course-row="${fx.courseId}"]`);
+    const rowB = () => page.locator(`tr[data-ops-course-row="${fx.courseBId}"]`);
+    await rowB().dragTo(rowA());
+    await expect.poll(async () => { const i = await idx(); return i.indexOf(fx.courseBId) < i.indexOf(fx.courseId); }, { timeout: 10_000 }).toBeTruthy();
+    await rowA().dragTo(rowB());
+    await expect.poll(async () => { const i = await idx(); return i.indexOf(fx.courseId) < i.indexOf(fx.courseBId); }, { timeout: 10_000 }).toBeTruthy();
+    const finalOrder = await idx();
+    // Saved: a reload shows the same order.
+    await page.reload();
+    await expect(page.locator('#opsShell h2')).toHaveText('Training', { timeout: 20_000 });
+    cat = await openPanel(page, 'Course Catalog');
+    expect(await idx()).toEqual(finalOrder);
+  });
+
+  test('FIX-015: the Register has a course filter, fits inside its card, downloads evidence as a zip, and each record has a download button', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    await goToTab(page, 'Register');
+    await page.locator('#opsRegisterCourse').selectOption(fx.courseId);
+    const table = page.locator('.ops-register-table');
+    await expect(table).toBeVisible();
+    await expect(table).toContainText(fx.personName);
+    await expect(table).not.toContainText(fx.courseBName);
+    const fit = await page.locator('.ops-register-table').evaluate(t => { const card = t.closest('.ops-card'); const c = card.getBoundingClientRect(); const w = t.closest('.ops-table-wrap'); return { right: c.right, tableRight: t.getBoundingClientRect().right, wrapScroll: w.scrollWidth - w.clientWidth }; });
+    expect(fit.tableRight, 'the Register table should not run past the right edge of its card').toBeLessThanOrEqual(fit.right + 1);
+    expect(fit.wrapScroll, 'the Register table should fit without sideways scrolling on a desktop screen').toBeLessThanOrEqual(1);
+
+    await page.locator(`[data-ops-register-select="${fx.personId}"]`).first().check();
+    const dl = page.locator('[data-ops-download-register-evidence]');
+    await expect(dl).toContainText('1 selected');
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), dl.click()]);
+    expect(download.suggestedFilename()).toMatch(/^training-evidence-\d{4}-\d{2}-\d{2}\.zip$/);
+
+    await openPerson(page);
+    const s = await openSection(page);
+    await expect(s.locator(`[data-ops-download-record]`).first()).toBeVisible();
+  });
+
+  test('FIX-016: when a Completed record is refused for missing evidence only the evidence box is red', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    await openPerson(page);
+    let s = await openSection(page);
+    await s.getByRole('button', { name: '+ Add record', exact: true }).click();
+    await page.locator('#opsRecordProvider').fill('Tmp red-field check');
+    await page.getByRole('button', { name: 'Add record', exact: true }).click();
+    const card = (await openSection(page)).locator('[data-ops-record-card]', { hasText: 'Tmp red-field check' });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await card.locator('[data-ops-edit-record]').click();
+    await page.locator('#opsRecordStatus').selectOption('Completed');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(page.locator('#opsTrainingRecordForm .ops-field-error')).toHaveCount(1);
+    await expect(page.locator('#opsTrainingRecordForm .ops-field-invalid')).toHaveCount(1);
+    await expect(page.locator('#opsRecordEvidenceBlock')).toHaveClass(/ops-field-invalid/);
+    await expect(page.locator('#opsRecordProvider')).not.toHaveCSS('border-top-color', 'rgb(220, 38, 38)');
+    // Tidy up: cancel and delete the temporary record.
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    s = await openSection(page);
+    const tmp = s.locator('[data-ops-record-card]', { hasText: 'Tmp red-field check' });
+    await tmp.locator('[data-ops-delete-record]').click();
+    await expect(tmp).toHaveCount(0, { timeout: 15_000 });
+  });
+
+  test('FIX-017: Matrix rows are all the same height even with a very long name, and clicks keep the scroll position', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await page.setViewportSize({ width: 1400, height: 520 });
+    await signIn(page, config);
+    await openTraining(page);
+    await goToTab(page, 'Contractors');
+    await page.locator(`tr[data-ops-view-contractor="${fx.contractorId}"]`).click();
+    await page.getByRole('button', { name: '+ Add person', exact: true }).click();
+    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.contractorName} (Company)` });
+    await page.locator('#opsPersonFullName').fill(`${TAG} ` + 'W'.repeat(100));
+    await page.getByRole('button', { name: 'Add person', exact: true }).click();
+    await expect(page.locator('tr', { hasText: `${TAG} WWWW` })).toHaveCount(1, { timeout: 10_000 });
+
+    const m = await openPanel(page, 'Training Matrix');
+    const heights = await m.locator('.ops-matrix-table tr').evaluateAll(rows => rows.slice(1).map(r => Math.round(r.getBoundingClientRect().height)));
+    expect(heights.length).toBeGreaterThan(2);
+    expect(new Set(heights).size, `Matrix row heights should all match, got ${[...new Set(heights)].join(', ')}`).toBe(1);
+
+    // Scroll the Matrix and the page, click a cell, and nothing should jump.
+    await page.evaluate(() => { const w = document.querySelector('.ops-matrix-wrap'); w.scrollTop = Math.min(60, w.scrollHeight - w.clientHeight); window.scrollBy(0, 120); });
+    const before = await page.evaluate(() => ({ wrap: document.querySelector('.ops-matrix-wrap').scrollTop, win: window.scrollY }));
+    const cell = page.locator(`button[data-ops-matrix-cell][data-person="${fx.personId}"][data-course="${fx.courseBId}"]`);
+    const prev = await cell.getAttribute('data-state');
+    await cell.evaluate(el => el.click());
+    await expect(cell).not.toHaveAttribute('data-state', prev, { timeout: 15_000 });
+    const after = await page.evaluate(() => ({ wrap: document.querySelector('.ops-matrix-wrap').scrollTop, win: window.scrollY }));
+    expect(Math.abs(after.wrap - before.wrap), 'the Matrix should not scroll back to the top').toBeLessThan(3);
+    expect(Math.abs(after.win - before.win), 'the page should not scroll').toBeLessThan(3);
+    // put the cell back to off so the temporary course can be deleted tidily
+    for (let i = 0; i < 3 && (await cell.getAttribute('data-state')) !== 'off'; i++) { await cell.evaluate(el => el.click()); await page.waitForTimeout(900); }
+  });
+
+  test('FIX-018: sole trader contact is fixed as a worker, "Primary contact" wording, and the printed Register has a letterhead', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    await goToTab(page, 'Contractors');
+    await page.getByRole('button', { name: '+ Add contractor', exact: true }).click();
+    await page.locator('#opsContractorType').selectOption('sole_trader');
+    await expect(page.locator('.ops-admin-first h5')).toHaveText('Primary contact');
+    await expect(page.locator('#opsContractorAdminWorks')).toBeChecked();
+    await expect(page.locator('#opsContractorAdminWorks')).toBeDisabled();
+    await page.locator('#opsContractorType').selectOption('company');
+    await expect(page.locator('#opsContractorAdminWorks')).toBeEnabled();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    await goToTab(page, 'Register');
+    const popup = await withPopup(page, page.getByRole('button', { name: 'Generate printable register', exact: true }));
+    await expect(popup.locator('.lh-name')).toHaveText('Spray and Wash Solutions');
+    await expect(popup.locator('body')).toContainText('0800 881 123');
+    await expect.poll(() => popup.locator('img.lh-logo').evaluate(i => i.complete && i.naturalWidth > 0)).toBeTruthy();
+    await popup.close();
   });
 
   test.afterAll(async ({ browser }) => {
