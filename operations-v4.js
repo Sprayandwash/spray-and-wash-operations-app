@@ -2429,7 +2429,7 @@
     return { module: state.currentModule, view: state.currentView, personId: state.trainingViewPersonId || '', contractorId: state.viewingContractorId || '', courseId: state.trainingViewCourseId || '', returnView: state.trainingPersonReturnView || '', userId: state.user?.id || '' };
   }
   function opsNavRecord(){
-    if(opsRestoringNav || !state.navRestored || !OPS_NAV_MODULES.includes(state.currentModule)) return;
+    if(opsRestoringNav || (!state.navRestored && state.currentModule === 'home') || !OPS_NAV_MODULES.includes(state.currentModule)) return;
     const snap = opsNavSnapshot();
     try{ sessionStorage.setItem('opsNav', JSON.stringify(snap)); }catch(_e){}
     try{

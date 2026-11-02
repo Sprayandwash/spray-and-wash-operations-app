@@ -413,7 +413,7 @@ test.describe('Training module — full UI regression suite', () => {
     await page.locator('#opsRecordStatus').selectOption('Completed');
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
-    await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' })).toBeVisible({ timeout: 10_000 });
+    await expect(section.locator('.ops-pill.ops-ok', { hasText: 'In date' }).first()).toBeVisible({ timeout: 10_000 });
     // The fixture course has no validity period (TRAINING-SUITE-005 clears it), so "No expiry" is the correct expiry here.
     await expect(section.locator('.ops-record-current')).toContainText('No expiry');
   });
