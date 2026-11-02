@@ -297,20 +297,18 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await page.getByRole('button', { name: '+ Add contractor', exact: true }).click();
     await page.locator('#opsContractorName').fill(fx.soleName);
     await page.locator('#opsContractorType').selectOption('sole_trader');
-    await page.locator('#opsContractorContactEmail').fill('not-an-email');
+    await page.locator('#opsContractorAdminName').fill(`${TAG} Sole Person`);
+    await page.locator('#opsContractorAdminEmail').fill('not-an-email');
     await page.getByRole('button', { name: 'Add contractor', exact: true }).click();
     await expect(page.locator('#opsTrainingContractorForm .ops-field-error')).toContainText('valid email');
-    await page.locator('#opsContractorContactEmail').fill('sole@example.invalid');
+    await page.locator('#opsContractorAdminEmail').fill('sole@example.invalid');
     await page.getByRole('button', { name: 'Add contractor', exact: true }).click();
     const row = page.locator('tr', { has: page.getByText(fx.soleName, { exact: true }) });
     await expect(row).toHaveCount(1, { timeout: 10_000 });
     fx.soleId = await row.getAttribute('data-ops-view-contractor');
 
+    // The first administrator was saved as a real person: a sole trader's one person is also the worker.
     await row.click();
-    await page.getByRole('button', { name: '+ Add person', exact: true }).click();
-    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.soleName} (Sole trader)` });
-    await page.locator('#opsPersonFullName').fill(`${TAG} Sole Person`);
-    await page.getByRole('button', { name: 'Add person', exact: true }).click();
     await expect(page.locator('tr', { has: page.getByText(`${TAG} Sole Person`, { exact: true }) })).toHaveCount(1, { timeout: 10_000 });
     await expect(page.getByRole('button', { name: '+ Add person', exact: true })).toHaveCount(0);
 
@@ -380,6 +378,65 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   });
 
+  test('FIX-012: contractor administrators (who may not be workers) and fuller business details', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    await goToTab(page, 'Contractors');
+    await page.getByRole('button', { name: '+ Add contractor', exact: true }).click();
+    await page.locator('#opsContractorName').fill(fx.contractorName);
+    await page.locator('#opsContractorType').selectOption('company');
+    await page.locator('#opsContractorAdminName').fill(`${TAG} Office Admin`);
+    await page.locator('#opsContractorAdminPhone').fill('021 555 0199');
+    await page.locator('#opsContractorAdminWorks').uncheck();
+    await page.locator('.ops-business-details > summary').click();
+    await page.locator('#opsContractorLegalName').fill(`${TAG} Holdings Limited`);
+    await page.locator('#opsContractorNzbn').fill('123');
+    await page.getByRole('button', { name: 'Add contractor', exact: true }).click();
+    await expect(page.locator('#opsTrainingContractorForm .ops-field-error')).toContainText('13 digits');
+    await page.locator('#opsContractorNzbn').fill('9429000000000');
+    await page.getByRole('button', { name: 'Add contractor', exact: true }).click();
+    const row = page.locator('tr', { has: page.getByText(fx.contractorName, { exact: true }) });
+    await expect(row).toHaveCount(1, { timeout: 10_000 });
+    await expect(row).toContainText(`${TAG} Office Admin`);
+    fx.contractorId = await row.getAttribute('data-ops-view-contractor');
+
+    // Contractor page: business details summary, admin listed as a company administrator.
+    await row.click();
+    await expect(page.locator('.ops-detail-list')).toContainText(`${TAG} Holdings Limited`);
+    const adminRow = page.locator('tr', { has: page.getByText(`${TAG} Office Admin`, { exact: true }) });
+    await expect(adminRow).toContainText('Company administrator');
+    await expect(adminRow).toContainText('021 555 0199');
+
+    // Administrators who do not work on jobs are not in the Matrix.
+    const matrix = await openPanel(page, 'Training Matrix');
+    await expect(matrix.getByText(`${TAG} Office Admin`)).toHaveCount(0);
+
+    // A second administrator who also works on jobs, added from the contractor page, is in the Matrix.
+    await goToTab(page, 'Contractors');
+    await page.locator(`tr[data-ops-view-contractor="${fx.contractorId}"]`).click();
+    await page.getByRole('button', { name: '+ Add person', exact: true }).click();
+    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.contractorName} (Company)` });
+    await page.locator('#opsPersonFullName').fill(`${TAG} Working Admin`);
+    await page.locator('#opsPersonIsAdmin').check();
+    await page.getByRole('button', { name: 'Add person', exact: true }).click();
+    await expect(page.locator('tr', { has: page.getByText(`${TAG} Working Admin`, { exact: true }) })).toContainText('Administrator and worker', { timeout: 10_000 });
+    await expect(page.locator('tr', { has: page.getByText(`${TAG} Office Admin`, { exact: true }) })).toHaveCount(1);
+    const matrix2 = await openPanel(page, 'Training Matrix');
+    await expect(matrix2.getByText(`${TAG} Working Admin`).first()).toBeVisible();
+    await expect(matrix2.getByText(`${TAG} Office Admin`)).toHaveCount(0);
+
+    // A person must have at least one role.
+    await goToTab(page, 'Contractors');
+    await page.locator(`tr[data-ops-view-contractor="${fx.contractorId}"]`).click();
+    await page.getByRole('button', { name: '+ Add person', exact: true }).click();
+    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.contractorName} (Company)` });
+    await page.locator('#opsPersonFullName').fill(`${TAG} No Role`);
+    await page.locator('#opsPersonNeedsTraining').uncheck();
+    await page.getByRole('button', { name: 'Add person', exact: true }).click();
+    await expect(page.locator('#opsTrainingPersonForm .ops-field-error')).toContainText('no role');
+  });
+
   test.afterAll(async ({ browser }) => {
     const page = await browser.newPage();
     acceptDialogsAndCapture(page);
@@ -403,6 +460,17 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
           await page.locator(`[data-ops-open-person="${id}"]`).first().click();
           const cb = page.locator(`input[data-ops-toggle-training-person-active="${id}"]`);
           if (await cb.isChecked()) await cb.uncheck();
+        }
+      });
+      await safeCleanup('tagged people', async () => {
+        for (let round = 0; round < 8; round++) {
+          await goToTab(page, 'Team members');
+          const ids = await page.locator('tr[data-ops-open-person]').evaluateAll(els => els.filter(e => /E2E-UI-SUITE-TRAINFIX-/.test(e.textContent)).map(e => e.getAttribute('data-ops-open-person')));
+          if (!ids.length) break;
+          await page.locator(`[data-ops-open-person="${ids[0]}"]`).first().click();
+          const cb = page.locator(`input[data-ops-toggle-training-person-active="${ids[0]}"]`);
+          if (await cb.isChecked()) await cb.uncheck();
+          await page.waitForTimeout(800);
         }
       });
       await safeCleanup('contractors', async () => {

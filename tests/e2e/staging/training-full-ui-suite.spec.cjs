@@ -194,7 +194,6 @@ test.describe('Training module — full UI regression suite', () => {
     await page.getByRole('button', { name: '+ Add contractor', exact: true }).click();
     await page.locator('#opsContractorName').fill(fixture.contractorName);
     await page.locator('#opsContractorType').selectOption('company');
-    await page.locator('#opsContractorContactEmail').fill('e2e-ui-suite@example.invalid');
     await page.getByRole('button', { name: 'Add contractor', exact: true }).click();
 
     const row = page.locator('tr', { has: page.getByText(fixture.contractorName, { exact: true }) });
@@ -215,7 +214,7 @@ test.describe('Training module — full UI regression suite', () => {
     await expect(page.locator('h3', { hasText: fixture.contractorName })).toBeVisible();
 
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.locator('#opsContractorContactPhone').fill('021 555 0100');
+    await page.locator('#opsContractorMainPhone').fill('021 555 0100');
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 
     await goToTab(page, 'Contractors');

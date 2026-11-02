@@ -623,6 +623,13 @@
       .ops-archived-list > summary { cursor:pointer; padding:.5rem 0; }
       .ops-archived-list > summary h4 { display:inline; margin:0; }
       .ops-archived-body { margin-top:.5rem; }
+      .ops-admin-first { border:1px solid #e2e8f0; border-radius:.9rem; padding:.9rem 1rem; background:#fff; }
+      .ops-admin-first h5, .ops-business-details > summary { margin:0 0 .3rem; font-weight:800; cursor:pointer; }
+      .ops-business-details { border:1px solid #e2e8f0; border-radius:.9rem; padding:.7rem 1rem; background:#fff; }
+      .ops-business-details[open] > summary { margin-bottom:.8rem; }
+      .ops-detail-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:.6rem 1.25rem; margin:1rem 0; }
+      .ops-detail-list dt { font-size:.8rem; font-weight:700; color:#64748b; }
+      .ops-detail-list dd { margin:0; overflow-wrap:anywhere; }
     `;
     const style = document.createElement('style');
     style.id = 'operationsV4Styles';
@@ -1259,7 +1266,7 @@
   }
 
   function contractorTrainingStatus(contractorId){
-    const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractorId) && p.active !== false);
+    const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractorId) && p.active !== false && p.needs_training !== false);
     const courses = state.trainingCourses.filter(c => c.active !== false);
     const items = [];
     people.forEach(p => {
@@ -1315,7 +1322,7 @@
     const trainingType = filters?.trainingType || 'all';
     const statusFilter = filters?.status || 'all';
     const wantPillClass = TRAINING_STATUS_PILL_CLASS[statusFilter] || null;
-    const people = state.trainingPeople.filter(p => p.active !== false)
+    const people = state.trainingPeople.filter(p => p.active !== false && p.needs_training !== false)
       .filter(p => personType === 'all' || (personType === 'employee' ? p.person_type === 'employee' : p.person_type !== 'employee'))
       .slice().sort((a,b) => {
         const rank = t => t === 'employee' ? 0 : 1;
@@ -1490,7 +1497,7 @@
   }
 
   function trainingMatrixHtml(){
-    const people = state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
+    const people = state.trainingPeople.filter(p => p.active !== false && p.needs_training !== false).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
     const allCourses = trainingSortCourses(state.trainingCourses.filter(c => c.active !== false));
     if(!people.length) return `<p class="ops-subtle">No people to show yet. Employee accounts sync in automatically; add subcontractor or sole trader people on the Contractors tab.</p>`;
     if(!allCourses.length) return `<p class="ops-subtle">Add an active course to the Course Catalog first.</p>`;
@@ -1650,7 +1657,7 @@
     const backLabel = returnView === 'training-contractor-people' ? '← Back to Contractor' : '← Back to Team members';
     if(!person) return `<div class="ops-card"><h3>Person not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('${returnView}')">${backLabel}</button></div>`;
     const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
-    const personTypeLabel = person.person_type === 'employee' ? 'Employee' : person.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
+    const personTypeLabel = trainingPersonTypeLabel(person);
     const canEdit = person.person_type !== 'employee';
     const editing = canEdit && state.trainingPersonFormOpen && String(state.editingTrainingPersonId) === String(person.id);
     const applicableCourseIds = state.trainingMatrix.filter(m => String(m.person_id) === String(person.id) && m.applicable).map(m => String(m.course_id));
@@ -2034,6 +2041,17 @@
     }
   }
 
+  function trainingPersonTypeLabel(p){
+    if(p.person_type === 'employee') return 'Employee';
+    if(p.person_type === 'sole_trader') return 'Sole trader';
+    if(p.is_company_admin && p.needs_training === false) return 'Company administrator';
+    return p.is_company_admin ? 'Administrator and worker' : 'Subcontractor worker';
+  }
+
+  function trainingContractorAdmins(contractorId){
+    return state.trainingPeople.filter(p => String(p.contractor_id) === String(contractorId) && p.is_company_admin && p.active !== false);
+  }
+
   function trainingContractorFormHtml(){
     const editing = state.trainingContractors.find(c => String(c.id) === String(state.editingContractorId));
     return `<form id="opsTrainingContractorForm" class="ops-form ops-form-panel ${editing ? '' : 'ops-form-adding'}" novalidate data-contractor-id="${editing ? editing.id : ''}">
@@ -2043,23 +2061,53 @@
         <option value="sole_trader" ${(!editing || editing.contractor_type==='sole_trader') ? 'selected' : ''}>Sole trader</option>
         <option value="company" ${editing?.contractor_type==='company' ? 'selected' : ''}>Company</option>
       </select></label>
-      <label>Contact name<input id="opsContractorContactName" maxlength="150" value="${esc(editing?.contact_name || '')}"></label>
-      <label>Contact phone<input id="opsContractorContactPhone" maxlength="40" value="${esc(editing?.contact_phone || '')}"></label>
-      <label>Contact email<input id="opsContractorContactEmail" type="email" maxlength="200" value="${esc(editing?.contact_email || '')}"></label>
+      ${editing ? '' : `<div class="ops-span-2 ops-admin-first">
+        <h5>First administrator</h5>
+        <p class="ops-subtle">The main contact for this contractor. They administer the company's details and can be added to jobs by Spray and Wash, but they only need training records if they also work on jobs. More administrators can be added later from the contractor's page.</p>
+        <div class="ops-form">
+          <label>Name<input id="opsContractorAdminName" maxlength="150"></label>
+          <label>Phone<input id="opsContractorAdminPhone" maxlength="40"></label>
+          <label>Email<input id="opsContractorAdminEmail" type="email" maxlength="200"></label>
+          <label class="ops-check" id="opsContractorAdminWorksWrap"><input id="opsContractorAdminWorks" type="checkbox" checked> This person also works on jobs (needs training records)</label>
+        </div>
+      </div>`}
+      <details class="ops-span-2 ops-business-details" data-ops-keep-open="contractor-business" ${editing ? 'open' : ''}>
+        <summary>Business details</summary>
+        <div class="ops-form">
+          <label>Legal name<input id="opsContractorLegalName" maxlength="150" value="${esc(editing?.legal_name || '')}"></label>
+          <label>NZBN<input id="opsContractorNzbn" maxlength="13" inputmode="numeric" placeholder="13 digits" value="${esc(editing?.nzbn || '')}"></label>
+          <label>GST registered<select id="opsContractorGstRegistered"><option value="" ${editing?.gst_registered == null ? 'selected' : ''}>Not recorded</option><option value="yes" ${editing?.gst_registered === true ? 'selected' : ''}>Yes</option><option value="no" ${editing?.gst_registered === false ? 'selected' : ''}>No</option></select></label>
+          <label>GST number<input id="opsContractorGstNumber" maxlength="20" value="${esc(editing?.gst_number || '')}"></label>
+          <label>Trade or service<input id="opsContractorTradeType" maxlength="100" placeholder="e.g. Painter, Scaffolder" value="${esc(editing?.trade_type || '')}"></label>
+          <label>Relationship<select id="opsContractorRelationship"><option value="">Not recorded</option>${['Subcontractor','Supplier','Client','Other'].map(o => `<option value="${o}" ${editing?.relationship_type === o ? 'selected' : ''}>${o}</option>`).join('')}</select></label>
+          <label>Main phone<input id="opsContractorMainPhone" maxlength="40" value="${esc(editing?.main_phone || '')}"></label>
+          <label>General email<input id="opsContractorGeneralEmail" type="email" maxlength="200" value="${esc(editing?.general_email || '')}"></label>
+          <label>Accounts email<input id="opsContractorAccountsEmail" type="email" maxlength="200" value="${esc(editing?.accounts_email || '')}"></label>
+          <label>Website<input id="opsContractorWebsite" maxlength="200" placeholder="www.example.co.nz" value="${esc(editing?.website || '')}"></label>
+          <label>Physical address<input id="opsContractorPhysicalAddress" maxlength="300" value="${esc(editing?.physical_address || '')}"></label>
+          <label>Postal address<input id="opsContractorPostalAddress" maxlength="300" value="${esc(editing?.postal_address || '')}"></label>
+          <label>Regions covered<input id="opsContractorRegions" maxlength="200" placeholder="e.g. Auckland, Waikato" value="${esc(editing?.regions || '')}"></label>
+          <label>Insurance provider<input id="opsContractorInsuranceProvider" maxlength="150" value="${esc(editing?.insurance_provider || '')}"></label>
+          <label>Insurance policy number<input id="opsContractorInsurancePolicy" maxlength="60" value="${esc(editing?.insurance_policy_number || '')}"></label>
+          <label>Insurance expiry<input id="opsContractorInsuranceExpiry" type="date" min="2000-01-01" value="${esc(editing?.insurance_expiry || '')}"></label>
+          <label class="ops-span-2">Pre-qualification (e.g. Site Safe, SiteWise)<input id="opsContractorPrequal" maxlength="200" value="${esc(editing?.prequalification || '')}"></label>
+          <label class="ops-span-2">Notes<textarea id="opsContractorNotes" rows="3" maxlength="2000">${esc(editing?.notes || '')}</textarea></label>
+        </div>
+      </details>
       <label class="ops-check ops-toggle-pill"><input id="opsContractorActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add contractor'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingContractorEditor">Cancel</button></div>
     </form>`;
   }
 
   function trainingContractorRowHtml(c){
-    return `<tr class="ops-row-link" data-ops-view-contractor="${c.id}" tabindex="0" role="button" aria-label="Open ${esc(c.company_name)}"><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(c.contact_name || '—')}</td><td>${esc(c.contact_phone || '')}${c.contact_phone && c.contact_email ? ' · ' : ''}${esc(c.contact_email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td><label class="ops-check ops-toggle-pill" data-ops-stop-row><input type="checkbox" data-ops-toggle-contractor-active="${c.id}" ${c.active ? 'checked' : ''}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label></td></tr>`;
+    return `<tr class="ops-row-link" data-ops-view-contractor="${c.id}" tabindex="0" role="button" aria-label="Open ${esc(c.company_name)}"><td><strong>${esc(c.company_name)}</strong></td><td>${c.contractor_type==='sole_trader' ? 'Sole trader' : 'Company'}</td><td>${esc(trainingContractorAdmins(c.id).map(a => a.full_name).join(', ') || '—')}</td><td>${esc(c.main_phone || trainingContractorAdmins(c.id).find(a => a.phone)?.phone || '')}${(c.main_phone || trainingContractorAdmins(c.id).find(a => a.phone)) && (c.general_email || trainingContractorAdmins(c.id).find(a => a.email)) ? ' · ' : ''}${esc(c.general_email || trainingContractorAdmins(c.id).find(a => a.email)?.email || '')}</td><td>${contractorTrainingSignalHtml(c.id)}</td><td><label class="ops-check ops-toggle-pill" data-ops-stop-row><input type="checkbox" data-ops-toggle-contractor-active="${c.id}" ${c.active ? 'checked' : ''}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label></td></tr>`;
   }
 
   function trainingContractorsHtml(){
     const contractors = state.trainingContractors.slice().sort((a,b) => String(a.company_name).localeCompare(String(b.company_name)));
     const active = contractors.filter(c => c.active !== false);
     const archived = contractors.filter(c => c.active === false);
-    const head = '<tr><th>Company</th><th>Type</th><th>Contact</th><th>Phone / Email</th><th>Training</th><th>Status</th></tr>';
+    const head = '<tr><th>Company</th><th>Type</th><th>Administrator(s)</th><th>Phone / Email</th><th>Training</th><th>Status</th></tr>';
     const rows = active.map(trainingContractorRowHtml).join('') || '<tr><td colspan="6" class="ops-subtle">No contractors yet.</td></tr>';
     return `<div class="ops-card"><div class="ops-section-title"><h3>Contractors</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingContractorEditor">+ Add contractor</button></div>
       ${state.trainingContractorFormOpen && !state.editingContractorId ? trainingContractorFormHtml() : ''}
@@ -2079,13 +2127,27 @@
     showOperations('training-contractor-people');
   }
 
+  function trainingContractorSummaryHtml(c){
+    const rows = [
+      ['Legal name', c.legal_name], ['NZBN', c.nzbn],
+      ['GST', c.gst_registered == null ? '' : (c.gst_registered ? 'Registered' + (c.gst_number ? ' · ' + c.gst_number : '') : 'Not registered')],
+      ['Trade or service', c.trade_type], ['Relationship', c.relationship_type],
+      ['Main phone', c.main_phone], ['General email', c.general_email], ['Accounts email', c.accounts_email], ['Website', c.website],
+      ['Physical address', c.physical_address], ['Postal address', c.postal_address], ['Regions', c.regions],
+      ['Insurance', [c.insurance_provider, c.insurance_policy_number, c.insurance_expiry ? 'expires ' + c.insurance_expiry : ''].filter(Boolean).join(' · ')],
+      ['Pre-qualification', c.prequalification], ['Notes', c.notes]
+    ].filter(r => r[1]);
+    if(!rows.length) return '<p class="ops-subtle">No business details recorded yet. Use Edit to add them.</p>';
+    return `<dl class="ops-detail-list">${rows.map(r => `<div><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join('')}</dl>`;
+  }
+
   function trainingContractorPeopleHtml(){
     const contractor = state.trainingContractors.find(c => String(c.id) === String(state.viewingContractorId));
     if(!contractor) return `<div class="ops-card"><h3>Contractor not found</h3><button class="ops-btn ghost" type="button" onclick="showOperations('training-contractors')">← Back to Contractors</button></div>`;
     const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractor.id)).slice().sort((a,b) => String(a.full_name).localeCompare(String(b.full_name)));
     const typeLabel = contractor.contractor_type === 'sole_trader' ? 'Sole trader' : 'Company';
     const editingContractor = state.trainingContractorFormOpen && String(state.editingContractorId) === String(contractor.id);
-    const rows = people.map(p => `<tr class="ops-row-link" data-ops-open-person="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.full_name)}"><td><strong>${esc(p.full_name)}</strong></td><td>${p.active ? 'Active' : 'Archived'}</td></tr>`).join('') || `<tr><td colspan="2" class="ops-subtle">No people added for this contractor yet.</td></tr>`;
+    const rows = people.map(p => `<tr class="ops-row-link" data-ops-open-person="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.full_name)}"><td><strong>${esc(p.full_name)}</strong></td><td>${trainingPersonTypeLabel(p)}</td><td>${esc(p.phone || '')}${p.phone && p.email ? ' · ' : ''}${esc(p.email || '')}</td><td>${p.active ? 'Active' : 'Archived'}</td></tr>`).join('') || `<tr><td colspan="4" class="ops-subtle">No people added for this contractor yet.</td></tr>`;
     const showFormAtTop = state.trainingPersonFormOpen && !state.editingTrainingPersonId;
     return `<div class="ops-card">
       <button class="ops-btn ghost" type="button" onclick="showOperations('training-contractors')">← Back to Contractors</button>
@@ -2095,10 +2157,10 @@
           ${contractor.contractor_type === 'sole_trader' && people.length >= 1 ? '' : `<button class="ops-btn primary" type="button" data-ops-add-person-for-contractor="${contractor.id}">+ Add person</button>`}
         </div>
       </div>
-      ${editingContractor ? trainingContractorFormHtml() : ''}
-      <p class="ops-subtle">People linked to ${esc(contractor.company_name)} only, so this contractor's own training records and evidence stay scoped to just their people.${contractor.contractor_type === 'sole_trader' ? ' A sole trader has one person, who is both the contact and the worker.' : ''}</p>
+      ${editingContractor ? trainingContractorFormHtml() : trainingContractorSummaryHtml(contractor)}
+      <p class="ops-subtle">People linked to ${esc(contractor.company_name)} only, so this contractor's own training records and evidence stay scoped to just their people.${contractor.contractor_type === 'sole_trader' ? ' A sole trader has one person, who is both the administrator and the worker.' : ' Administrators run the company\'s details and are the contacts for Spray and Wash. They only appear in the Matrix and Register if they also work on jobs.'}</p>
       ${showFormAtTop ? trainingPersonFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Status</th></tr>${rows}</table></div>
+      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Role</th><th>Phone / Email</th><th>Status</th></tr>${rows}</table></div>
     </div>`;
   }
 
@@ -2114,6 +2176,10 @@
         ${contractorOptions}
       </select></label>
       <label>Full name *<input id="opsPersonFullName" required maxlength="150" value="${esc(editing?.full_name || '')}"></label>
+      <label>Phone<input id="opsPersonPhone" maxlength="40" value="${esc(editing?.phone || '')}"></label>
+      <label>Email<input id="opsPersonEmail" type="email" maxlength="200" value="${esc(editing?.email || '')}"></label>
+      <label class="ops-check ops-span-2"><input id="opsPersonIsAdmin" type="checkbox" ${editing?.is_company_admin ? 'checked' : ''}> Company administrator (contact for the company's details)</label>
+      <label class="ops-check ops-span-2"><input id="opsPersonNeedsTraining" type="checkbox" ${(!editing || editing.needs_training !== false) ? 'checked' : ''}> Works on jobs, so needs training records</label>
       <label class="ops-check ops-toggle-pill"><input id="opsPersonActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>
       <p class="ops-span-2 ops-subtle">Person type (sole trader or subcontractor worker) is set automatically from the contractor's type above. Add the contractor first if it isn't listed.</p>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit" ${contractors.length ? '' : 'disabled'}>${editing ? 'Save changes' : 'Add person'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingPersonEditor">Cancel</button></div>
@@ -2129,7 +2195,7 @@
     });
     const rowHtml = p => {
       const contractor = state.trainingContractors.find(c => String(c.id) === String(p.contractor_id));
-      const typeLabel = p.person_type === 'employee' ? 'Employee' : p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor worker';
+      const typeLabel = trainingPersonTypeLabel(p);
       const competencyLabel = trainingCompetencyLabel(p.competency_level);
       return `<tr class="ops-row-link" data-ops-open-person="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.full_name)}"><td><strong>${esc(p.full_name)}</strong></td><td>${typeLabel}</td><td>${esc(contractor?.company_name || '—')}</td><td>${competencyLabel ? `${p.competency_level}. ${esc(competencyLabel)}` : '—'}</td></tr>`;
     };
@@ -2168,11 +2234,23 @@
       const others = state.trainingPeople.filter(p => String(p.contractor_id) === String(contractor.id) && String(p.id) !== String(id));
       if(others.length) flag(contractorEl, `"${contractor.company_name}" is a sole trader, so it can only have one person (${others[0].full_name}). Change the contractor's type to Company if it has workers.`);
     }
+    const personPhone = byId('opsPersonPhone').value.trim();
+    const personEmail = byId('opsPersonEmail').value.trim();
+    if(personEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personEmail)) flag(byId('opsPersonEmail'), 'Enter a valid email address, for example name@company.co.nz.');
+    if(personPhone && !/^[0-9+()\-\s.]{6,40}$/.test(personPhone)) flag(byId('opsPersonPhone'), 'Enter a valid phone number using digits, spaces, + ( ) or -.');
+    const isAdmin = byId('opsPersonIsAdmin').checked;
+    let needsTraining = byId('opsPersonNeedsTraining').checked;
+    if(contractor && contractor.contractor_type === 'sole_trader'){ needsTraining = true; }
+    else if(!isAdmin && !needsTraining) flag(byId('opsPersonNeedsTraining'), 'Tick "Company administrator" or "Works on jobs", otherwise this person has no role.');
     if(problems){ opsFocusFirstError(form); return; }
     const row = {
       person_type: contractor.contractor_type === 'sole_trader' ? 'sole_trader' : 'subcontractor_worker',
       contractor_id: contractor.id,
       full_name: fullName,
+      phone: personPhone || null,
+      email: personEmail || null,
+      is_company_admin: isAdmin,
+      needs_training: needsTraining,
       active: byId('opsPersonActive').checked
     };
     const submit = form.querySelector('button[type="submit"]');
@@ -2226,8 +2304,6 @@
     opsClearFormErrors(form);
     const id = form.dataset.contractorId;
     const nameEl = byId('opsContractorName');
-    const emailEl = byId('opsContractorContactEmail');
-    const phoneEl = byId('opsContractorContactPhone');
     const typeEl = byId('opsContractorType');
     const name = nameEl.value.trim().replace(/\s+/g, ' ');
     let problems = 0;
@@ -2238,10 +2314,25 @@
       const clash = state.trainingContractors.find(c => String(c.id) !== String(id) && trainingNameKey(c.company_name) === trainingNameKey(name));
       if(clash) flag(nameEl, `A contractor called "${clash.company_name}" already exists${clash.active === false ? ' (archived). Open it from the Archived contractors list instead.' : '.'}`);
     }
-    const email = emailEl.value.trim();
-    if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) flag(emailEl, 'Enter a valid email address, for example name@company.co.nz.');
-    const phone = phoneEl.value.trim();
-    if(phone && !/^[0-9+()\-\s.]{6,40}$/.test(phone)) flag(phoneEl, 'Enter a valid phone number using digits, spaces, + ( ) or -.');
+    const val = elId => (byId(elId)?.value || '').trim();
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRe = /^[0-9+()\-\s.]{6,40}$/;
+    const checkEmail = (elId, label) => { const v = val(elId); if(v && !emailRe.test(v)){ opsKeepOpenBusiness(); flag(byId(elId), `Enter a valid ${label} address, for example name@company.co.nz.`); } return v; };
+    const checkPhone = (elId) => { const v = val(elId); if(v && !phoneRe.test(v)){ opsKeepOpenBusiness(); flag(byId(elId), 'Enter a valid phone number using digits, spaces, + ( ) or -.'); } return v; };
+    const opsKeepOpenBusiness = () => { const d = form.querySelector('.ops-business-details'); if(d) d.open = true; };
+    const generalEmail = checkEmail('opsContractorGeneralEmail', 'email');
+    const accountsEmail = checkEmail('opsContractorAccountsEmail', 'email');
+    const mainPhone = checkPhone('opsContractorMainPhone');
+    const nzbn = val('opsContractorNzbn').replace(/\s+/g, '');
+    if(nzbn && !/^\d{13}$/.test(nzbn)){ opsKeepOpenBusiness(); flag(byId('opsContractorNzbn'), 'An NZBN has 13 digits.'); }
+    const insExpiry = val('opsContractorInsuranceExpiry');
+    if(insExpiry && insExpiry < '2000-01-01'){ opsKeepOpenBusiness(); flag(byId('opsContractorInsuranceExpiry'), 'Enter a realistic insurance expiry date.'); }
+    const adminName = val('opsContractorAdminName').replace(/\s+/g, ' ');
+    const adminEmail = byId('opsContractorAdminEmail') ? checkAdminEmail() : '';
+    const adminPhone = byId('opsContractorAdminPhone') ? checkAdminPhone() : '';
+    function checkAdminEmail(){ const v = val('opsContractorAdminEmail'); if(v && !emailRe.test(v)) flag(byId('opsContractorAdminEmail'), 'Enter a valid email address, for example name@company.co.nz.'); return v; }
+    function checkAdminPhone(){ const v = val('opsContractorAdminPhone'); if(v && !phoneRe.test(v)) flag(byId('opsContractorAdminPhone'), 'Enter a valid phone number using digits, spaces, + ( ) or -.'); return v; }
+    if(!id && (adminEmail || adminPhone) && !adminName) flag(byId('opsContractorAdminName'), 'Enter the administrator\'s name, or clear their phone and email.');
     if(id && typeEl.value === 'sole_trader'){
       const people = state.trainingPeople.filter(p => String(p.contractor_id) === String(id));
       if(people.length > 1) flag(typeEl, `This contractor has ${people.length} people, so it cannot be a sole trader. Keep it as a Company, or archive the extra people first.`);
@@ -2250,18 +2341,46 @@
     const row = {
       company_name: name,
       contractor_type: typeEl.value,
-      contact_name: byId('opsContractorContactName').value.trim() || null,
-      contact_phone: phone || null,
-      contact_email: email || null,
+      legal_name: val('opsContractorLegalName') || null,
+      nzbn: nzbn || null,
+      gst_registered: val('opsContractorGstRegistered') === '' ? null : val('opsContractorGstRegistered') === 'yes',
+      gst_number: val('opsContractorGstNumber') || null,
+      trade_type: val('opsContractorTradeType') || null,
+      relationship_type: val('opsContractorRelationship') || null,
+      website: val('opsContractorWebsite') || null,
+      main_phone: mainPhone || null,
+      general_email: generalEmail || null,
+      accounts_email: accountsEmail || null,
+      physical_address: val('opsContractorPhysicalAddress') || null,
+      postal_address: val('opsContractorPostalAddress') || null,
+      regions: val('opsContractorRegions') || null,
+      insurance_provider: val('opsContractorInsuranceProvider') || null,
+      insurance_policy_number: val('opsContractorInsurancePolicy') || null,
+      insurance_expiry: insExpiry || null,
+      prequalification: val('opsContractorPrequal') || null,
+      notes: val('opsContractorNotes') || null,
       active: byId('opsContractorActive').checked
     };
     const submit = form.querySelector('button[type="submit"]');
     state.savingTrainingContractor = true;
     if(submit) submit.disabled = true;
     try{
-      const r = id
-        ? await state.sb.from('operations_contractors').update(row).eq('id', id)
-        : await state.sb.from('operations_contractors').insert({...row, created_by: state.user.id});
+      let r;
+      if(id){
+        r = await state.sb.from('operations_contractors').update(row).eq('id', id);
+      } else {
+        r = await state.sb.from('operations_contractors').insert({...row, created_by: state.user.id}).select('id').single();
+        if(!r.error && adminName){
+          const isSole = typeEl.value === 'sole_trader';
+          const works = isSole || byId('opsContractorAdminWorks').checked;
+          const pr = await state.sb.from('operations_training_people').insert({
+            person_type: isSole ? 'sole_trader' : 'subcontractor_worker',
+            contractor_id: r.data.id, full_name: adminName, phone: adminPhone || null, email: adminEmail || null,
+            is_company_admin: true, needs_training: works, active: row.active, created_by: state.user.id
+          });
+          if(pr.error){ await loadTrainingData(true); return opsFormError(form, 'The contractor was saved, but the administrator could not be added: ' + pr.error.message + ' Open the contractor and use + Add person.'); }
+        }
+      }
       if(r.error) return opsFormError(form, 'Could not save the contractor: ' + r.error.message);
       state.trainingContractorFormOpen = false;
       state.editingContractorId = '';
