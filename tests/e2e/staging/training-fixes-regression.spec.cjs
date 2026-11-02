@@ -495,7 +495,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     expect(ids).toContain(fx.courseId);
     expect(ids).toContain(fx.courseBId);
     await expect(page.locator('[data-ops-course-move]')).toHaveCount(0);
-    const gripW = await page.locator('th.ops-grip-cell').evaluate(e => e.getBoundingClientRect().width);
+    const gripW = await page.locator('th.ops-grip-cell').first().evaluate(e => e.getBoundingClientRect().width);
     expect(gripW, 'grip column should be narrow').toBeLessThanOrEqual(50);
     // Drag: put B directly above A, then A directly above B.
     const rowA = () => page.locator(`tr[data-ops-course-row="${fx.courseId}"]`);
