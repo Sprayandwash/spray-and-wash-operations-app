@@ -226,7 +226,7 @@ test.describe('Training module — full UI regression suite', () => {
   test('TRAINING-SUITE-009: archiving then reinstating a contractor moves it between the main list and the Archived contractors list', async ({ page }) => {
     acceptDialogsAndCapture(page);
     await signIn(page, config);
-    await openTraining(page);
+    await openTrainingModule(page);
     await goToTab(page, 'Contractors');
     let row = page.locator(`tr[data-ops-view-contractor="${fixture.contractorId}"]`);
     await row.locator('label.ops-toggle-pill').click();

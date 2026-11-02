@@ -44,7 +44,7 @@ async function openPerson(page) {
 const section = page => page.locator(`details[data-ops-course-id="${fx.courseId}"]`);
 async function openSection(page) {
   const s = section(page);
-  if (!(await s.evaluate(el => el.open))) await s.locator('summary').click();
+  if (!(await s.evaluate(el => el.open))) await s.locator('summary').first().click();
   return s;
 }
 async function addCourseViaUi(page, name, validity) {
