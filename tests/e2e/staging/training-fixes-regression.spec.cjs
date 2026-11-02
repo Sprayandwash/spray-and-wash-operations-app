@@ -440,7 +440,9 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
   });
 
   test.afterAll(async ({ browser }) => {
+    test.setTimeout(180_000);
     const page = await browser.newPage();
+    page.setDefaultTimeout(15_000);
     acceptDialogsAndCapture(page);
     try {
       await signIn(page, config);
@@ -467,7 +469,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
       await safeCleanup('tagged people', async () => {
         for (let round = 0; round < 8; round++) {
           await goToTab(page, 'Team members');
-          const ids = await page.locator('tr[data-ops-open-person]').evaluateAll(els => els.filter(e => /E2E-UI-SUITE-TRAINFIX-/.test(e.textContent)).map(e => e.getAttribute('data-ops-open-person')));
+          const ids = await page.locator('tr[data-ops-open-person]').evaluateAll(els => els.filter(e => /E2E-UI-SUITE-TRAINFIX-/.test(e.textContent) && !e.closest('details')).map(e => e.getAttribute('data-ops-open-person')));
           if (!ids.length) break;
           await page.locator(`[data-ops-open-person="${ids[0]}"]`).first().click();
           const cb = page.locator(`input[data-ops-toggle-training-person-active="${ids[0]}"]`);
