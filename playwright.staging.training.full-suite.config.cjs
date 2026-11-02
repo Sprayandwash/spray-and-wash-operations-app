@@ -12,7 +12,7 @@ const staging = getStagingTrainingConfig();
 
 module.exports = defineConfig({
   testDir: './tests/e2e/staging',
-  testMatch: '**/training-full-ui-suite.spec.cjs',
+  testMatch: ['**/training-full-ui-suite.spec.cjs', '**/training-fixes-regression.spec.cjs'],
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
