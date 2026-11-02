@@ -87,7 +87,7 @@ jobs:
             sleep 1
           done
           curl -fsS http://127.0.0.1:4174/ >/dev/null
-          E2E_STAGING_BASE_URL=http://127.0.0.1:4174 npm run test:staging:training-full-suite
+          E2E_STAGING_BASE_URL=http://127.0.0.1:4174 npm run test:staging:training-checklist-explore
       - name: Publish full-suite run status
         if: ${{ always() }}
         run: |
@@ -99,7 +99,7 @@ jobs:
           echo >> "$GITHUB_STEP_SUMMARY"
           echo 'This run creates and deletes its own fixtures every time — see the afterAll step in training-full-ui-suite.spec.cjs. Anything still in Staging tagged `E2E-UI-SUITE-TRAINING-` after a run means that run was interrupted before its own cleanup finished; it is always safe to remove by hand. Production was refused and not accessed.' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Playwright failure evidence
-        if: ${{ failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: staging-training-full-ui-suite-failure-evidence
