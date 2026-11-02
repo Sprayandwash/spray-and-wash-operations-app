@@ -14,6 +14,8 @@ const TAG = buildFixtureTag('trainfix');
 const fx = {
   contractorName: `${TAG} Co`,
   soleName: `${TAG} Sole`,
+  adminCoName: `${TAG} Admin Co`,
+  adminCoId: null,
   personName: `${TAG} Worker`,
   courseName: `${TAG} Course`,
   contractorId: null, soleId: null, personId: null, courseId: null,
@@ -384,7 +386,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await openTraining(page);
     await goToTab(page, 'Contractors');
     await page.getByRole('button', { name: '+ Add contractor', exact: true }).click();
-    await page.locator('#opsContractorName').fill(fx.contractorName);
+    await page.locator('#opsContractorName').fill(fx.adminCoName);
     await page.locator('#opsContractorType').selectOption('company');
     await page.locator('#opsContractorAdminName').fill(`${TAG} Office Admin`);
     await page.locator('#opsContractorAdminPhone').fill('021 555 0199');
@@ -396,10 +398,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await expect(page.locator('#opsTrainingContractorForm .ops-field-error')).toContainText('13 digits');
     await page.locator('#opsContractorNzbn').fill('9429000000000');
     await page.getByRole('button', { name: 'Add contractor', exact: true }).click();
-    const row = page.locator('tr', { has: page.getByText(fx.contractorName, { exact: true }) });
+    const row = page.locator('tr', { has: page.getByText(fx.adminCoName, { exact: true }) });
     await expect(row).toHaveCount(1, { timeout: 10_000 });
     await expect(row).toContainText(`${TAG} Office Admin`);
-    fx.contractorId = await row.getAttribute('data-ops-view-contractor');
+    fx.adminCoId = await row.getAttribute('data-ops-view-contractor');
 
     // Contractor page: business details summary, admin listed as a company administrator.
     await row.click();
@@ -414,9 +416,9 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
 
     // A second administrator who also works on jobs, added from the contractor page, is in the Matrix.
     await goToTab(page, 'Contractors');
-    await page.locator(`tr[data-ops-view-contractor="${fx.contractorId}"]`).click();
+    await page.locator(`tr[data-ops-view-contractor="${fx.adminCoId}"]`).click();
     await page.getByRole('button', { name: '+ Add person', exact: true }).click();
-    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.contractorName} (Company)` });
+    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.adminCoName} (Company)` });
     await page.locator('#opsPersonFullName').fill(`${TAG} Working Admin`);
     await page.locator('#opsPersonIsAdmin').check();
     await page.getByRole('button', { name: 'Add person', exact: true }).click();
@@ -428,9 +430,9 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
 
     // A person must have at least one role.
     await goToTab(page, 'Contractors');
-    await page.locator(`tr[data-ops-view-contractor="${fx.contractorId}"]`).click();
+    await page.locator(`tr[data-ops-view-contractor="${fx.adminCoId}"]`).click();
     await page.getByRole('button', { name: '+ Add person', exact: true }).click();
-    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.contractorName} (Company)` });
+    await page.locator('#opsPersonContractorId').selectOption({ label: `${fx.adminCoName} (Company)` });
     await page.locator('#opsPersonFullName').fill(`${TAG} No Role`);
     await page.locator('#opsPersonNeedsTraining').uncheck();
     await page.getByRole('button', { name: 'Add person', exact: true }).click();
