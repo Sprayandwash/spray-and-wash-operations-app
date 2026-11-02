@@ -34,7 +34,7 @@ const goToTab = (page, label) => page.locator('#opsNav').getByRole('button', { n
 async function openPanel(page, name) {
   await goToTab(page, 'Settings');
   const d = page.locator('details.ops-collapsible', { has: page.locator('summary h3', { hasText: new RegExp('^\\s*' + name + '\\s*$') }) });
-  if (!(await d.evaluate(el => el.open))) await d.locator('summary').click();
+  if (!(await d.evaluate(el => el.open))) await d.locator('summary').first().click();
   return d;
 }
 async function openPerson(page) {

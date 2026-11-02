@@ -75,7 +75,7 @@ async function openSettingsPanel(page, summaryText) {
   await goToTab(page, 'Settings');
   const details = page.locator('details.ops-collapsible', { has: page.locator('summary h3', { hasText: new RegExp('^\\s*' + summaryText + '\\s*$') }) });
   const isOpen = await details.evaluate(el => el.open);
-  if (!isOpen) await details.locator('summary').click();
+  if (!isOpen) await details.locator('summary').first().click();
   return details;
 }
 
