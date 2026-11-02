@@ -443,7 +443,9 @@ test.describe('Training module — full UI regression suite', () => {
   });
 
   test.afterAll(async ({ browser }) => {
+    test.setTimeout(180_000);
     const page = await browser.newPage();
+    page.setDefaultTimeout(15_000);
     acceptDialogsAndCapture(page);
     try {
       await signIn(page, config);
