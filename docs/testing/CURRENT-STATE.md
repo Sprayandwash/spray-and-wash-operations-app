@@ -62,6 +62,15 @@ The mid-round handover of 14 Oct 2026 is kept for history in the
 open items were resolved as above (the `TRAINING-SUITE-004` cause was a
 locator issue, not an auth race).
 
+## Training fixes, Nov 2026
+
+Brendan's user-check findings (spacing, edit in place, validation, evidence, dates, contractors)
+are fixed on branch `claude/training-fixes-nov2026` and covered by
+`tests/e2e/staging/training-fixes-regression.spec.cjs` (FIX-001 to FIX-012) alongside the
+existing full suite. The last staging run passed 32 of 32. The staging database already has
+`supabase/migrations/20261102_contractor_directory_and_admins.sql`; production does not, and
+must receive it (with approval) before this branch is released.
+
 ## Related records
 
 - [Module UI-testing standard](MODULE-UI-TESTING-STANDARD.md)
