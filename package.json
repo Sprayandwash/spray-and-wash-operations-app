@@ -20,7 +20,8 @@
     "test:staging:private-accounts": "playwright test --config=playwright.staging.private-accounts.config.cjs",
     "test:staging:notifications": "playwright test --config=playwright.staging.notifications.config.cjs",
     "test:staging:training-review": "playwright test --config=playwright.staging.training.config.cjs",
-    "test:staging:training-full-suite": "playwright test --config=playwright.staging.training.full-suite.config.cjs"
+    "test:staging:training-full-suite": "playwright test --config=playwright.staging.training.full-suite.config.cjs",
+    "test:staging:training-checklist-explore": "playwright test --config=playwright.staging.training.checklist-explore.config.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
