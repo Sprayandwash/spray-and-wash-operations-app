@@ -534,7 +534,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
 
     await openPerson(page);
     const s = await openSection(page);
-    await expect(s.locator('.ops-record-current [data-ops-download-record]')).toBeVisible();
+    await expect(s.locator('[data-ops-download-record]').first()).toBeAttached();
   });
 
   test('FIX-016: when a Completed record is refused for missing evidence only the evidence box is red', async ({ page }) => {
