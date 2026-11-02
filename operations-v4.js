@@ -619,7 +619,9 @@
       .ops-danger-zone { margin-top:1.5rem; padding:1rem; border:1px solid #fca5a5; border-radius:.9rem; background:#fff7f7; }
       .ops-danger-zone h4 { margin:0 0 .4rem; color:#991b1b; }
       .ops-archived-list { margin-top:1.25rem; }
+      .ops-archived-list > summary { cursor:pointer; padding:.5rem 0; }
       .ops-archived-list > summary h4 { display:inline; margin:0; }
+      .ops-archived-body { margin-top:.5rem; }
     `;
     const style = document.createElement('style');
     style.id = 'operationsV4Styles';
@@ -1895,7 +1897,7 @@
     return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
       <div class="ops-table-wrap"><table class="ops-table">${head}${rows}</table></div>
-      ${archived.length ? `<details class="ops-collapsible ops-archived-list"><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-collapsible-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
+      ${archived.length ? `<details class="ops-archived-list"><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-archived-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
     </div>`;
   }
 
