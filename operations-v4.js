@@ -2262,7 +2262,7 @@
           <label class="ops-check" id="opsContractorAdminWorksWrap"><input id="opsContractorAdminWorks" type="checkbox" checked> Also works on jobs (needs training records)</label>
         </div>
       </div>`}
-      <details class="ops-span-2 ops-business-details" data-ops-keep-open="contractor-business" ${editing ? 'open' : ''}>
+      <details class="ops-span-2 ops-business-details" data-ops-keep-open="contractor-business" ${editing ? 'open' : opsKeepOpen('contractor-business')}>
         <summary>Business details</summary>
         <div class="ops-form">
           <label>Legal name<input id="opsContractorLegalName" maxlength="150" value="${esc(editing?.legal_name || '')}"></label>
