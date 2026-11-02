@@ -71,6 +71,13 @@ existing full suite. The last staging run passed 32 of 32. The staging database 
 `supabase/migrations/20261102_contractor_directory_and_admins.sql`; production does not, and
 must receive it (with approval) before this branch is released.
 
+## Training round 2, Nov 2026
+
+A second batch of Brendan's feedback (tighter layout, collapsed accordion courses, drag-to-reorder,
+evidence downloads, Register course filter and letterhead, navy brand colours, contractor wording)
+is on branch `claude/training-round2-nov2026`; the staging suite passed 38 of 38. No new database
+change in this round.
+
 ## Related records
 
 - [Module UI-testing standard](MODULE-UI-TESTING-STANDARD.md)
