@@ -116,15 +116,21 @@ test.describe('Training checklist — exploratory', () => {
         await tab(page, t);
         const gaps = await page.evaluate(() => {
           const shell = document.querySelector('#opsShell');
-          const btns = [...shell.querySelectorAll('button')].filter(b => b.offsetParent && !b.closest('#opsNav'));
+          const vis = [...shell.querySelectorAll('*')].filter(e => e.offsetParent && e.getBoundingClientRect().height > 0);
           const out = [];
-          for (const b of btns.slice(0, 40)) {
+          const btns = [...shell.querySelectorAll('button, .ops-btn')].filter(b => b.offsetParent && !b.closest('#opsNav') && !b.closest('table') && !b.closest('summary'));
+          for (const b of btns.slice(0, 60)) {
             const r = b.getBoundingClientRect();
-            const prev = b.previousElementSibling || b.parentElement.previousElementSibling;
-            if (!prev) continue;
-            const pr = prev.getBoundingClientRect();
-            const gap = Math.round(r.top - pr.bottom);
-            if (gap >= 0 && gap < 6 && r.left < pr.right) out.push(`"${(b.textContent || '').trim().slice(0, 24)}" gap ${gap}px`);
+            let best = null;
+            for (const e of vis) {
+              if (e === b || e.contains(b) || b.contains(e)) continue;
+              const q = e.getBoundingClientRect();
+              if (q.bottom <= r.top + 0.5 && q.right > r.left && q.left < r.right && q.width > 20) {
+                const g = r.top - q.bottom;
+                if (best === null || g < best.g) best = { g, tag: e.tagName + '.' + String(e.className).slice(0, 20) };
+              }
+            }
+            if (best && best.g < 8) out.push(`"${(b.textContent || '').trim().slice(0, 22)}" ${Math.round(best.g)}px below ${best.tag}`);
           }
           return out;
         });
@@ -138,6 +144,7 @@ test.describe('Training checklist — exploratory', () => {
     await signIn(page, config);
     await openTraining(page);
     await observe('2.1 tiles', async () => {
+      await page.waitForFunction(() => !/Loading training data/.test(document.querySelector('#opsShell').innerText), null, { timeout: 15000 });
       const txt = (await page.locator('#opsShell').innerText()).replace(/\s+/g, ' ');
       note('OK', '2.1', `Dashboard text: ${txt.slice(0, 260)}`);
       for (const w of ['Overdue', 'Due soon', 'Compliant', 'Not recorded']) {
@@ -182,7 +189,7 @@ test.describe('Training checklist — exploratory', () => {
     await tryCourse('3.6c', 'validity 0', `${TAG} Zero`, 0);
     await observe('3.8 open course goes to edit form', async () => {
       const cat = await panel(page, 'Course Catalog');
-      await cat.getByRole('button', { name: fx.course, exact: true }).click();
+      await cat.getByRole('button', { name: fx.course, exact: true }).first().click();
       note((await page.locator('#opsCourseName').count()) ? 'OK' : 'FINDING', '3.8', 'course opens straight into the edit form');
     });
     await observe('archived position', async () => {
@@ -199,8 +206,7 @@ test.describe('Training checklist — exploratory', () => {
     await observe('4 scroll position on cell click (bug 20)', async () => {
       const m = await panel(page, 'Training Matrix');
       const cell = m.locator(`button[data-ops-matrix-cell][data-person="${fx.personId}"][data-course="${fx.courseId}"]`);
-      await cell.scrollIntoViewIfNeeded();
-      await page.evaluate(() => window.scrollBy(0, 200));
+      await cell.evaluate(el => el.scrollIntoView({ block: 'end' }));
       const y0 = await page.evaluate(() => window.scrollY);
       await cell.click();
       await page.waitForTimeout(800);
@@ -295,6 +301,7 @@ test.describe('Training checklist — exploratory', () => {
       await sec.locator(`[data-ops-edit-record="${fx.recordId}"]`).click();
       await page.locator('#opsRecordProvider').fill('CHECK edited provider');
       await page.locator('#opsRecordNotes').fill('CHECK edited notes');
+      await sec.getByRole('button', { name: '+ Add file', exact: true }).first().click();
       const input = sec.locator(`input[data-ops-evidence-input="${fx.recordId}"][type="file"]`).last();
       await input.setInputFiles(pdf('check-b.pdf'));
       await page.waitForTimeout(3000);
@@ -311,6 +318,16 @@ test.describe('Training checklist — exploratory', () => {
       note('INFO', 'item 4/17/18', `forms open=${forms}; provider prefilled="${prov}" (saved: CHECK Provider); form top offset in viewport=${top ? Math.round(top.y) : 'n/a'}px`);
     });
 
+    await observe('prep: remove extra records', async () => {
+      const sec = await openSection(page);
+      for (let i = 0; i < 6; i++) {
+        const extra = sec.locator(`[data-ops-delete-record]:not([data-ops-delete-record="${fx.recordId}"])`);
+        if (!(await extra.count())) break;
+        await extra.first().click();
+        await page.waitForTimeout(1500);
+      }
+      note('INFO', 'prep', `records left on course: ${await (await openSection(page)).locator('[data-ops-edit-record]').count()}`);
+    });
     // Completed + expiry boundaries (needs evidence, already attached above)
     const boundary = async (ref, completed, expiry, label) => {
       await observe(ref, async () => {
@@ -324,7 +341,7 @@ test.describe('Training checklist — exploratory', () => {
         await page.waitForTimeout(1500);
         const s2 = await openSection(page);
         const pill = (await s2.locator('summary .ops-pill').allInnerTexts()).join(' | ');
-        const row = (await s2.locator('table tr').nth(1).innerText().catch(() => '')).replace(/\s+/g, ' ');
+        const row = (await s2.locator('tr', { has: page.locator(`[data-ops-edit-record="${fx.recordId}"]`) }).first().innerText().catch(() => '')).replace(/\s+/g, ' ');
         note('INFO', ref, `${label}: completed=${completed} expiry=${expiry} -> summary pills="${pill}", alerts=${JSON.stringify(dialogs.slice(d0))}, row="${row.slice(0, 90)}"`);
       });
     };
@@ -344,7 +361,7 @@ test.describe('Training checklist — exploratory', () => {
         await page.locator('#opsRecordExpiryDate').fill('');
         await page.getByRole('button', { name: 'Save changes', exact: true }).click();
         await page.waitForTimeout(1500);
-        const row = (await (await openSection(page)).locator('table tr').nth(1).innerText().catch(() => '')).replace(/\s+/g, ' ');
+        const row = (await (await openSection(page)).locator('tr', { has: page.locator(`[data-ops-edit-record="${fx.recordId}"]`) }).first().innerText().catch(() => '')).replace(/\s+/g, ' ');
         note('INFO', '6.5', `validity 12 months, completed ${label}, expiry left blank -> row "${row.slice(0, 80)}"`);
       }
     });
@@ -393,8 +410,10 @@ test.describe('Training checklist — exploratory', () => {
     await signIn(page, config);
     await openTraining(page);
     await tab(page, 'Register');
+    await page.waitForFunction(() => !/Loading training data/.test(document.querySelector('#opsShell').innerText), null, { timeout: 15000 }).catch(() => {});
     await observe('9.2 filter row counts', async () => {
-      const rowsFor = async () => page.locator('#opsShell table.ops-table tr').count();
+      await page.locator('#opsRegisterStatus').waitFor({ timeout: 10000 });
+      const rowsFor = async () => page.locator('#opsShell table tr').count();
       const base = await rowsFor();
       note('INFO', '9.2', `unfiltered table rows (incl. header): ${base}`);
       for (const [sel, vals] of [['#opsRegisterPersonType', null], ['#opsRegisterTrainingType', null], ['#opsRegisterStatus', null]]) {
@@ -404,7 +423,7 @@ test.describe('Training checklist — exploratory', () => {
           await page.waitForTimeout(300);
           note('INFO', '9.2', `${sel}=${v} -> rows ${await rowsFor()}`);
         }
-        await page.locator(sel).selectOption(opts[0]);
+        if (opts.length) await page.locator(sel).selectOption(opts[0]);
       }
     });
     await observe('9.4 pill overflow / page width', async () => {
@@ -419,7 +438,7 @@ test.describe('Training checklist — exploratory', () => {
     });
     await observe('9.8 empty filter print', async () => {
       await page.locator('#opsRegisterStatus').selectOption('overdue');
-      const n = await page.locator('#opsShell table.ops-table tr').count();
+      const n = await page.locator('#opsShell table tr').count();
       note('INFO', '9.8', `overdue filter rows: ${n}`);
     });
   });
@@ -449,6 +468,7 @@ test.describe('Training checklist — exploratory', () => {
     await openTraining(page);
     await observe('13 option capitalisation', async () => {
       await tab(page, 'Register');
+      await page.locator('#opsRegisterStatus').waitFor({ timeout: 10000 });
       const all = [];
       for (const sel of ['#opsRegisterPersonType', '#opsRegisterTrainingType', '#opsRegisterStatus']) all.push(...await page.locator(`${sel} option`).allTextContents());
       note('INFO', '13.5', `register dropdown wording: ${JSON.stringify(all)}`);
