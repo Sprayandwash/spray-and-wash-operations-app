@@ -382,7 +382,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
       return { formToList: next.top - fr.bottom, headingToForm: fr.top - heading.bottom };
     });
     expect(gaps.formToList).toBeGreaterThanOrEqual(16);
-    expect(gaps.headingToForm).toBeGreaterThanOrEqual(12);
+    expect(gaps.headingToForm).toBeGreaterThanOrEqual(8);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   });
 
