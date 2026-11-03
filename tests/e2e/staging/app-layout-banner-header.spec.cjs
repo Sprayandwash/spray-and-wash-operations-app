@@ -17,11 +17,11 @@ async function checkLayout(page, label) {
     if (!b || !h) return null;
     const bb = b.getBoundingClientRect(); const hb = h.getBoundingClientRect();
     const probe = document.elementFromPoint(Math.round(window.innerWidth / 2), Math.round(bb.bottom + 2));
-    return { pos: getComputedStyle(h).position, headerBottom: hb.bottom, bannerBottom: bb.bottom, bannerTop: bb.top, headerAtProbe: !!(probe && probe.closest('header')), scrolled: window.scrollY };
+    return { pos: getComputedStyle(h).position, headerBottom: hb.bottom, bannerBottom: bb.bottom, bannerTop: bb.top, headerAtProbe: !!(probe && probe.closest('header')), scrolled: window.scrollY, headerHeight: hb.height };
   });
   expect(r, `${label}: banner and header exist`).not.toBeNull();
   expect(['sticky', 'fixed'], `${label}: header must not stay pinned`).not.toContain(r.pos);
-  if (r.scrolled > 100) {
+  if (r.scrolled >= r.headerHeight + 5) {
     expect(r.headerBottom, `${label}: header has scrolled away`).toBeLessThanOrEqual(r.bannerBottom + 1);
     expect(r.headerAtProbe, `${label}: no header under the banner`).toBeFalsy();
   }
@@ -32,6 +32,7 @@ async function checkLayout(page, label) {
 test('REG-154: header scrolls away and the banner stays clear on every reachable module page', async ({ page }) => {
   acceptDialogsAndCapture(page);
   await signIn(page, config);
+  await expect(page.getByRole('button', { name: 'Training', exact: true })).toBeVisible({ timeout: 20_000 });
   await checkLayout(page, 'Home');
   const visited = [];
   for (const name of MODULES) {

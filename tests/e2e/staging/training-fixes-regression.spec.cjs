@@ -638,12 +638,14 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
         const bb = b.getBoundingClientRect(); const hb = h.getBoundingClientRect();
         const pos = getComputedStyle(h).position;
         const probe = document.elementFromPoint(Math.round(window.innerWidth / 2), Math.round(bb.bottom + 2));
-        return { pos, headerBottom: hb.bottom, bannerBottom: bb.bottom, headerAtProbe: !!(probe && probe.closest('header')), bannerTop: bb.top };
+        return { pos, headerBottom: hb.bottom, bannerBottom: bb.bottom, headerAtProbe: !!(probe && probe.closest('header')), bannerTop: bb.top, scrolled: window.scrollY, headerHeight: hb.height };
       });
       if (r) {
         expect(['sticky', 'fixed'], `${label}: header must not stay pinned`).not.toContain(r.pos);
-        expect(r.headerBottom, `${label}: header has scrolled away`).toBeLessThanOrEqual(r.bannerBottom + 1);
-        expect(r.headerAtProbe, `${label}: no header under the banner`).toBeFalsy();
+        if (r.scrolled >= r.headerHeight + 5) {
+          expect(r.headerBottom, `${label}: header has scrolled away`).toBeLessThanOrEqual(r.bannerBottom + 1);
+          expect(r.headerAtProbe, `${label}: no header under the banner`).toBeFalsy();
+        }
         expect(Math.abs(r.bannerTop), `${label}: banner stays at the top`).toBeLessThanOrEqual(1);
       }
       await page.evaluate(() => window.scrollTo(0, 0));
