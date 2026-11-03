@@ -181,6 +181,18 @@
     const y = el.getBoundingClientRect().top + window.scrollY - top - 12;
     window.scrollTo({top: Math.max(0, y), left: 0, behavior: 'auto'});
   }
+  // Flag exactly one missing/invalid field in red with a message beside it and bring it into view.
+  // Falls back to a plain alert when the field cannot be found, so a form never fails silently.
+  // Returns undefined so handlers can `return opsFlagField(...)`.
+  function opsFlagField(el, msg){
+    if(typeof el === 'string') el = byId(el);
+    if(!el){ alert(msg); return; }
+    const scope = el.closest('form') || el.parentElement;
+    if(scope) opsClearFormErrors(scope);
+    opsFieldError(el, msg);
+    if(el.scrollIntoView) el.scrollIntoView({block:'center'});
+    if(el.focus && el.matches && el.matches('input,select,textarea')) el.focus({preventScroll:true});
+  }
   function opsFocusFirstError(form){
     const el = form.querySelector('.ops-field-invalid input, .ops-field-invalid select, .ops-field-invalid textarea, .ops-field-invalid [tabindex]') || form.querySelector('.ops-field-invalid');
     if(el){ el.scrollIntoView({block:'center'}); if(el.focus && el.matches('input,select,textarea,[tabindex]')) el.focus({preventScroll:true}); }
@@ -3891,8 +3903,8 @@
     if(!isAdmin()) return alert('Only Admin users can update users.');
     const input=document.querySelector(`[data-ops-user-full-name="${CSS.escape(String(userId))}"]`);
     const displayName=titleCaseName(input?.value||'');
-    if(!displayName)return alert('Enter a first and last name.');
-    if(displayName.split(' ').length<2)return alert('Enter both the first and last name.');
+    if(!displayName)return opsFlagField(input,'Enter a first and last name.');
+    if(displayName.split(' ').length<2)return opsFlagField(input,'Enter both the first and last name.');
     const r=await state.sb.from('profiles').update({display_name:displayName}).eq('user_id',userId);
     if(r.error)return alert('Could not save the full name: '+r.error.message);
     const roles = Array.from(document.querySelectorAll('input[data-ops-role-user]'))
@@ -3936,7 +3948,11 @@
     e.preventDefault();
     const first=titleCaseName(byId('opsAccountFirst')?.value||''), last=titleCaseName(byId('opsAccountLast')?.value||''), email=String(byId('opsAccountEmail')?.value||'').trim().toLowerCase(), password=String(byId('opsAccountTempPassword')?.value||'');
     const roles=Array.from(document.querySelectorAll('input[data-ops-account-role]:checked')).map(i=>i.value);
-    if(!first||!last||!email||password.length<12||!roles.length)return alert('Enter names, email, a temporary password of at least 12 characters, and at least one permission.');
+    if(!first) return opsFlagField('opsAccountFirst','Enter the first name.');
+    if(!last) return opsFlagField('opsAccountLast','Enter the last name.');
+    if(!email) return opsFlagField('opsAccountEmail','Enter the email address.');
+    if(password.length<12) return opsFlagField('opsAccountTempPassword','The temporary password needs at least 12 characters.');
+    if(!roles.length) return alert('Select at least one permission for this account.');
     const result=await accountAdminAction('create',{first_name:first,last_name:last,email,password,roles});
     if(result){alert(`Account created for ${email}. Give the temporary password to the person directly; they must set their own password on first sign-in.`);await loadAll();}
   }
@@ -4032,7 +4048,7 @@
       const targetType=template.target_type;
       const vehicleId=byId('opsInspectionVehicle')?.value||null;
       const washId=byId('opsInspectionWash')?.value||null;
-      if(['vehicle','combined'].includes(targetType)&&!vehicleId)return alert('Select a vehicle before submitting.');
+      if(['vehicle','combined'].includes(targetType)&&!vehicleId)return opsFlagField('opsInspectionVehicle','Select a vehicle before submitting.');
       const answerRows=[]; const itemPhotos=[]; let hasProblem=false;
       try{
         document.querySelectorAll('.ops-question').forEach(q=>{
@@ -4877,7 +4893,7 @@
     const type=byId('opsMachineryType').value;
     const vehicleId=id?(existing.assigned_vehicle_id||null):(byId('opsWashVehicle').value||null);
     const side=id?(existing.mounting_side||null):(vehicleId?(byId('opsMachinerySide').value||null):null);
-    if(vehicleId&&!side){ if(submit)submit.disabled=false; return alert('Choose Driver or Passenger side for machinery installed on a vehicle.'); }
+    if(vehicleId&&!side){ if(submit)submit.disabled=false; return opsFlagField('opsMachinerySide','Choose Driver or Passenger side for machinery installed on a vehicle.'); }
     if(vehicleId&&state.washEquipment.some(w=>String(w.id)!==String(id)&&String(w.assigned_vehicle_id||'')===String(vehicleId)&&w.mounting_side===side&&machineryType(w)===type&&w.status!=='Retired')){
       if(submit)submit.disabled=false;
       return alert(`That vehicle already has a ${machineryTypeLabel(type).toLowerCase()} recorded on the ${side.toLowerCase()} side.`);
@@ -4965,7 +4981,7 @@
       if(!w)return alert('Machinery record not found.');
       const vehicleId=byId('opsTransferVehicle')?.value||null;
       const side=vehicleId?(byId('opsTransferSide')?.value||null):null;
-      if(vehicleId&&!side)return alert('Choose Driver or Passenger side for the new installation.');
+      if(vehicleId&&!side)return opsFlagField('opsTransferSide','Choose Driver or Passenger side for the new installation.');
       if(String(vehicleId||'')===String(w.assigned_vehicle_id||'')&&String(side||'')===String(w.mounting_side||''))return alert('Choose a different vehicle, side, or unassigned status.');
       if(vehicleId&&state.washEquipment.some(other=>String(other.id)!==String(w.id)&&String(other.assigned_vehicle_id||'')===String(vehicleId)&&other.mounting_side===side&&machineryType(other)===machineryType(w)&&other.status!=='Retired')){
         return alert(`The destination already has a ${machineryTypeLabel(w).toLowerCase()} recorded on the ${side.toLowerCase()} side.`);
@@ -5298,12 +5314,12 @@
         parts_used:row.querySelector('.ops-maintenance-item-parts')?.value.trim()||null
       }));
       const maintenanceItems=routineItems.concat(detailedItems);
-      if(!vehicleId)return alert('Choose a vehicle.');
-      if(!targetValue)return alert('Choose the vehicle or machinery maintained.');
+      if(!vehicleId)return opsFlagField('opsLogEntryVehicle','Choose a vehicle.');
+      if(!targetValue)return opsFlagField('opsLogEntryTarget','Choose the vehicle or machinery maintained.');
       if(machineryId&&!machinery)return alert('The selected machinery could not be found.');
       if(!maintenanceItems.length)return alert('Choose at least one maintenance item.');
       if(maintenanceItems.some(item=>['Repair','Other maintenance'].includes(item.maintenance_done)&&!item.description))return alert('Describe each repair or other maintenance item completed.');
-      if(!performedBy)return alert('Enter the service agent name.');
+      if(!performedBy)return opsFlagField(performedByChoice==='Other service agent'?'opsLogEntryOtherAgent':'opsLogEntryPerformedBy','Enter the service agent name.');
       const r=await state.sb.rpc('operations_add_maintenance_record_v4053',{
         p_record_date:byId('opsLogEntryDate')?.value||today(),
         p_vehicle_id:vehicleId,
@@ -5484,7 +5500,9 @@
     const title=String(byId('opsPlannedMaintenanceName')?.value||'').trim();
     const frequency=Number(byId('opsPlannedMaintenanceFrequency')?.value||0);
     const notes=String(byId('opsPlannedMaintenanceNotes')?.value||'').trim();
-    if(!target||!title||!Number.isFinite(frequency)||frequency<1) return alert('Choose an asset, enter the planned item and set its frequency in days.');
+    if(!target) return opsFlagField('opsPlannedMaintenanceTarget','Choose an asset.');
+    if(!title) return opsFlagField('opsPlannedMaintenanceName','Enter the planned item.');
+    if(!Number.isFinite(frequency)||frequency<1) return opsFlagField('opsPlannedMaintenanceFrequency','Set how often, in whole days.');
     const editing=maintenanceItemCatalog().find(row=>row.key===state.editingMaintenanceItemKey&&row.kind==='planned')||null;
     const isMachinery=target.startsWith('machinery:');
     const targetId=target.slice(target.indexOf(':')+1);
