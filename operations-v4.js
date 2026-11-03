@@ -689,7 +689,6 @@
       @media(max-width:760px){ .ops-rec-grid { grid-template-columns:1fr; } }
       /* Register fits inside its card */
       .ops-register-table { min-width:0 !important; table-layout:auto; }
-      .ops-evidence-panel > summary { cursor:pointer; list-style:none; display:flex; gap:.75rem; align-items:baseline; flex-wrap:wrap; }
       .ops-evidence-body { margin-top:.6rem; }
       .ops-evidence-row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
       .ops-evidence-pick { position:relative; }
@@ -1479,7 +1478,7 @@
   }
 
   function trainingCourseTypeLabel(course){
-    return trainingIsInternalCourse(course) ? 'Internal training' : 'External / formal qualification';
+    return trainingIsInternalCourse(course) ? 'Internal training' : 'External';
   }
 
   function trainingNextCourseOrder(){
@@ -1646,10 +1645,12 @@
       .join('') || `<tr><td colspan="6" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
     const heading = statusFilter !== 'all' ? `Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}` : 'On-screen register';
     const clearBtn = statusFilter !== 'all' ? `<button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button>` : '';
-    return `<div class="ops-card">
-      <div class="ops-section-title"><h3>${heading}</h3><div class="ops-actions">${clearBtn}</div></div>
-      <div class="ops-table-wrap"><table class="ops-table ops-register-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th></tr>${rows}</table></div>
-    </div>${trainingEvidencePanelHtml()}`;
+    const regOpen = !(state.keepOpen && state.keepOpen['register-results'] === false);
+    return `<details class="ops-card ops-collapsible ops-register-panel" id="opsRegisterPanel" data-ops-keep-open="register-results" ${regOpen ? 'open' : ''}>
+      <summary><h3>${heading}</h3></summary>
+      <div class="ops-collapsible-body">${clearBtn ? `<div class="ops-actions">${clearBtn}</div>` : ''}
+      <div class="ops-table-wrap"><table class="ops-table ops-register-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th></tr>${rows}</table></div></div>
+    </details>${trainingEvidencePanelHtml()}`;
   }
 
   // ---- Evidence download panel (Register) ----
@@ -1686,8 +1687,8 @@
     const q = (state.trainingEvidenceSearch || '').trim().toLowerCase();
     const shown = people.filter(p => !q || (p.full_name + ' ' + trainingEvidenceRoleLabel(p)).toLowerCase().includes(q));
     const list = shown.map(p => `<label class="ops-evidence-person" data-ops-evidence-row><input type="checkbox" data-ops-evidence-person="${p.id}" ${state.trainingRegisterSelected.has(String(p.id)) ? 'checked' : ''}><span>${esc(p.full_name)}</span><span class="ops-subtle">${esc(trainingEvidenceRoleLabel(p))}</span></label>`).join('') || '<p class="ops-subtle">Nobody matches that search.</p>';
-    return `<details class="ops-card ops-evidence-panel" id="opsEvidencePanel" data-ops-keep-open="evidence-panel" ${opsKeepOpen('evidence-panel')}>
-      <summary><strong>Download evidence</strong> <span class="ops-subtle">Certificates and photos attached to training records, as one zip</span></summary>
+    return `<details class="ops-card ops-collapsible ops-evidence-panel" id="opsEvidencePanel" data-ops-keep-open="evidence-panel" ${opsKeepOpen('evidence-panel')}>
+      <summary><h3>Download evidence</h3></summary>
       <div class="ops-evidence-body">
         <div class="ops-evidence-row">
           <details class="ops-evidence-pick" id="opsEvidencePick">
@@ -1822,7 +1823,7 @@
       <button type="button" class="${tab==='internal'?'active':''}" data-ops-matrix-tab="internal">Internal (${internalCount})</button>
     </div>`;
     const courses = allCourses.filter(c => trainingIsInternalCourse(c) === (tab === 'internal'));
-    if(!courses.length) return `${tabsHtml}<p class="ops-subtle">No ${tab === 'internal' ? 'internal training' : 'external / formal qualification'} courses yet. Set a course's Type on the Course Catalog to place it in this tab.</p>`;
+    if(!courses.length) return `${tabsHtml}<p class="ops-subtle">No ${tab === 'internal' ? 'internal training' : 'external'} courses yet. Set a course's Type on the Course Catalog to place it in this tab.</p>`;
     const headerCells = courses.map(c => `<th class="ops-matrix-head-cell" title="${esc(c.name)}"><span class="ops-matrix-head-text">${esc(c.name)}</span></th>`).join('');
     const colgroup = `<colgroup><col style="width:150px">${courses.map(() => '<col style="width:112px">').join('')}</colgroup>`;
     const rows = people.map(p => {
@@ -5748,6 +5749,11 @@
     document.querySelectorAll('[data-ops-download-register-evidence]').forEach(b => b.addEventListener('click', () => downloadRegisterEvidence(b)));
     document.querySelectorAll('[data-ops-evidence-person]').forEach(cb => cb.addEventListener('change', () => { const id = String(cb.dataset.opsEvidencePerson); if(cb.checked) state.trainingRegisterSelected.add(id); else state.trainingRegisterSelected.delete(id); trainingEvidenceRefresh(); }));
     document.querySelectorAll('[data-ops-evidence-quick]').forEach(b => b.addEventListener('click', () => trainingEvidenceQuick(b.dataset.opsEvidenceQuick)));
+    if(!window.__opsEvidencePickClose){
+      window.__opsEvidencePickClose = true;
+      document.addEventListener('click', ev => { const d = byId('opsEvidencePick'); if(d && d.open && !d.contains(ev.target)) d.open = false; });
+      document.addEventListener('keydown', ev => { if(ev.key === 'Escape'){ const d = byId('opsEvidencePick'); if(d && d.open){ d.open = false; d.querySelector('summary')?.focus(); } } });
+    }
     byId('opsEvidenceSearch')?.addEventListener('input', e => {
       state.trainingEvidenceSearch = e.target.value;
       const q = e.target.value.trim().toLowerCase();

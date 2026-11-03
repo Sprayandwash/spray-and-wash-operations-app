@@ -548,6 +548,18 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await expect(panel.locator('#opsEvidenceSummary')).not.toContainText('0 people selected');
     await panel.locator('[data-ops-evidence-quick="clear"]').click();
     await row.locator('input').check();
+    // Dropdown closes on an outside click and on Esc.
+    await expect(panel.locator('#opsEvidencePick')).toHaveJSProperty('open', true);
+    await page.locator('#opsEvidencePanel h3').click();
+    await expect(panel.locator('#opsEvidencePick')).toHaveJSProperty('open', false);
+    await panel.locator('#opsEvidencePick > summary').click();
+    await page.keyboard.press('Escape');
+    await expect(panel.locator('#opsEvidencePick')).toHaveJSProperty('open', false);
+    // Register is collapsible.
+    await page.locator('#opsRegisterPanel > summary').click();
+    await expect(page.locator('.ops-register-table')).toBeHidden();
+    await page.locator('#opsRegisterPanel > summary').click();
+    await expect(page.locator('.ops-register-table')).toBeVisible();
     const dl = panel.locator('#opsEvidenceDownload');
     const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), dl.click()]);
     expect(download.suggestedFilename()).toMatch(/^training-evidence-\d{4}-\d{2}-\d{2}\.zip$/);
@@ -607,6 +619,37 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
       expect(w.person).toBeLessThanOrEqual(151);
       expect(new Set(w.heads).size, 'all course columns the same width').toBe(1);
     }
+  });
+
+  test('FIX-020: nothing shows through or hides behind the banner and header on any Training page, and the type reads External', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    const check = async (label) => {
+      await page.evaluate(() => window.scrollTo(0, 600));
+      await page.waitForTimeout(250);
+      const r = await page.evaluate(() => {
+        const b = document.getElementById('stagingEnvironmentBanner'); const h = document.querySelector('header');
+        if (!b || !h) return null;
+        const bb = b.getBoundingClientRect(); const hb = h.getBoundingClientRect();
+        const probe = document.elementFromPoint(Math.round(window.innerWidth / 2), Math.round(bb.bottom + 2));
+        return { gap: hb.top - bb.bottom, headerAtProbe: !!(probe && probe.closest('header')) };
+      });
+      if (r) {
+        expect(Math.abs(r.gap), `${label}: gap between banner and header`).toBeLessThanOrEqual(1);
+        expect(r.headerAtProbe, `${label}: header sits directly under the banner`).toBeTruthy();
+      }
+      await page.evaluate(() => window.scrollTo(0, 0));
+    };
+    for (const tab of ['Dashboard', 'Team members', 'Contractors', 'Settings', 'Register']) {
+      await goToTab(page, tab);
+      await check(tab);
+    }
+    await openPerson(page);
+    await check('Person page');
+    const s = await openSection(page);
+    await expect(s).toContainText(/External|Internal training/);
+    await expect(s).not.toContainText('formal qualification');
   });
 
   test('FIX-016: when a Completed record is refused for missing evidence only the evidence box is red', async ({ page }) => {

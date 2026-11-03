@@ -164,6 +164,20 @@
 <script src="app.js?v=4.0.83"></script>
 <script src="push-notifications.js?v=1"></script>
 <script src="./operations-rules.js?v=4.0.83"></script>
+<script>
+/* Keep the sticky header and tabs exactly below the staging banner, whatever height it renders at. */
+(function(){
+  function sync(){
+    var b=document.getElementById('stagingEnvironmentBanner');
+    if(!b) return;
+    document.body.style.setProperty('--staging-banner-height', Math.ceil(b.getBoundingClientRect().height)+'px');
+  }
+  window.addEventListener('load', sync);
+  window.addEventListener('resize', sync);
+  document.addEventListener('DOMContentLoaded', sync);
+  if(window.ResizeObserver){ document.addEventListener('DOMContentLoaded', function(){ var b=document.getElementById('stagingEnvironmentBanner'); if(b) new ResizeObserver(sync).observe(b); }); }
+})();
+</script>
 <script src="./operations-v4.js?v=4.0.83"></script>
 <script src="./backup-v4-core.js?v=4.0.84"></script>
 <script src="./backup-v4.js?v=4.0.83"></script>
