@@ -5774,6 +5774,31 @@
     document.querySelectorAll('[data-ops-download-register-evidence]').forEach(b => b.addEventListener('click', () => downloadRegisterEvidence(b)));
     document.querySelectorAll('[data-ops-evidence-person]').forEach(cb => cb.addEventListener('change', () => { const id = String(cb.dataset.opsEvidencePerson); if(cb.checked) state.trainingRegisterSelected.add(id); else state.trainingRegisterSelected.delete(id); trainingEvidenceRefresh(); }));
     document.querySelectorAll('[data-ops-evidence-quick]').forEach(b => b.addEventListener('click', () => trainingEvidenceQuick(b.dataset.opsEvidenceQuick)));
+    if(!window.__opsRequiredFieldsAllRed){
+      window.__opsRequiredFieldsAllRed = true;
+      // One app-wide rule for every Operations form: when it is submitted with problems, every missing or
+      // invalid field turns red with its own message and the first one is brought into view. This replaces the
+      // browser's own pop-up, which only ever showed the first empty field and never turned anything red.
+      // Forms that already validate themselves (marked novalidate) are left alone.
+      document.addEventListener('submit', ev => {
+        const form = ev.target;
+        if(!form || form.tagName !== 'FORM' || form.noValidate || !form.closest('#opsShell')) return;
+        if(ev.submitter && ev.submitter.formNoValidate) return;
+        const bad = Array.from(form.elements).filter(el => el.willValidate && !el.disabled && el.offsetParent !== null && !el.checkValidity());
+        if(!bad.length) return;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        opsClearFormErrors(form);
+        bad.forEach(el => {
+          const missing = el.validity.valueMissing;
+          const msg = missing ? (el.matches('select') ? 'Choose an option.' : el.type === 'file' ? 'Add a file.' : el.type === 'checkbox' ? 'Tick this to continue.' : 'Fill this in.') : (el.validationMessage || 'Check this value.');
+          opsFieldError(el, msg);
+        });
+        const first = bad[0];
+        first.scrollIntoView({block:'center'});
+        if(first.focus) first.focus({preventScroll:true});
+      }, true);
+    }
     if(!window.__opsEvidencePickClose){
       window.__opsEvidencePickClose = true;
       document.addEventListener('click', ev => { const d = byId('opsEvidencePick'); if(d && d.open && !d.contains(ev.target)) d.open = false; });

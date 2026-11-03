@@ -664,6 +664,34 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await expect(m.locator('[data-ops-matrix-tab="internal"]')).toContainText('Internal Training');
   });
 
+  test('FIX-021: a form submitted with several required fields empty turns every one of them red, and each clears when filled', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    let submitted = 0;
+    await page.exposeFunction('markSubmitted', () => { submitted++; });
+    await page.evaluate(() => {
+      const f = document.createElement('form');
+      f.id = 'tmpRequiredForm';
+      f.className = 'ops-form';
+      f.innerHTML = '<label>First<input id="tmpA" required></label><label>Second<select id="tmpB" required><option value="">Select</option><option value="x">X</option></select></label><label>Third<input id="tmpC" type="number" min="1" required></label><label>Optional<input id="tmpD"></label><button type="submit">Go</button>';
+      f.addEventListener('submit', e => { e.preventDefault(); window.markSubmitted(); });
+      document.querySelector('#opsShell').prepend(f);
+    });
+    await page.locator('#tmpRequiredForm button').click();
+    await expect(page.locator('#tmpRequiredForm .ops-field-error')).toHaveCount(3);
+    await expect(page.locator('#tmpRequiredForm label:has(#tmpD) .ops-field-error')).toHaveCount(0);
+    expect(submitted, 'the form handler must not run while fields are missing').toBe(0);
+    await expect(page.locator('#tmpA')).toBeFocused();
+    await page.locator('#tmpA').fill('a');
+    await expect(page.locator('#tmpRequiredForm .ops-field-error')).toHaveCount(2);
+    await page.locator('#tmpB').selectOption('x');
+    await page.locator('#tmpC').fill('2');
+    await page.locator('#tmpRequiredForm button').click();
+    await expect.poll(() => submitted).toBe(1);
+    await page.evaluate(() => document.getElementById('tmpRequiredForm').remove());
+  });
+
   test('FIX-016: when a Completed record is refused for missing evidence only the evidence box is red', async ({ page }) => {
     acceptDialogsAndCapture(page);
     await signIn(page, config);
