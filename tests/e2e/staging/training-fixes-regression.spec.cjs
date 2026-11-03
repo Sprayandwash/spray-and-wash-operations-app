@@ -550,7 +550,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await row.locator('input').check();
     // Dropdown closes on an outside click and on Esc.
     await expect(panel.locator('#opsEvidencePick')).toHaveJSProperty('open', true);
-    await page.locator('#opsEvidencePanel h3').click();
+    await page.locator('h3', { hasText: 'Training & Competency Register' }).click();
     await expect(panel.locator('#opsEvidencePick')).toHaveJSProperty('open', false);
     await panel.locator('#opsEvidencePick > summary').click();
     await page.keyboard.press('Escape');
