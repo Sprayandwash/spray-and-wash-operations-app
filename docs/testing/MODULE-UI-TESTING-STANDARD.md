@@ -228,3 +228,14 @@ Admin) are recorded there.
   cleanup (the UI's only "delete" for those three); the training record
   and its evidence file are hard-deleted (the UI does support deleting
   those outright).
+
+## Update, 3 Nov 2026 — the Training suite now also runs on every pull request
+
+Brendan confirmed that UI checks for bugs recorded in `docs/regression-catalogue.md` must re-run automatically
+when a change is proposed, not only by hand. `.github/workflows/staging-training-ui-on-pr.yml` builds each pull
+request (from this repository, not forks) as its own isolated Staging bundle by calling
+`build-staging-app.yml` (artifact `spray-wash-staging-app-pr`, so it never replaces the manual-build artifact),
+then runs the same Playwright config as the manual workflow. It only triggers when app or test files change, it
+shares the `staging-training-full-ui-suite` concurrency group with the manual workflow so two runs never write to
+Staging together, and it never uses production. The manual `workflow_dispatch` workflow remains for ad-hoc runs.
+Other modules should get the same on-PR workflow when their full UI suites are built.

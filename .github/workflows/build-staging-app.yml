@@ -9,6 +9,14 @@ on:
       confirmation:
         description: Type BUILD STAGING APP to confirm
         required: true
+  # Called by staging-training-ui-on-pr.yml so each pull request is tested against its own staging bundle.
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: Artifact name for the bundle (the pull-request run uses its own so it never replaces the manual-build artifact)
+        required: false
+        type: string
+        default: spray-wash-staging-app
 
 permissions:
   contents: read
@@ -42,6 +50,8 @@ jobs:
             echo "Manual staging build confirmed."
           elif [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
             echo "Automatic staging build authorised by a push to main."
+          elif [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "Automatic staging build for a pull request (caller checks it is from this repository)."
           else
             echo "SAFETY STOP: unsupported trigger or branch: $GITHUB_EVENT_NAME / $GITHUB_REF" >&2
             exit 1
@@ -234,7 +244,7 @@ jobs:
       - name: Upload staging app bundle
         uses: actions/upload-artifact@v4
         with:
-          name: spray-wash-staging-app
+          name: ${{ inputs.artifact_name || 'spray-wash-staging-app' }}
           path: staging-build/
           retention-days: 30
           if-no-files-found: error

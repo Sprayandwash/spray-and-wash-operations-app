@@ -8,6 +8,10 @@ IDs are permanent. A fixed bug remains here so that it cannot silently return. `
 
 The first eight Operations regressions are implemented in `tests/regression/operations-rules.test.cjs` and run in the **Regression tests** GitHub Actions workflow.
 
+## Training UI suite on pull requests
+
+The Training module's full browser suite (staging) also runs automatically on every pull request from this repository that changes app or test files, via `staging-training-ui-on-pr.yml`. It builds the pull request as an isolated Staging bundle, runs the suite, and never touches production. REG-146 to REG-156 are covered both by `tests/regression/*.test.cjs` and by that suite.
+
 ## Browser smoke suite
 
 The first Playwright browser checks live in `tests/e2e/` and run in the **Browser smoke tests** GitHub Actions job. They use a local static server and do not sign in, write to Supabase, or use production data.
