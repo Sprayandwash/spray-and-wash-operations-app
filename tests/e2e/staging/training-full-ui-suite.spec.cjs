@@ -421,6 +421,7 @@ test.describe('Training module — full UI regression suite', () => {
     await signIn(page, config);
     await openTrainingModule(page);
     await goToTab(page, 'Register');
+    await page.locator('#opsRegisterPanel > summary').click();
 
     const resultsRow = page.locator('tr', { has: page.getByRole('button', { name: fixture.personName, exact: true }) });
     await expect(resultsRow).toContainText(fixture.courseName);

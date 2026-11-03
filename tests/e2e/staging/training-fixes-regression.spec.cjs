@@ -517,6 +517,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await signIn(page, config);
     await openTraining(page);
     await goToTab(page, 'Register');
+    // The Register tab opens with both panels collapsed.
+    await expect(page.locator('#opsRegisterPanel')).toHaveJSProperty('open', false);
+    await expect(page.locator('#opsEvidencePanel')).toHaveJSProperty('open', false);
+    await page.locator('#opsRegisterPanel > summary').click();
     await page.locator('#opsRegisterCourse').selectOption(fx.courseId);
     const table = page.locator('.ops-register-table');
     await expect(table).toBeVisible();
@@ -621,23 +625,26 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     }
   });
 
-  test('FIX-020: nothing shows through or hides behind the banner and header on any Training page, and the type reads External', async ({ page }) => {
+  test('FIX-020: the app header scrolls away, nothing hides behind the banner on any Training page, and types read External Qualification / Internal Training', async ({ page }) => {
     acceptDialogsAndCapture(page);
     await signIn(page, config);
     await openTraining(page);
     const check = async (label) => {
-      await page.evaluate(() => window.scrollTo(0, 600));
+      await page.evaluate(() => window.scrollTo(0, 700));
       await page.waitForTimeout(250);
       const r = await page.evaluate(() => {
         const b = document.getElementById('stagingEnvironmentBanner'); const h = document.querySelector('header');
         if (!b || !h) return null;
         const bb = b.getBoundingClientRect(); const hb = h.getBoundingClientRect();
+        const pos = getComputedStyle(h).position;
         const probe = document.elementFromPoint(Math.round(window.innerWidth / 2), Math.round(bb.bottom + 2));
-        return { gap: hb.top - bb.bottom, headerAtProbe: !!(probe && probe.closest('header')) };
+        return { pos, headerBottom: hb.bottom, bannerBottom: bb.bottom, headerAtProbe: !!(probe && probe.closest('header')), bannerTop: bb.top };
       });
       if (r) {
-        expect(Math.abs(r.gap), `${label}: gap between banner and header`).toBeLessThanOrEqual(1);
-        expect(r.headerAtProbe, `${label}: header sits directly under the banner`).toBeTruthy();
+        expect(['sticky', 'fixed'], `${label}: header must not stay pinned`).not.toContain(r.pos);
+        expect(r.headerBottom, `${label}: header has scrolled away`).toBeLessThanOrEqual(r.bannerBottom + 1);
+        expect(r.headerAtProbe, `${label}: no header under the banner`).toBeFalsy();
+        expect(Math.abs(r.bannerTop), `${label}: banner stays at the top`).toBeLessThanOrEqual(1);
       }
       await page.evaluate(() => window.scrollTo(0, 0));
     };
@@ -648,8 +655,11 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await openPerson(page);
     await check('Person page');
     const s = await openSection(page);
-    await expect(s).toContainText(/External|Internal training/);
+    await expect(s).toContainText(/External Qualification|Internal Training/);
     await expect(s).not.toContainText('formal qualification');
+    const m = await openPanel(page, 'Training Matrix');
+    await expect(m.locator('[data-ops-matrix-tab="external"]')).toContainText('External Qualification');
+    await expect(m.locator('[data-ops-matrix-tab="internal"]')).toContainText('Internal Training');
   });
 
   test('FIX-016: when a Completed record is refused for missing evidence only the evidence box is red', async ({ page }) => {

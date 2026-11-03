@@ -1478,7 +1478,7 @@
   }
 
   function trainingCourseTypeLabel(course){
-    return trainingIsInternalCourse(course) ? 'Internal training' : 'External';
+    return trainingIsInternalCourse(course) ? 'Internal Training' : 'External Qualification';
   }
 
   function trainingNextCourseOrder(){
@@ -1645,7 +1645,7 @@
       .join('') || `<tr><td colspan="6" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
     const heading = statusFilter !== 'all' ? `Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}` : 'On-screen register';
     const clearBtn = statusFilter !== 'all' ? `<button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button>` : '';
-    const regOpen = !(state.keepOpen && state.keepOpen['register-results'] === false);
+    const regOpen = !!(state.keepOpen && state.keepOpen['register-results'] === true);
     return `<details class="ops-card ops-collapsible ops-register-panel" id="opsRegisterPanel" data-ops-keep-open="register-results" ${regOpen ? 'open' : ''}>
       <summary><h3>${heading}</h3></summary>
       <div class="ops-collapsible-body">${clearBtn ? `<div class="ops-actions">${clearBtn}</div>` : ''}
@@ -1819,11 +1819,11 @@
     const externalCount = allCourses.filter(c => !trainingIsInternalCourse(c)).length;
     const internalCount = allCourses.length - externalCount;
     const tabsHtml = `<div class="ops-nav ops-matrix-tabs">
-      <button type="button" class="${tab==='external'?'active':''}" data-ops-matrix-tab="external">External (${externalCount})</button>
-      <button type="button" class="${tab==='internal'?'active':''}" data-ops-matrix-tab="internal">Internal (${internalCount})</button>
+      <button type="button" class="${tab==='external'?'active':''}" data-ops-matrix-tab="external">External Qualification (${externalCount})</button>
+      <button type="button" class="${tab==='internal'?'active':''}" data-ops-matrix-tab="internal">Internal Training (${internalCount})</button>
     </div>`;
     const courses = allCourses.filter(c => trainingIsInternalCourse(c) === (tab === 'internal'));
-    if(!courses.length) return `${tabsHtml}<p class="ops-subtle">No ${tab === 'internal' ? 'internal training' : 'external'} courses yet. Set a course's Type on the Course Catalog to place it in this tab.</p>`;
+    if(!courses.length) return `${tabsHtml}<p class="ops-subtle">No ${tab === 'internal' ? 'internal training' : 'external qualification'} courses yet. Set a course's Type on the Course Catalog to place it in this tab.</p>`;
     const headerCells = courses.map(c => `<th class="ops-matrix-head-cell" title="${esc(c.name)}"><span class="ops-matrix-head-text">${esc(c.name)}</span></th>`).join('');
     const colgroup = `<colgroup><col style="width:150px">${courses.map(() => '<col style="width:112px">').join('')}</colgroup>`;
     const rows = people.map(p => {
@@ -2912,6 +2912,13 @@
   });
 
   function showOperations(view){
+    // The Register and Download evidence panels open collapsed each time the Register is entered,
+    // unless the user came from a Dashboard tile (which wants to show its results).
+    if(view === 'training-register' && state.currentView !== 'training-register'){
+      state.keepOpen = state.keepOpen || {};
+      if(!state.trainingRegisterForceOpen){ state.keepOpen['register-results'] = false; state.keepOpen['evidence-panel'] = false; }
+      state.trainingRegisterForceOpen = false;
+    }
     state.currentView = view || state.currentView || 'vehicle-checks';
     if(state.currentView === 'vehicles' || state.currentView === 'washing') state.currentView = 'assets';
     if(state.currentView === 'maintenance') state.currentView = 'tasks';
@@ -5610,7 +5617,7 @@
     }));
     document.querySelectorAll('[data-ops-pm-view]').forEach(btn => btn.addEventListener('click', () => { state.pmView = btn.dataset.opsPmView; state.scheduleQuickFilter=''; render(); }));
     document.querySelectorAll('[data-ops-shortcut]').forEach(card => { const go = () => handleDashboardShortcut(card.dataset.opsShortcut); card.addEventListener('click', go); card.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
-    document.querySelectorAll('[data-ops-dashboard-tile]').forEach(card => { const go = () => { state.trainingRegisterFilters = {personType:'all', trainingType:'all', status: card.dataset.opsDashboardTile || 'all'}; showOperations('training-register'); }; card.addEventListener('click', go); card.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
+    document.querySelectorAll('[data-ops-dashboard-tile]').forEach(card => { const go = () => { state.trainingRegisterFilters = {personType:'all', trainingType:'all', status: card.dataset.opsDashboardTile || 'all'}; state.trainingRegisterForceOpen = true; state.keepOpen = state.keepOpen || {}; state.keepOpen['register-results'] = true; showOperations('training-register'); }; card.addEventListener('click', go); card.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
     document.querySelectorAll('[data-ops-clear-register-status]').forEach(b => b.addEventListener('click', () => { state.trainingRegisterFilters = {...(state.trainingRegisterFilters||{}), status:'all'}; render(); }));
     ['opsRegisterPersonType','opsRegisterTrainingType','opsRegisterStatus','opsRegisterCourse'].forEach(id => byId(id)?.addEventListener('change', () => {
       state.trainingRegisterFilters = {
