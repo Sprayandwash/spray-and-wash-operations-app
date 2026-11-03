@@ -532,6 +532,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     // Evidence panel: search, pick, summary, download.
     const panel = page.locator('#opsEvidencePanel');
     await expect(panel).toBeVisible();
+    const regBox = await page.locator('.ops-register-table').boundingBox();
+    expect((await panel.boundingBox()).y, 'panel sits below the register').toBeGreaterThan(regBox.y);
+    await panel.locator('summary').first().click();
+    await panel.locator('#opsEvidencePick > summary').click();
     await panel.locator('#opsEvidenceSearch').fill(fx.personName);
     const row = panel.locator('[data-ops-evidence-row]:visible', { hasText: fx.personName });
     await expect(row).toHaveCount(1);
@@ -539,6 +543,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await expect(panel.locator('#opsEvidenceSummary')).toContainText(/1 person selected · \d+ files?/);
     await panel.locator('[data-ops-evidence-quick="clear"]').click();
     await expect(panel.locator('#opsEvidenceSummary')).toContainText('0 people selected');
+    await expect(panel.locator('#opsEvidencePickLabel')).toContainText('Select people');
     await panel.locator('[data-ops-evidence-quick="employees"]').click();
     await expect(panel.locator('#opsEvidenceSummary')).not.toContainText('0 people selected');
     await panel.locator('[data-ops-evidence-quick="clear"]').click();
@@ -581,6 +586,15 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     const after = (await page.locator('#opsRecordNotes').boundingBox()).height;
     await expect(page.locator('#opsRecordNotes')).toHaveCSS('resize', 'vertical');
     expect(after, 'Notes box follows a resize').toBeGreaterThan(before + 40);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const cat = await openPanel(page, 'Course Catalog');
+    await expect(cat.locator('h3', { hasText: 'Course Catalog' })).toHaveCount(1);
+    await expect(cat).not.toContainText('use the arrows');
+    await cat.getByRole('button', { name: '+ Add course', exact: true }).click();
+    await expect(page.locator('#opsCourseDescription')).toHaveCount(0);
+    const cl = await page.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); return { v: r('opsCourseValidity'), n: r('opsCourseNzqaCodes') }; });
+    expect(cl.v.width, 'Validity box is small').toBeLessThanOrEqual(130);
+    expect(Math.abs(cl.v.top - cl.n.top), 'NZQA sits beside Validity').toBeLessThan(6);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await goToTab(page, 'Settings');
     const mat = await openPanel(page, 'Training Matrix').catch(() => null);

@@ -680,7 +680,10 @@
       .ops-rec-left { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.5rem .8rem; align-content:start; }
       .ops-rec-left .ops-r-a { grid-column:span 2; }
       .ops-rec-left .ops-r-b { grid-column:span 3; }
-      .ops-course-left { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .ops-course-row1 { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) 96px minmax(0,1.6fr); gap:.5rem .8rem; align-items:end; }
+      .ops-course-validity input { text-align:center; }
+      @media(max-width:900px){ .ops-course-row1 { grid-template-columns:1fr 1fr; } }
+      .ops-catalog-actions { justify-content:flex-end; margin:0 0 .4rem; }
       .ops-rec-notes { display:flex; flex-direction:column; gap:.25rem; }
       .ops-rec-notes textarea { flex:1 1 auto; height:auto; min-height:110px; resize:vertical; }
       @media(max-width:760px){ .ops-rec-grid { grid-template-columns:1fr; } }
@@ -688,8 +691,15 @@
       .ops-register-table { min-width:0 !important; table-layout:auto; }
       .ops-evidence-panel > summary { cursor:pointer; list-style:none; display:flex; gap:.75rem; align-items:baseline; flex-wrap:wrap; }
       .ops-evidence-body { margin-top:.6rem; }
-      .ops-evidence-quick input[type=search] { margin-left:auto; max-width:240px; border:1px solid #c5d8ee; border-radius:.6rem; padding:.4rem .6rem; font:inherit; }
-      .ops-evidence-list { max-height:220px; overflow:auto; border:1px solid #bdd6f0; border-radius:.7rem; padding:.3rem; margin:.5rem 0; display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0 .5rem; }
+      .ops-evidence-row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+      .ops-evidence-pick { position:relative; }
+      .ops-evidence-pick > summary { list-style:none; display:inline-block; cursor:pointer; }
+      .ops-evidence-pick > summary::-webkit-details-marker { display:none; }
+      .ops-evidence-pop { position:absolute; z-index:20; left:0; top:100%; margin-top:.3rem; width:340px; max-width:90vw; background:#fff; border:1px solid #bdd6f0; border-radius:.8rem; box-shadow:0 8px 24px rgba(0,59,115,.18); padding:.6rem; }
+      .ops-evidence-pop input[type=search] { width:100%; box-sizing:border-box; border:1px solid #c5d8ee; border-radius:.6rem; padding:.4rem .6rem; font:inherit; }
+      .ops-evidence-quick { display:flex; flex-wrap:wrap; gap:.2rem .9rem; margin:.45rem 0 .2rem; }
+      .ops-link-btn { background:none; border:0; padding:0; color:#2f7fb8; font:inherit; font-size:.85rem; font-weight:700; cursor:pointer; text-decoration:underline; }
+      .ops-evidence-pick-list { max-height:260px; overflow:auto; border-top:1px solid #e1ecf7; margin-top:.3rem; padding-top:.3rem; }
       .ops-evidence-person { display:flex; gap:.5rem; align-items:center; padding:.25rem .4rem; border-radius:.4rem; cursor:pointer; font-size:.88rem; }
       .ops-evidence-person[hidden] { display:none; }
       .ops-evidence-person:hover { background:#edf6fc; }
@@ -1636,10 +1646,10 @@
       .join('') || `<tr><td colspan="6" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
     const heading = statusFilter !== 'all' ? `Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}` : 'On-screen register';
     const clearBtn = statusFilter !== 'all' ? `<button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button>` : '';
-    return `${trainingEvidencePanelHtml()}<div class="ops-card">
+    return `<div class="ops-card">
       <div class="ops-section-title"><h3>${heading}</h3><div class="ops-actions">${clearBtn}</div></div>
       <div class="ops-table-wrap"><table class="ops-table ops-register-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th></tr>${rows}</table></div>
-    </div>`;
+    </div>${trainingEvidencePanelHtml()}`;
   }
 
   // ---- Evidence download panel (Register) ----
@@ -1676,21 +1686,32 @@
     const q = (state.trainingEvidenceSearch || '').trim().toLowerCase();
     const shown = people.filter(p => !q || (p.full_name + ' ' + trainingEvidenceRoleLabel(p)).toLowerCase().includes(q));
     const list = shown.map(p => `<label class="ops-evidence-person" data-ops-evidence-row><input type="checkbox" data-ops-evidence-person="${p.id}" ${state.trainingRegisterSelected.has(String(p.id)) ? 'checked' : ''}><span>${esc(p.full_name)}</span><span class="ops-subtle">${esc(trainingEvidenceRoleLabel(p))}</span></label>`).join('') || '<p class="ops-subtle">Nobody matches that search.</p>';
-    return `<details class="ops-card ops-evidence-panel" id="opsEvidencePanel" open>
+    return `<details class="ops-card ops-evidence-panel" id="opsEvidencePanel" data-ops-keep-open="evidence-panel" ${opsKeepOpen('evidence-panel')}>
       <summary><strong>Download evidence</strong> <span class="ops-subtle">Certificates and photos attached to training records, as one zip</span></summary>
       <div class="ops-evidence-body">
-        <div class="ops-actions ops-evidence-quick">
-          <button type="button" class="ops-btn ghost" data-ops-evidence-quick="employees">All employees</button>
-          <button type="button" class="ops-btn ghost" data-ops-evidence-quick="contractors">All contractors</button>
-          <button type="button" class="ops-btn ghost" data-ops-evidence-quick="everyone">Everyone</button>
-          <button type="button" class="ops-btn ghost" data-ops-evidence-quick="clear">Clear</button>
-          <input id="opsEvidenceSearch" type="search" placeholder="Search people…" value="${esc(state.trainingEvidenceSearch || '')}" aria-label="Search people">
+        <div class="ops-evidence-row">
+          <details class="ops-evidence-pick" id="opsEvidencePick">
+            <summary class="ops-btn ghost" id="opsEvidencePickLabel">${esc(trainingEvidencePickLabel())}</summary>
+            <div class="ops-evidence-pop">
+              <input id="opsEvidenceSearch" type="search" placeholder="Search people…" value="${esc(state.trainingEvidenceSearch || '')}" aria-label="Search people">
+              <div class="ops-evidence-quick">
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="employees">All employees</button>
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="contractors">All contractors</button>
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="everyone">Everyone</button>
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="clear">Clear</button>
+              </div>
+              <div class="ops-evidence-pick-list" id="opsEvidenceList">${list}</div>
+            </div>
+          </details>
+          <span class="ops-subtle">Course: ${esc(trainingEvidenceCourseName())} (change it with the Course filter above)</span>
         </div>
-        <div class="ops-evidence-list" id="opsEvidenceList">${list}</div>
-        <p class="ops-subtle">Narrow to one course with the Course filter above (currently ${esc(trainingEvidenceCourseName())}).</p>
         <div class="ops-actions ops-evidence-footer"><span id="opsEvidenceSummary" class="ops-evidence-summary">${esc(trainingEvidenceSummaryText())}</span><button type="button" class="ops-btn primary" id="opsEvidenceDownload" data-ops-download-register-evidence>Download evidence</button></div>
       </div>
     </details>`;
+  }
+  function trainingEvidencePickLabel(){
+    const n = state.trainingRegisterSelected.size;
+    return n ? `${n} ${n === 1 ? 'person' : 'people'} selected ▾` : 'Select people ▾';
   }
   function trainingEvidenceCourseName(){
     const id = (state.trainingRegisterFilters || {}).courseId;
@@ -1704,6 +1725,7 @@
   }
   function trainingEvidenceRefresh(){
     const el = byId('opsEvidenceSummary'); if(el) el.textContent = trainingEvidenceSummaryText();
+    const pl = byId('opsEvidencePickLabel'); if(pl) pl.textContent = trainingEvidencePickLabel();
     document.querySelectorAll('[data-ops-evidence-person]').forEach(cb => { cb.checked = state.trainingRegisterSelected.has(String(cb.dataset.opsEvidencePerson)); });
   }
   function trainingEvidenceQuick(kind){
@@ -2174,17 +2196,14 @@
     const courseType = editing?.course_type === 'internal' ? 'internal' : 'external';
     return `<form id="opsTrainingCourseForm" class="ops-form ops-form-panel ${editing ? '' : 'ops-form-adding'}" novalidate data-course-id="${editing ? editing.id : ''}">
       <h4 class="ops-span-2 ops-form-title">${editing ? 'Course details' : 'Add a course'}</h4>
-      <div class="ops-span-2 ops-rec-grid ops-course-grid">
-        <div class="ops-rec-left ops-course-left">
-      <label>Course name *<input id="opsCourseName" required maxlength="100" value="${esc(editing?.name || '')}"><span class="ops-subtle">Up to 100 characters.</span></label>
-      <label>Type<select id="opsCourseType">
-        <option value="external" ${courseType==='external'?'selected':''}>External Qualification</option>
-        <option value="internal" ${courseType==='internal'?'selected':''}>Internal Training</option>
-      </select></label>
-      <label>Validity (months)<input id="opsCourseValidity" type="number" min="1" max="120" step="1" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"><span class="ops-subtle">Whole months, 1 to 120.</span></label>
-      <label class="ops-span-2">NZQA code(s)<input id="opsCourseNzqaCodes" value="${esc(trainingCourseNzqaCodesText(editing))}" placeholder="e.g. 12345, 67890 — separate multiple codes with commas"></label>
-        </div>
-      <label class="ops-rec-notes">Description<textarea id="opsCourseDescription" maxlength="1000">${esc(editing?.description || '')}</textarea></label>
+      <div class="ops-span-2 ops-course-row1">
+        <label>Course name *<input id="opsCourseName" required maxlength="100" value="${esc(editing?.name || '')}"></label>
+        <label>Type<select id="opsCourseType">
+          <option value="external" ${courseType==='external'?'selected':''}>External Qualification</option>
+          <option value="internal" ${courseType==='internal'?'selected':''}>Internal Training</option>
+        </select></label>
+        <label class="ops-course-validity">Validity (months)<input id="opsCourseValidity" type="number" min="1" max="120" step="1" value="${editing?.validity_period_months ?? ''}" title="Whole months, 1 to 120. Leave blank if it doesn't expire"></label>
+        <label>NZQA code(s)<input id="opsCourseNzqaCodes" value="${esc(trainingCourseNzqaCodesText(editing))}" placeholder="e.g. 12345, 67890 (separate with commas)"></label>
       </div>
       ${editing ? '' : `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" checked><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>`}
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
@@ -2203,9 +2222,9 @@
     const head = '<tr><th class="ops-grip-cell"></th><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>';
     const rows = active.map(c => trainingCatalogRowHtml(c, true)).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
     const archivedRows = archived.map(c => trainingCatalogRowHtml(c, false)).join('');
-    return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
+    return `<div class="ops-catalog-inner"><div class="ops-actions ops-catalog-actions"><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
-      <p class="ops-subtle">Drag a course up or down (or use the arrows) to set the order it appears in the Matrix and Register.</p>
+      <p class="ops-subtle">Drag a course up or down to set the order it appears in the Matrix and Register.</p>
       <div class="ops-table-wrap"><table class="ops-table ops-catalog-table">${head}${rows}</table></div>
       ${archived.length ? `<details class="ops-archived-list" data-ops-keep-open="archived-courses" ${opsKeepOpen('archived-courses')}><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-archived-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
     </div>`;
@@ -2283,7 +2302,6 @@
     const id = form.dataset.courseId;
     const nameEl = byId('opsCourseName');
     const validityEl = byId('opsCourseValidity');
-    const descEl = byId('opsCourseDescription');
     const codesEl = byId('opsCourseNzqaCodes');
     const editingCourse = id ? state.trainingCourses.find(c => String(c.id) === String(id)) : null;
     const name = nameEl.value.trim().replace(/\s+/g, ' ');
@@ -2303,14 +2321,13 @@
     }
     const nzqaCodes = trainingParseNzqaCodes(codesEl.value);
     if(nzqaCodes.some(c => c.length > 20)) flag(codesEl, 'Each NZQA code must be 20 characters or fewer. Separate several codes with commas.');
-    if(descEl.value.length > 1000) flag(descEl, 'The description is too long. The limit is 1000 characters.');
     if(problems){ opsFocusFirstError(form); return; }
     const row = {
       name,
       course_type: byId('opsCourseType').value === 'internal' ? 'internal' : 'external',
       validity_period_months: validity,
       display_order: editingCourse ? editingCourse.display_order : trainingNextCourseOrder(),
-      description: descEl.value.trim() || null,
+      description: editingCourse ? (editingCourse.description ?? null) : null,
       active: byId('opsCourseActive').checked,
       nzqa_codes: nzqaCodes,
       nzqa_code: nzqaCodes[0] || null
