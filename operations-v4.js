@@ -5780,9 +5780,18 @@
       // invalid field turns red with its own message and the first one is brought into view. This replaces the
       // browser's own pop-up, which only ever showed the first empty field and never turned anything red.
       // Forms that already validate themselves (marked novalidate) are left alone.
+      // The browser blocks a submit with its own pop-up before any submit event fires, so switch its check
+      // off the moment a submit button is pressed (this also covers pressing Enter in a field).
+      document.addEventListener('click', ev => {
+        const btn = ev.target && ev.target.closest ? ev.target.closest('button, input[type="submit"]') : null;
+        const form = btn && btn.form;
+        if(!form || form.noValidate || btn.formNoValidate || btn.type !== 'submit' || !form.closest('#opsShell')) return;
+        form.noValidate = true;
+        form.dataset.opsAutoValidate = '1';
+      }, true);
       document.addEventListener('submit', ev => {
         const form = ev.target;
-        if(!form || form.tagName !== 'FORM' || form.noValidate || !form.closest('#opsShell')) return;
+        if(!form || form.tagName !== 'FORM' || !form.dataset.opsAutoValidate || !form.closest('#opsShell')) return;
         if(ev.submitter && ev.submitter.formNoValidate) return;
         const bad = Array.from(form.elements).filter(el => el.willValidate && !el.disabled && el.offsetParent !== null && !el.checkValidity());
         if(!bad.length) return;

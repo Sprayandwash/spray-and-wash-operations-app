@@ -22,6 +22,7 @@ test('REG-157: every Operations form turns all its missing required fields red t
   assert.match(ops, /form\.closest\('#opsShell'\)/);
   assert.match(ops, /!el\.checkValidity\(\)/);
   assert.match(ops, /ev\.stopImmediatePropagation\(\)/);
+  assert.match(ops, /form\.dataset\.opsAutoValidate = '1'/, 'the browser pop-up is switched off when a submit button is pressed');
   assert.match(ops, /\}, true\);/, 'runs in the capture phase so it goes before each form\'s own handler');
 });
 
