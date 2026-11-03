@@ -580,7 +580,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await openPerson(page);
     const head = await page.evaluate(() => {
       const h = document.querySelector('.ops-person-head'); const kids = [...h.children].filter(e => !e.classList.contains('ops-person-head-actions')).map(e => e.getBoundingClientRect());
-      return { sameRow: kids.every(k => Math.abs(k.top - kids[0].top) < 30), height: h.getBoundingClientRect().height };
+      const mid = k => k.top + k.height / 2; return { sameRow: kids.every(k => Math.abs(mid(k) - mid(kids[0])) < 12), height: h.getBoundingClientRect().height };
     });
     expect(head.sameRow, 'back button, name and designation share a row').toBeTruthy();
     let s = await openSection(page);
