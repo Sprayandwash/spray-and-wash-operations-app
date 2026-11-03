@@ -85,6 +85,8 @@
     homeAttentionFilter: 'all',
     prefillVehicleCheckId: '',
     trainingContractors: [],
+    trainingRegisterSelected: new Set(),
+    trainingEvidenceSearch: '',
     trainingCourses: [],
     trainingPeople: [],
     trainingMatrix: [],
@@ -144,7 +146,8 @@
   }
   function opsFieldError(el, msg){
     if(!el) return;
-    const holder = el.closest('label') || el.parentElement;
+    const isControl = el.matches && el.matches('input,select,textarea');
+    const holder = isControl ? (el.closest('label') || el.parentElement) : el;
     holder.classList.add('ops-field-invalid');
     const d = document.createElement('div');
     d.className = 'ops-field-error';
@@ -167,9 +170,32 @@
     }
     d.textContent = msg;
   }
+  // Scroll an element to just below the sticky banner/header bars so it is not hidden behind them.
+  function opsScrollBelowHeader(el){
+    if(!el) return;
+    let top = 0;
+    document.querySelectorAll('header, #stagingEnvironmentBanner').forEach(h => {
+      const pos = getComputedStyle(h).position;
+      if(pos === 'sticky' || pos === 'fixed') top = Math.max(top, h.getBoundingClientRect().bottom);
+    });
+    const y = el.getBoundingClientRect().top + window.scrollY - top - 12;
+    window.scrollTo({top: Math.max(0, y), left: 0, behavior: 'auto'});
+  }
+  // Flag exactly one missing/invalid field in red with a message beside it and bring it into view.
+  // Falls back to a plain alert when the field cannot be found, so a form never fails silently.
+  // Returns undefined so handlers can `return opsFlagField(...)`.
+  function opsFlagField(el, msg){
+    if(typeof el === 'string') el = byId(el);
+    if(!el){ alert(msg); return; }
+    const scope = el.closest('form') || el.parentElement;
+    if(scope) opsClearFormErrors(scope);
+    opsFieldError(el, msg);
+    if(el.scrollIntoView) el.scrollIntoView({block:'center'});
+    if(el.focus && el.matches && el.matches('input,select,textarea')) el.focus({preventScroll:true});
+  }
   function opsFocusFirstError(form){
     const el = form.querySelector('.ops-field-invalid input, .ops-field-invalid select, .ops-field-invalid textarea, .ops-field-invalid [tabindex]') || form.querySelector('.ops-field-invalid');
-    if(el){ el.scrollIntoView({block:'center'}); if(el.focus) el.focus({preventScroll:true}); }
+    if(el){ el.scrollIntoView({block:'center'}); if(el.focus && el.matches('input,select,textarea,[tabindex]')) el.focus({preventScroll:true}); }
   }
   function daysUntil(dateStr){ if(!dateStr) return null; const d = new Date(dateStr + 'T00:00:00'); const n = new Date(today() + 'T00:00:00'); return Math.ceil((d - n) / 86400000); }
   function experienceSince(dateStr){
@@ -327,7 +353,7 @@
       .tabs{position:static!important;top:auto!important;background:transparent!important;margin:.75rem 0 1rem 0!important;display:flex;flex-wrap:wrap;gap:.5rem!important;padding:0!important;}
       .ops-nav button, .ops-btn { box-sizing:border-box; font:inherit; border:0; border-radius:12px; padding:11px 14px; background:#e2e8f0; color:#0f172a; font-weight:800; cursor:pointer; min-height:42px; line-height:1.3; display:inline-flex; align-items:center; justify-content:center; -webkit-appearance:none; -moz-appearance:none; appearance:none; }
       button.ops-btn::-moz-focus-inner, .ops-nav button::-moz-focus-inner { border:0; padding:0; }
-      .ops-nav button.active, .ops-btn.primary { background:#0f766e; color:white; }
+      .ops-nav button.active, .ops-btn.primary { background:#003b73; color:white; }
       .tabs { align-items:center; gap:.5rem !important; padding:6px 0 12px !important; }
       .tabs .tab, .tabs button.tab { border:0; border-radius:12px !important; padding:11px 14px !important; background:#e2e8f0 !important; color:#0f172a !important; font-weight:800 !important; min-height:42px; white-space:nowrap; }
       .tabs .tab.active, .tabs button.tab.active { background:#003b73 !important; color:white !important; }
@@ -366,11 +392,11 @@
       .ops-register-badges .ops-pill { justify-self:stretch; width:100%; box-sizing:border-box; text-align:center; justify-content:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .ops-register-competency { display:inline-block; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
       .ops-register-key { font-size:.85rem; color:#334155; background:#f6f9fe; border:1px solid #d9e2f0; border-radius:.75rem; padding:.6rem .85rem; margin:.75rem 0; }
-      .ops-register-key strong { color:#0f766e; }
+      .ops-register-key strong { color:#003b73; }
       .ops-evidence-list { list-style:none; margin:.5rem 0; padding:0; border:1px solid #e2e8f0; border-radius:.6rem; overflow:hidden; }
       .ops-evidence-item { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.55rem .75rem; border-bottom:1px solid #eef1f5; background:#fff; }
       .ops-evidence-item:last-child { border-bottom:0; }
-      .ops-evidence-link { flex:1 1 auto; min-width:0; text-align:left; background:none; border:0; padding:0; color:#0f766e; font-weight:700; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .ops-evidence-link { flex:1 1 auto; min-width:0; text-align:left; background:none; border:0; padding:0; color:#003b73; font-weight:700; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .ops-evidence-link:hover, .ops-evidence-link:focus-visible { text-decoration:underline; }
       .ops-evidence-remove { flex:none; padding:6px 10px; min-height:0; font-size:.82rem; }
       .ops-evidence-empty { margin:.5rem 0; }
@@ -401,11 +427,11 @@
       .ops-matrix-switch[data-state="applicable"]::before { transform:translateX(11px); }
       .ops-matrix-switch[data-state="compulsory"] { background:#16a34a; }
       .ops-matrix-switch[data-state="compulsory"]::before { transform:translateX(22px); }
-      .ops-matrix-switch:focus-visible { outline:2px solid #0f766e; outline-offset:2px; }
+      .ops-matrix-switch:focus-visible { outline:2px solid #003b73; outline-offset:2px; }
       .ops-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
       tr.ops-row-link { cursor:pointer; }
       tr.ops-row-link:hover, tr.ops-row-link:focus-visible { background:#f6f9fe; outline:none; }
-      tr.ops-row-editing { background:#eef6ff; box-shadow:inset 3px 0 0 #0f766e; }
+      tr.ops-row-editing { background:#eef6ff; box-shadow:inset 3px 0 0 #003b73; }
       .ops-form { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:.8rem; }
       .ops-form label { display:flex; flex-direction:column; gap:.25rem; font-size:.9rem; font-weight:700; color:#344054; }
       .ops-form input, .ops-form select, .ops-form textarea { width:100%; border:1px solid #cfd8e3; border-radius:.6rem; padding:.58rem .65rem; font:inherit; box-sizing:border-box; }
@@ -448,8 +474,8 @@
 
       .ops-user-card { border:1px solid #dbe3ec; border-radius:.85rem; padding:.8rem; margin:.7rem 0; background:#fff; }
       .ops-role-chip { display:inline-block; border-radius:999px; padding:.2rem .55rem; margin:.12rem; background:#e0f2fe; color:#075985; font-size:.78rem; font-weight:800; }
-      .ops-cert-search { border:2px solid #0f766e; background:#ecfdf5; border-radius:14px; padding:12px; margin:10px 0; }
-      .ops-home-tab { background:#0f766e !important; color:white !important; flex:0 0 auto; }
+      .ops-cert-search { border:2px solid #003b73; background:#edf6fc; border-radius:14px; padding:12px; margin:10px 0; }
+      .ops-home-tab { background:#003b73 !important; color:white !important; flex:0 0 auto; }
       #users .roleGrid { grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); }
       #usersTabButton,#adminTabButton,.legacyAdminOnly { display:none !important; }
       #users details.ops-legacy-roles { margin-top:.5rem; }
@@ -467,12 +493,12 @@
       .ops-logo-setting{display:grid;grid-template-columns:minmax(180px,260px) minmax(240px,1fr);gap:1rem;align-items:start;border:1px solid #dbe3ec;border-radius:1rem;background:#f8fafc;padding:1rem}
       .ops-logo-preview{display:block;max-width:220px;max-height:110px;object-fit:contain;background:white;border:1px solid #dbe3ec;border-radius:.75rem;padding:.5rem;box-sizing:border-box}
       .ops-home-row { display:flex; justify-content:flex-start; margin-bottom:.45rem; }
-      .ops-home-btn { min-width:150px; border-radius:.85rem; background:#0f766e !important; color:white !important; box-shadow:0 6px 16px rgba(15,23,42,.08); }
+      .ops-home-btn { min-width:150px; border-radius:.85rem; background:#003b73 !important; color:white !important; box-shadow:0 6px 16px rgba(15,23,42,.08); }
       .ops-dashboard-stat { color:white; min-height:118px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden; border:0; box-shadow:0 14px 35px rgba(15,23,42,.14); cursor:pointer; }
-      .ops-dashboard-stat:focus { outline:3px solid rgba(15,118,110,.35); outline-offset:3px; }
+      .ops-dashboard-stat:focus { outline:3px solid rgba(0,59,115,.35); outline-offset:3px; }
       .ops-dashboard-stat::after { content:""; position:absolute; right:-28px; top:-28px; width:115px; height:115px; border-radius:999px; background:rgba(255,255,255,.16); }
       .ops-dashboard-stat .ops-subtle { color:rgba(255,255,255,.92); }
-      .ops-stat-total { background:linear-gradient(135deg,#0f766e,#14b8a6); }
+      .ops-stat-total { background:linear-gradient(135deg,#003b73,#4f9bd0); }
       .ops-stat-green { background:linear-gradient(135deg,#15803d,#22c55e); }
       .ops-stat-amber { background:linear-gradient(135deg,#c2410c,#f59e0b); }
       .ops-stat-red { background:linear-gradient(135deg,#991b1b,#ef4444); }
@@ -480,7 +506,7 @@
       .ops-branch-card { color:white; border:0; min-height:128px; box-shadow:0 14px 35px rgba(15,23,42,.14); position:relative; overflow:hidden; }
       .ops-branch-card .ops-subtle { color:rgba(255,255,255,.92); font-weight:700; }
       .ops-branch-card::after { content:""; position:absolute; right:-30px; top:-30px; width:120px; height:120px; border-radius:999px; background:rgba(255,255,255,.15); }
-      .ops-home-height { background:linear-gradient(135deg,#0f766e,#14b8a6); }
+      .ops-home-height { background:linear-gradient(135deg,#003b73,#4f9bd0); }
       .ops-home-vehicle { background:linear-gradient(135deg,#15803d,#22c55e); }
       .ops-home-management { background:linear-gradient(135deg,#c2410c,#f59e0b); }
       .ops-home-training { background:linear-gradient(135deg,#6d28d9,#a78bfa); }
@@ -532,7 +558,7 @@
       @media(max-width:640px){.ops-maintenance-detail-item .ops-form{grid-template-columns:1fr}}
       .ops-record-items{display:grid;gap:.5rem}
       .ops-record-items>div{border:1px solid #e5ebf2;border-radius:.7rem;padding:.65rem .75rem;background:#f8fafc}
-      .ops-transfer-card{border:2px solid #99f6e4;background:#f0fdfa}
+      .ops-transfer-card{border:2px solid #bdd6f0;background:#edf6fc}
       .ops-cert-generate-step { margin-top:1rem; }
       .ops-cert-generate-step button { width:100%; }
       /* Spray & Wash brand system: logo navy, blue and green. */
@@ -596,7 +622,7 @@
       .ops-card > .ops-btn:not(:last-child) { margin-bottom:.9rem; }
       .ops-card > .ops-section-title + .ops-table-wrap, .ops-card > form + .ops-table-wrap, .ops-card > p + .ops-table-wrap { margin-top:1rem; }
       .ops-form-panel { background:#f3f9fd !important; border:2px solid #9fc5e0 !important; border-radius:1rem; padding:1.1rem 1.1rem 1.25rem; margin:1rem 0 1.5rem; box-shadow:0 4px 14px rgba(0,59,115,.08); }
-      .ops-form-panel.ops-form-adding { border-left:8px solid #0f766e !important; }
+      .ops-form-panel.ops-form-adding { border-left:8px solid #003b73 !important; }
       .ops-form-panel.ops-form-editing { border-left:8px solid #d97706 !important; background:#fffaf0 !important; }
       .ops-form-title { margin:0; color:#003b73; font-size:1.05rem; }
       .ops-form-panel .ops-actions { margin-top:.5rem; }
@@ -605,8 +631,8 @@
       .ops-field-error { color:#b91c1c; font-size:.88rem; font-weight:700; margin-top:.3rem; line-height:1.35; }
       .ops-form-error { color:#991b1b; background:#fee2e2; border:1px solid #fca5a5; border-radius:.7rem; padding:.6rem .8rem; font-weight:700; }
       .ops-record-card { border:1px solid #cfe0ee; border-radius:.9rem; padding:.9rem 1rem; margin:.9rem 0; background:#fff; }
-      .ops-record-current { border:2px solid #0f766e; box-shadow:0 3px 10px rgba(15,118,110,.10); }
-      .ops-record-tag { display:inline-block; font-size:.75rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0f766e; margin-bottom:.4rem; }
+      .ops-record-current { border:2px solid #003b73; box-shadow:0 3px 10px rgba(0,59,115,.10); }
+      .ops-record-tag { display:inline-block; font-size:.75rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#003b73; margin-bottom:.4rem; }
       .ops-record-previous { background:#f5f7fa; border-color:#e1e6ed; color:#4b5a70; font-size:.93rem; }
       .ops-record-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.6rem 1rem; margin:0 0 .6rem; }
       .ops-record-grid dt { font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; color:#65758b; }
@@ -623,6 +649,86 @@
       .ops-archived-list > summary { cursor:pointer; padding:.5rem 0; }
       .ops-archived-list > summary h4 { display:inline; margin:0; }
       .ops-archived-body { margin-top:.5rem; }
+      /* Tighter layout for the Training screens (Nov 2026 feedback) */
+      #opsShell .ops-card { min-width:0; max-width:100%; }
+      .ops-card p.ops-subtle, .ops-card > p { margin:.3rem 0; }
+      .ops-card .ops-section-title { margin-bottom:.4rem; }
+      .ops-card .ops-section-title h3, .ops-card > h3 { margin:0; }
+      .ops-card .ops-form { gap:.5rem .8rem; }
+      .ops-form label.ops-check { flex-direction:row; align-items:center; gap:.5rem; text-align:left; margin:.1rem 0; }
+      .ops-form label.ops-check input[type=checkbox] { width:auto; margin:0; }
+      .ops-form-panel { padding:.8rem 1rem .9rem; margin:.6rem 0 .9rem; }
+      .ops-form-panel .ops-form-title { margin:0 0 .1rem; }
+      .ops-form textarea { min-height:56px; }
+      .ops-form label .ops-subtle { font-weight:400; margin:0; }
+      details.ops-training-course>summary { padding:.65rem 1rem; }
+      .ops-training-course-body { padding:0 1rem .75rem; }
+      .ops-training-course-body > p.ops-subtle { margin:.15rem 0 .4rem; }
+      .ops-record-card { padding:.6rem .85rem; margin:.5rem 0; }
+      .ops-record-grid { margin:0 0 .4rem; gap:.4rem 1rem; }
+      .ops-record-actions { margin-top:.5rem; }
+      .ops-evidence-list { margin:.3rem 0; }
+      .ops-evidence-item { padding:.4rem .7rem; }
+      .ops-record-form-evidence .ops-evidence-empty { margin:.2rem 0; }
+      .ops-contacts-line { margin:.3rem 0 .5rem; }
+      /* Matrix: every row the same height, long names cut short */
+      .ops-matrix-table tr { height:54px; }
+      .ops-matrix-table td.ops-matrix-person { text-align:left; overflow:hidden; }
+      .ops-matrix-table td.ops-matrix-person .ops-btn { display:block; max-width:100%; min-height:0; padding:.15rem .4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+      .ops-matrix-table td.ops-matrix-person .ops-matrix-sub { display:block; margin:0 .4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.75rem; }
+      .ops-matrix-table th.ops-matrix-head-cell { height:64px; overflow:hidden; text-overflow:ellipsis; }
+      /* Round 3 layouts */
+      .ops-matrix-table th.ops-matrix-person-head, .ops-matrix-table td.ops-matrix-person { width:150px; max-width:150px; }
+      .ops-matrix-table th.ops-matrix-head-cell { padding:.3rem .35rem; }
+      .ops-matrix-head-text { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; line-height:1.25; max-height:2.5em; }
+      .ops-person-head { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; margin-bottom:.4rem; }
+      .ops-person-head h3 { margin:0; }
+      .ops-person-desig { font-size:.82rem; }
+      .ops-person-head-actions { margin-left:auto; display:flex; align-items:center; gap:.5rem; }
+      .ops-person-comp { display:flex; align-items:center; gap:.9rem; flex-wrap:wrap; }
+      .ops-person-comp label { flex-direction:row; align-items:center; gap:.5rem; display:flex; font-weight:700; font-size:.9rem; }
+      .ops-person-comp select { width:auto; min-width:180px; }
+      .ops-rec-grid { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:.5rem .9rem; align-items:stretch; }
+      .ops-rec-left { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.5rem .8rem; align-content:start; }
+      .ops-rec-left .ops-r-a { grid-column:span 2; }
+      .ops-rec-left .ops-r-b { grid-column:span 3; }
+      .ops-course-row1 { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) 96px minmax(0,1.6fr); gap:.5rem .8rem; align-items:end; }
+      .ops-course-validity input { text-align:center; }
+      @media(max-width:900px){ .ops-course-row1 { grid-template-columns:1fr 1fr; } }
+      .ops-catalog-actions { justify-content:flex-end; margin:0 0 .4rem; }
+      .ops-rec-notes { display:flex; flex-direction:column; gap:.25rem; }
+      .ops-rec-notes textarea { flex:1 1 auto; height:auto; min-height:110px; resize:vertical; }
+      @media(max-width:760px){ .ops-rec-grid { grid-template-columns:1fr; } }
+      /* Register fits inside its card */
+      .ops-register-table { min-width:0 !important; table-layout:auto; }
+      .ops-evidence-body { margin-top:.6rem; }
+      .ops-evidence-row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+      .ops-evidence-pick { position:relative; }
+      .ops-evidence-pick > summary { list-style:none; display:inline-block; cursor:pointer; }
+      .ops-evidence-pick > summary::-webkit-details-marker { display:none; }
+      .ops-evidence-pop { position:absolute; z-index:20; left:0; top:100%; margin-top:.3rem; width:340px; max-width:90vw; background:#fff; border:1px solid #bdd6f0; border-radius:.8rem; box-shadow:0 8px 24px rgba(0,59,115,.18); padding:.6rem; }
+      .ops-evidence-pop input[type=search] { width:100%; box-sizing:border-box; border:1px solid #c5d8ee; border-radius:.6rem; padding:.4rem .6rem; font:inherit; }
+      .ops-evidence-quick { display:flex; flex-wrap:wrap; gap:.2rem .9rem; margin:.45rem 0 .2rem; }
+      .ops-link-btn { background:none; border:0; padding:0; color:#2f7fb8; font:inherit; font-size:.85rem; font-weight:700; cursor:pointer; text-decoration:underline; }
+      .ops-evidence-pick-list { max-height:260px; overflow:auto; border-top:1px solid #e1ecf7; margin-top:.3rem; padding-top:.3rem; }
+      .ops-evidence-person { display:flex; gap:.5rem; align-items:center; padding:.25rem .4rem; border-radius:.4rem; cursor:pointer; font-size:.88rem; }
+      .ops-evidence-person[hidden] { display:none; }
+      .ops-evidence-person:hover { background:#edf6fc; }
+      .ops-evidence-person input { width:auto; margin:0; }
+      .ops-evidence-person .ops-subtle { margin-left:auto; font-size:.75rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:45%; }
+      .ops-evidence-footer { justify-content:space-between; align-items:center; }
+      .ops-evidence-summary { font-weight:700; color:#003b73; }
+      .ops-register-badges { display:flex !important; flex-wrap:wrap; gap:.3rem; }
+      .ops-register-badges .ops-pill { width:auto !important; min-width:88px; padding-left:.55rem; padding-right:.55rem; }
+      .ops-register-badges > span:empty { display:none; }
+      /* Course drag-to-reorder */
+      .ops-catalog-table { min-width:0; }
+      .ops-catalog-table th.ops-grip-cell, .ops-catalog-table td.ops-grip-cell, .ops-grip-cell { width:30px; max-width:30px; box-sizing:border-box; white-space:nowrap; padding-left:.4rem !important; padding-right:0 !important; }
+      .ops-grip { cursor:grab; color:#7a8aa3; font-weight:900; letter-spacing:-2px; user-select:none; }
+      tr[data-ops-course-row] { cursor:grab; }
+      tr.ops-dragging { opacity:.45; }
+      tr.ops-drop-before > td { box-shadow:inset 0 3px 0 #003b73; }
+      tr.ops-drop-after > td { box-shadow:inset 0 -3px 0 #003b73; }
       .ops-admin-first { border:1px solid #e2e8f0; border-radius:.9rem; padding:.9rem 1rem; background:#fff; }
       .ops-admin-first h5, .ops-business-details > summary { margin:0 0 .3rem; font-weight:800; cursor:pointer; }
       .ops-business-details { border:1px solid #e2e8f0; border-radius:.9rem; padding:.7rem 1rem; background:#fff; }
@@ -891,7 +997,7 @@
   function qualificationCertificateHtml(q, certNo, fileUrl){
     const generated = new Date().toLocaleString('en-NZ');
     return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(certNo)}</title><style>
-      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:40px;color:#0f172a} .cert{max-width:850px;margin:auto;border:1px solid #cbd5e1;padding:34px;border-radius:18px} h1{margin:0 0 8px;color:#0f766e}.muted{color:#64748b}.grid{display:grid;grid-template-columns:180px 1fr;gap:10px;margin-top:24px}.label{font-weight:800;color:#334155;border-bottom:1px solid #e2e8f0;padding:8px}.value{border-bottom:1px solid #e2e8f0;padding:8px}.footer{margin-top:30px;font-size:12px;color:#64748b}.badge{display:inline-block;background:#ecfdf5;color:#0f766e;border-radius:999px;padding:6px 12px;font-weight:800} @media print{button{display:none} body{margin:0}.cert{border:0}}
+      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:40px;color:#0f172a} .cert{max-width:850px;margin:auto;border:1px solid #cbd5e1;padding:34px;border-radius:18px} h1{margin:0 0 8px;color:#003b73}.muted{color:#64748b}.grid{display:grid;grid-template-columns:180px 1fr;gap:10px;margin-top:24px}.label{font-weight:800;color:#334155;border-bottom:1px solid #e2e8f0;padding:8px}.value{border-bottom:1px solid #e2e8f0;padding:8px}.footer{margin-top:30px;font-size:12px;color:#64748b}.badge{display:inline-block;background:#edf6fc;color:#003b73;border-radius:999px;padding:6px 12px;font-weight:800} @media print{button{display:none} body{margin:0}.cert{border:0}}
     </style></head><body><div class="cert"><button onclick="window.print()">Print / Save as PDF</button><h1>Spray &amp; Wash Inspector Qualification Certificate</h1><div class="muted">Certificate No: <strong>${esc(certNo)}</strong></div><p class="badge">Height Equipment Inspector Qualification</p><div class="grid">
       <div class="label">Inspector</div><div class="value">${esc(q.inspector_name)}</div>
       <div class="label">Email</div><div class="value">${esc(q.email || '—')}</div>
@@ -1124,6 +1230,88 @@
     render();
   }
 
+  let jsZipPromise = null;
+  function opsLoadJsZip(){
+    if(window.JSZip) return Promise.resolve(window.JSZip);
+    if(!jsZipPromise) jsZipPromise = new Promise((resolve, reject) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+      sc.onload = () => window.JSZip ? resolve(window.JSZip) : reject(new Error('The ZIP library did not start.'));
+      sc.onerror = () => { jsZipPromise = null; reject(new Error('Could not load the ZIP library. Check the internet connection.')); };
+      document.head.appendChild(sc);
+    });
+    return jsZipPromise;
+  }
+  const trainingSafeName = v => String(v || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80) || 'unnamed';
+  function trainingSaveBlob(blob, name){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  // items: [{zipPath, file, index:[cells]}]. Puts every file in one zip, with an index.csv listing them.
+  async function trainingZipAndDownload(items, zipName, onProgress){
+    const JSZip = await opsLoadJsZip();
+    const zip = new JSZip();
+    const used = new Set();
+    const rows = [['Person','Role / company','Course','Record status','Completed','Expiry','File in zip','Note']];
+    let skipped = 0;
+    let done = 0;
+    for(const it of items){
+      const r = await state.sb.storage.from(TRAINING_EVIDENCE_BUCKET).download(it.file.storage_path);
+      if(r.error || !r.data){
+        skipped++;
+        if(it.index) rows.push([...it.index, '', `NOT INCLUDED: "${it.file.file_name}" is missing from storage`]);
+        done++;
+        if(onProgress) onProgress(done, items.length);
+        continue;
+      }
+      let path = it.zipPath;
+      for(let n = 2; used.has(path.toLowerCase()); n++) path = it.zipPath.replace(/(\.[^./]*)?$/, ` (${n})$1`);
+      used.add(path.toLowerCase());
+      zip.file(path, r.data);
+      if(it.index) rows.push([...it.index, path, '']);
+      done++;
+      if(onProgress) onProgress(done, items.length);
+    }
+    const csv = rows.map(r => r.map(c => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    zip.file('index.csv', '﻿' + csv);
+    if(skipped === items.length) throw new Error(`None of the ${items.length} file${items.length === 1 ? '' : 's'} could be downloaded; they are missing from storage.`);
+    const blob = await zip.generateAsync({type:'blob'});
+    trainingSaveBlob(blob, zipName);
+    return { skipped };
+  }
+
+  async function downloadTrainingRecordFiles(recordId){
+    const rec = state.trainingRecords.find(r => String(r.id) === String(recordId));
+    const files = state.trainingRecordFiles.filter(f => String(f.record_id) === String(recordId));
+    if(!rec || !files.length) return alert('There are no files on this record.');
+    if(files.length === 1) return openTrainingEvidence(files[0].id, 'download');
+    const person = state.trainingPeople.find(p => String(p.id) === String(rec.person_id));
+    const course = state.trainingCourses.find(c => String(c.id) === String(rec.course_id));
+    const items = files.map(f => ({ zipPath: trainingSafeName(f.file_name), file: f, index: [person?.full_name, '', course?.name, rec.status, rec.completed_date, rec.expiry_date] }));
+    try{ const res = await trainingZipAndDownload(items, `${trainingSafeName(person?.full_name)} - ${trainingSafeName(course?.name)} evidence.zip`); if(res && res.skipped) alert(`${res.skipped} file${res.skipped === 1 ? ' was' : 's were'} missing from storage and skipped.`); }
+    catch(e){ alert(e.message || String(e)); }
+  }
+
+  async function downloadRegisterEvidence(btn){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can download evidence.');
+    const ids = Array.from(state.trainingRegisterSelected);
+    if(!ids.length) return alert('Tick at least one person to download their evidence.');
+    const items = trainingEvidenceItems(ids, (state.trainingRegisterFilters || {}).courseId || '');
+    if(!items.length) return alert('There are no evidence files for this selection.');
+    const label = btn ? btn.textContent : '';
+    if(btn) btn.disabled = true;
+    try{
+      const res = await trainingZipAndDownload(items, `training-evidence-${today()}.zip`, (n, total) => { if(btn) btn.textContent = `Preparing ${n} of ${total}…`; });
+      if(res && res.skipped) alert(`${res.skipped} file${res.skipped === 1 ? ' was' : 's were'} missing from storage and skipped. They are listed in index.csv inside the zip.`);
+    }catch(e){ alert(e.message || String(e)); }
+    finally { if(btn){ btn.disabled = false; btn.textContent = label; } }
+  }
+
   async function openTrainingEvidence(fileId, mode){
     const file = state.trainingRecordFiles.find(f => String(f.id) === String(fileId)) || state.myTrainingRecordFiles.find(f => String(f.id) === String(fileId));
     if(!file) return alert('File not found.');
@@ -1302,7 +1490,49 @@
   }
 
   function trainingCourseTypeLabel(course){
-    return trainingIsInternalCourse(course) ? 'Internal training' : 'External / formal qualification';
+    return trainingIsInternalCourse(course) ? 'Internal Training' : 'External Qualification';
+  }
+
+  function trainingNextCourseOrder(){
+    const active = state.trainingCourses.filter(c => c.active !== false);
+    if(active.some(c => c.display_order === null || c.display_order === undefined)) return null;
+    return active.reduce((m, c) => Math.max(m, Number(c.display_order) || 0), 0) + 10;
+  }
+
+  // Re-number the active courses in the order given and save only the ones that changed.
+  async function trainingSaveCourseOrder(orderedIds){
+    if(!canUseTraining()) return alert('Only Admin or Training manager users can reorder courses.');
+    const changed = [];
+    orderedIds.forEach((id, i) => {
+      const c = state.trainingCourses.find(x => String(x.id) === String(id));
+      const next = (i + 1) * 10;
+      if(c && Number(c.display_order) !== next || (c && (c.display_order === null || c.display_order === undefined))){ c.display_order = next; changed.push(c); }
+    });
+    render();
+    if(!changed.length) return;
+    const results = await Promise.all(changed.map(c => state.sb.from('operations_training_courses').update({display_order: c.display_order}).eq('id', c.id)));
+    const failed = results.find(r => r.error);
+    if(failed){ state.lastError = 'Could not save the new course order: ' + failed.error.message; await loadTrainingData(true); }
+  }
+
+  function trainingMoveCourse(dragId, targetId, after){
+    const ids = trainingSortCourses(state.trainingCourses.filter(c => c.active !== false)).map(c => String(c.id));
+    const from = ids.indexOf(String(dragId));
+    if(from < 0 || String(dragId) === String(targetId)) return;
+    ids.splice(from, 1);
+    let to = ids.indexOf(String(targetId));
+    if(to < 0) return;
+    if(after) to += 1;
+    ids.splice(to, 0, String(dragId));
+    return trainingSaveCourseOrder(ids);
+  }
+
+  function trainingMoveCourseBy(id, dir){
+    const ids = trainingSortCourses(state.trainingCourses.filter(c => c.active !== false)).map(c => String(c.id));
+    const i = ids.indexOf(String(id)), j = i + dir;
+    if(i < 0 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    return trainingSaveCourseOrder(ids);
   }
 
   function trainingSortCourses(courses){
@@ -1330,7 +1560,9 @@
         if(ra !== rb) return ra - rb;
         return String(a.full_name).localeCompare(String(b.full_name));
       });
+    const courseIdFilter = filters?.courseId || '';
     const courses = state.trainingCourses.filter(c => c.active !== false)
+      .filter(c => !courseIdFilter || String(c.id) === String(courseIdFilter))
       .filter(c => trainingType === 'all' || (trainingType === 'internal' ? trainingIsInternalCourse(c) : !trainingIsInternalCourse(c)));
     const peopleRows = people.map(person => {
       const contractor = person.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(person.contractor_id)) : null;
@@ -1341,13 +1573,14 @@
         const matrixEntry = trainingMatrixEntry(person.id, c.id);
         const record = trainingLatestRecord(person.id, c.id);
         const status = trainingCellStatus(record, !!matrixEntry?.compulsory);
-        return { courseName: c.name, category: trainingCourseTypeLabel(c), compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, statusLabel: status.label, pillClass: status.pillClass, compliant: status.pillClass !== 'ops-bad' };
+        return { courseId: c.id, courseName: c.name, category: trainingCourseTypeLabel(c), compulsory: !!matrixEntry?.compulsory, higherLevel: !!c.higher_level_learning, completedDate: record?.completed_date || null, expiryDate: record?.expiry_date || null, statusLabel: status.label, pillClass: status.pillClass, compliant: status.pillClass !== 'ops-bad' };
       });
       return { id: person.id, name: person.full_name, roleLabel, competencyLevel: person.competency_level ?? null, entries };
     });
+    if(courseIdFilter){ for(let i = peopleRows.length - 1; i >= 0; i--) if(!peopleRows[i].entries.length) peopleRows.splice(i, 1); }
     const allEntries = peopleRows.flatMap(p => p.entries);
     const summary = {
-      peopleCount: people.length,
+      peopleCount: peopleRows.length,
       recordCount: allEntries.length,
       compliant: allEntries.filter(e => e.pillClass === 'ops-ok').length,
       expiringSoon: allEntries.filter(e => e.pillClass === 'ops-warn').length,
@@ -1365,7 +1598,7 @@
   }
 
   function trainingRegisterCss(){
-    return `@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#0f766e;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #0f766e;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#0f766e}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #0f766e;border-radius:12px;padding:14px 16px;margin:16px 0;background:#f0fdfa}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px;text-align:center}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.badges{display:grid;grid-template-columns:88px 100px 108px;align-items:center;gap:4px}.badges span.pill{justify-self:start;width:100%;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pill-compliant{width:100px;box-sizing:border-box;white-space:nowrap}.key{margin:0 0 10px;font-size:11px;color:#334155;background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:8px 12px}.key strong{color:#0f766e}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
+    return `.lh{display:flex;align-items:center;gap:16px;border-bottom:3px solid #003b73;padding-bottom:10px;margin-bottom:14px}.lh-logo{height:64px;width:auto}.lh-name{font-size:22px;font-weight:800;color:#003b73}.lh-sub{font-size:12px;color:#4b5a70}.head{border-bottom:0!important;padding-bottom:4px!important}@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.noPrint{position:sticky;top:0;background:#003b73;color:#fff;padding:10px;text-align:center;z-index:5}.noPrint button{background:#fff;color:#003b73;border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer}.page{background:#fff;max-width:1000px;margin:20px auto;padding:26px}.head{border-bottom:4px solid #003b73;padding-bottom:12px;margin-bottom:14px}.brand{font-size:12px;font-weight:900;color:#003b73;text-transform:uppercase;letter-spacing:.1em}.title{font-size:24px;font-weight:900;margin:4px 0}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.summary div{background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:10px 14px;min-width:110px;text-align:center}.summary strong{display:block;font-size:20px;color:#003b73}.summary span{font-size:11px;color:#64748b}.example{border:2px solid #003b73;border-radius:12px;padding:14px 16px;margin:16px 0;background:#edf6fc}.example.warn{border-color:#f59e0b;background:#fffbeb}.example h2{margin:0 0 10px;font-size:15px;color:#0f172a}.example .grid{display:grid;grid-template-columns:110px 1fr;gap:0}.example .label{font-weight:800;padding:5px 8px 5px 0;color:#334155}.example .value{padding:5px 0}.example p{margin:0;font-size:13px;color:#92400e}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}thead{display:table-header-group}th,td{border-bottom:1px solid #dbe7ee;padding:7px;text-align:left;vertical-align:top}th{background:#f1f5f9;font-weight:800}tr{break-inside:avoid}.pill{border-radius:999px;padding:3px 9px;font-weight:800;display:inline-block;font-size:10px;text-align:center}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.pill.muted{background:#f1f5f9;color:#64748b}.badges{display:grid;grid-template-columns:88px 100px 108px;align-items:center;gap:4px}.badges span.pill{justify-self:start;width:100%;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pill-compliant{width:100px;box-sizing:border-box;white-space:nowrap}.key{margin:0 0 10px;font-size:11px;color:#334155;background:#f5f8fb;border:1px solid #dbe5ef;border-radius:10px;padding:8px 12px}.key strong{color:#003b73}.footer{margin-top:18px;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}@media print{.noPrint{display:none}.page{margin:0;max-width:none;padding:0}}`;
   }
 
   function trainingRegisterDocHtml(filters){
@@ -1393,7 +1626,8 @@
     return `<!doctype html><html><head><meta charset="utf-8"><title>Training &amp; Competency Register</title><style>${trainingRegisterCss()}</style></head><body>
       <div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>
       <div class="page">
-        <div class="head"><div class="brand">Spray and Wash Solutions</div><div class="title">Training &amp; Competency Register</div><div class="muted">${esc(scopeBits.join(' · '))} · Generated ${new Date().toLocaleString('en-NZ')}</div></div>
+        <div class="lh"><img class="lh-logo" src="${esc(new URL('spray-wash-logo-v4.0.69.png', location.href).href)}" alt="Spray and Wash"><div class="lh-co"><div class="lh-name">Spray and Wash Solutions</div><div class="lh-sub">Leddra Enterprises Ltd · Exterior cleaning · Auckland</div><div class="lh-sub">0800 881 123 · www.sprayandwash.co.nz</div></div></div>
+        <div class="head"><div class="title">Training &amp; Competency Register</div><div class="muted">${esc(scopeBits.join(' · '))} · Generated ${new Date().toLocaleString('en-NZ')}</div></div>
         <div class="summary">
           <div><strong>${summary.peopleCount}</strong><span>People covered</span></div>
           <div><strong>${summary.recordCount}</strong><span>Course requirements tracked</span></div>
@@ -1416,24 +1650,111 @@
     const data = trainingRegisterBuildData(filters);
     const statusFilter = filters?.status || 'all';
     const sourceRows = statusFilter !== 'all' ? data.statusFilteredPeopleRows : data.peopleRows;
+    const personCell = p => `<td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td>`;
     const rows = sourceRows.flatMap(p => p.entries.length ? p.entries.map(e =>
-      `<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td>${esc(e.courseName)}</td><td>${e.completedDate ? nzDate(e.completedDate) : '—'}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${trainingRegisterDetailsBadgesHtml(e)}</td></tr>`
-    ) : [`<tr><td><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.name)}</button><br><span class="ops-subtle">${esc(p.roleLabel)}</span></td><td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td colspan="4" class="ops-subtle">No compulsory or applicable courses assigned yet.</td></tr>`])
+      `<tr>${personCell(p)}<td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td>${esc(e.courseName)}</td><td>${e.completedDate ? nzDate(e.completedDate) : '—'}</td><td>${e.expiryDate ? nzDate(e.expiryDate) : 'No expiry'}</td><td>${trainingRegisterDetailsBadgesHtml(e)}</td></tr>`
+    ) : [`<tr>${personCell(p)}<td>${trainingCompetencyBadgeHtml(p.competencyLevel)}</td><td colspan="4" class="ops-subtle">No compulsory or applicable courses assigned yet.</td></tr>`])
       .join('') || `<tr><td colspan="6" class="ops-subtle">Nobody currently matches "${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}" for this scope.</td></tr>`;
     const heading = statusFilter !== 'all' ? `Filtered to: ${esc(TRAINING_STATUS_LABELS[statusFilter] || statusFilter)}` : 'On-screen register';
     const clearBtn = statusFilter !== 'all' ? `<button class="ops-btn ghost" type="button" data-ops-clear-register-status>Clear filter</button>` : '';
-    return `<div class="ops-card">
-      <div class="ops-section-title"><h3>${heading}</h3>${clearBtn}</div>
-      <div class="ops-table-wrap"><table class="ops-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th></tr>${rows}</table></div>
-    </div>`;
+    const regOpen = !!(state.keepOpen && state.keepOpen['register-results'] === true);
+    return `<details class="ops-card ops-collapsible ops-register-panel" id="opsRegisterPanel" data-ops-keep-open="register-results" ${regOpen ? 'open' : ''}>
+      <summary><h3>${heading}</h3></summary>
+      <div class="ops-collapsible-body">${clearBtn ? `<div class="ops-actions">${clearBtn}</div>` : ''}
+      <div class="ops-table-wrap"><table class="ops-table ops-register-table"><tr><th>Person</th><th>Competency</th><th>Course</th><th>Completed</th><th>Expiry</th><th>Details</th></tr>${rows}</table></div></div>
+    </details>${trainingEvidencePanelHtml()}`;
   }
+
+  // ---- Evidence download panel (Register) ----
+  function trainingEvidencePeople(){
+    return state.trainingPeople.filter(p => p.active !== false).slice().sort((a,b) => {
+      const rank = t => t === 'employee' ? 0 : 1;
+      const ra = rank(a.person_type), rb = rank(b.person_type);
+      if(ra !== rb) return ra - rb;
+      return String(a.full_name).localeCompare(String(b.full_name));
+    });
+  }
+  function trainingEvidenceRoleLabel(p){
+    const c = p.contractor_id ? state.trainingContractors.find(x => String(x.id) === String(p.contractor_id)) : null;
+    return p.person_type === 'employee' ? 'Employee' : c ? c.company_name : trainingPersonTypeLabel(p);
+  }
+  // Files for the chosen people, optionally limited to one course.
+  function trainingEvidenceItems(personIds, courseId){
+    const items = [];
+    const ids = new Set(personIds.map(String));
+    state.trainingPeople.filter(p => ids.has(String(p.id))).forEach(p => {
+      state.trainingRecords.filter(r => String(r.person_id) === String(p.id) && (!courseId || String(r.course_id) === String(courseId)))
+        .slice().sort((a,b) => String(b.completed_date || '').localeCompare(String(a.completed_date || '')))
+        .forEach(r => {
+          const course = state.trainingCourses.find(c => String(c.id) === String(r.course_id));
+          state.trainingRecordFiles.filter(f => String(f.record_id) === String(r.id)).forEach(f => {
+            items.push({ zipPath: `${trainingSafeName(p.full_name)}/${trainingSafeName(course?.name)}/${r.completed_date || 'undated'} - ${trainingSafeName(f.file_name)}`, file: f, index: [p.full_name, trainingEvidenceRoleLabel(p), course?.name, r.status, r.completed_date, r.expiry_date] });
+          });
+        });
+    });
+    return items;
+  }
+  function trainingEvidencePanelHtml(){
+    const people = trainingEvidencePeople();
+    const q = (state.trainingEvidenceSearch || '').trim().toLowerCase();
+    const shown = people.filter(p => !q || (p.full_name + ' ' + trainingEvidenceRoleLabel(p)).toLowerCase().includes(q));
+    const list = shown.map(p => `<label class="ops-evidence-person" data-ops-evidence-row><input type="checkbox" data-ops-evidence-person="${p.id}" ${state.trainingRegisterSelected.has(String(p.id)) ? 'checked' : ''}><span>${esc(p.full_name)}</span><span class="ops-subtle">${esc(trainingEvidenceRoleLabel(p))}</span></label>`).join('') || '<p class="ops-subtle">Nobody matches that search.</p>';
+    return `<details class="ops-card ops-collapsible ops-evidence-panel" id="opsEvidencePanel" data-ops-keep-open="evidence-panel" ${opsKeepOpen('evidence-panel')}>
+      <summary><h3>Download evidence</h3></summary>
+      <div class="ops-evidence-body">
+        <div class="ops-evidence-row">
+          <details class="ops-evidence-pick" id="opsEvidencePick">
+            <summary class="ops-btn ghost" id="opsEvidencePickLabel">${esc(trainingEvidencePickLabel())}</summary>
+            <div class="ops-evidence-pop">
+              <input id="opsEvidenceSearch" type="search" placeholder="Search people…" value="${esc(state.trainingEvidenceSearch || '')}" aria-label="Search people">
+              <div class="ops-evidence-quick">
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="employees">All employees</button>
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="contractors">All contractors</button>
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="everyone">Everyone</button>
+                <button type="button" class="ops-link-btn" data-ops-evidence-quick="clear">Clear</button>
+              </div>
+              <div class="ops-evidence-pick-list" id="opsEvidenceList">${list}</div>
+            </div>
+          </details>
+          <span class="ops-subtle">Course: ${esc(trainingEvidenceCourseName())} (change it with the Course filter above)</span>
+        </div>
+        <div class="ops-actions ops-evidence-footer"><span id="opsEvidenceSummary" class="ops-evidence-summary">${esc(trainingEvidenceSummaryText())}</span><button type="button" class="ops-btn primary" id="opsEvidenceDownload" data-ops-download-register-evidence>Download evidence</button></div>
+      </div>
+    </details>`;
+  }
+  function trainingEvidencePickLabel(){
+    const n = state.trainingRegisterSelected.size;
+    return n ? `${n} ${n === 1 ? 'person' : 'people'} selected ▾` : 'Select people ▾';
+  }
+  function trainingEvidenceCourseName(){
+    const id = (state.trainingRegisterFilters || {}).courseId;
+    const c = id ? state.trainingCourses.find(x => String(x.id) === String(id)) : null;
+    return c ? c.name : 'all courses';
+  }
+  function trainingEvidenceSummaryText(){
+    const ids = Array.from(state.trainingRegisterSelected);
+    const files = trainingEvidenceItems(ids, (state.trainingRegisterFilters || {}).courseId || '').length;
+    return `${ids.length} ${ids.length === 1 ? 'person' : 'people'} selected · ${files} ${files === 1 ? 'file' : 'files'}`;
+  }
+  function trainingEvidenceRefresh(){
+    const el = byId('opsEvidenceSummary'); if(el) el.textContent = trainingEvidenceSummaryText();
+    const pl = byId('opsEvidencePickLabel'); if(pl) pl.textContent = trainingEvidencePickLabel();
+    document.querySelectorAll('[data-ops-evidence-person]').forEach(cb => { cb.checked = state.trainingRegisterSelected.has(String(cb.dataset.opsEvidencePerson)); });
+  }
+  function trainingEvidenceQuick(kind){
+    const people = trainingEvidencePeople();
+    const set = state.trainingRegisterSelected;
+    if(kind === 'clear') set.clear();
+    else people.filter(p => kind === 'everyone' || (kind === 'employees' ? p.person_type === 'employee' : p.person_type !== 'employee')).forEach(p => set.add(String(p.id)));
+    trainingEvidenceRefresh();
+  }
+
 
   function trainingRegisterFilterHtml(){
     const f = state.trainingRegisterFilters || {personType:'all', trainingType:'all', status:'all'};
     return `<div class="ops-card">
       <h3>Training &amp; Competency Register</h3>
       <p class="ops-subtle">Choose who and what to include, then view it on screen or generate a printable register.</p>
-      <div class="ops-register-key"><strong>Competency key:</strong> ${esc(trainingCompetencyKeyText())}</div>
       <div class="ops-form">
         <label>People<select id="opsRegisterPersonType">
           <option value="all" ${f.personType==='all'?'selected':''}>Employees &amp; Contractors</option>
@@ -1452,6 +1773,10 @@
           <option value="compliant" ${f.status==='compliant'?'selected':''}>Compliant</option>
           <option value="not_recorded" ${f.status==='not_recorded'?'selected':''}>Not recorded</option>
         </select></label>
+        <label>Course<select id="opsRegisterCourse">
+          <option value="">All courses</option>
+          ${trainingSortCourses(state.trainingCourses.filter(c => c.active !== false)).map(c => `<option value="${c.id}" ${String(f.courseId||'')===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select></label>
         <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="button" onclick="generateTrainingRegister()">Generate printable register</button></div>
       </div>
     </div>
@@ -1469,7 +1794,8 @@
     const filters = {
       personType: byId('opsRegisterPersonType')?.value || 'all',
       trainingType: byId('opsRegisterTrainingType')?.value || 'all',
-      status: byId('opsRegisterStatus')?.value || 'all'
+      status: byId('opsRegisterStatus')?.value || 'all',
+      courseId: byId('opsRegisterCourse')?.value || ''
     };
     state.trainingRegisterFilters = filters;
     const html = trainingRegisterDocHtml(filters);
@@ -1505,12 +1831,13 @@
     const externalCount = allCourses.filter(c => !trainingIsInternalCourse(c)).length;
     const internalCount = allCourses.length - externalCount;
     const tabsHtml = `<div class="ops-nav ops-matrix-tabs">
-      <button type="button" class="${tab==='external'?'active':''}" data-ops-matrix-tab="external">External (${externalCount})</button>
-      <button type="button" class="${tab==='internal'?'active':''}" data-ops-matrix-tab="internal">Internal (${internalCount})</button>
+      <button type="button" class="${tab==='external'?'active':''}" data-ops-matrix-tab="external">External Qualification (${externalCount})</button>
+      <button type="button" class="${tab==='internal'?'active':''}" data-ops-matrix-tab="internal">Internal Training (${internalCount})</button>
     </div>`;
     const courses = allCourses.filter(c => trainingIsInternalCourse(c) === (tab === 'internal'));
-    if(!courses.length) return `${tabsHtml}<p class="ops-subtle">No ${tab === 'internal' ? 'internal training' : 'external / formal qualification'} courses yet. Set a course's Type on the Course Catalog to place it in this tab.</p>`;
-    const headerCells = courses.map(c => `<th class="ops-matrix-head-cell" title="${esc(c.name)}">${esc(c.name)}</th>`).join('');
+    if(!courses.length) return `${tabsHtml}<p class="ops-subtle">No ${tab === 'internal' ? 'internal training' : 'external qualification'} courses yet. Set a course's Type on the Course Catalog to place it in this tab.</p>`;
+    const headerCells = courses.map(c => `<th class="ops-matrix-head-cell" title="${esc(c.name)}"><span class="ops-matrix-head-text">${esc(c.name)}</span></th>`).join('');
+    const colgroup = `<colgroup><col style="width:150px">${courses.map(() => '<col style="width:112px">').join('')}</colgroup>`;
     const rows = people.map(p => {
       const contractor = p.contractor_id ? state.trainingContractors.find(c => String(c.id) === String(p.contractor_id)) : null;
       const personTypeLabel = p.person_type === 'employee' ? 'Employee' : p.person_type === 'sole_trader' ? 'Sole trader' : 'Subcontractor';
@@ -1520,9 +1847,9 @@
         const stateLabel = TRAINING_MATRIX_STATE_LABELS[cellState];
         return `<td class="ops-matrix-cell"><button type="button" class="ops-matrix-switch" data-ops-matrix-cell data-person="${p.id}" data-course="${c.id}" data-state="${cellState}" title="${esc(c.name)} for ${esc(p.full_name)}: ${stateLabel}. Click to change."><span class="ops-sr-only">${esc(c.name)} for ${esc(p.full_name)}: ${stateLabel}</span></button></td>`;
       }).join('');
-      return `<tr><td class="ops-matrix-person"><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}">${esc(p.full_name)}</button><br><span class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
+      return `<tr><td class="ops-matrix-person"><button type="button" class="ops-btn ghost" data-ops-open-person="${p.id}" title="${esc(p.full_name)}">${esc(p.full_name)}</button><span class="ops-subtle ops-matrix-sub" title="${esc(contractor ? contractor.company_name : personTypeLabel)}">${contractor ? esc(contractor.company_name) : personTypeLabel}</span></td>${cells}</tr>`;
     }).join('');
-    return `${tabsHtml}<div class="ops-table-wrap ops-matrix-wrap"><table class="ops-table ops-matrix-table"><tr><th class="ops-matrix-person-head">Person</th>${headerCells}</tr>${rows}</table></div>`;
+    return `${tabsHtml}<div class="ops-table-wrap ops-matrix-wrap"><table class="ops-table ops-matrix-table" style="width:${150 + 112 * courses.length}px">${colgroup}<tr><th class="ops-matrix-person-head">Person</th>${headerCells}</tr>${rows}</table></div>`;
   }
 
   async function setTrainingMatrixCell(personId, courseId, patch){
@@ -1561,6 +1888,7 @@
     state.trainingRecordFormOpen = false;
     state.editingRecordId = '';
     state.trainingRecordFormCourseId = '';
+    state.trainingExpandedCourseIds = new Set();
     showOperations('training-person');
   }
 
@@ -1573,6 +1901,7 @@
     const actions = synced
       ? `<span class="ops-subtle">Managed in Height Equipment</span>`
       : `<button class="ops-btn ghost" type="button" data-ops-edit-record="${r.id}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-record="${r.id}">Delete</button>`;
+    const downloadBtn = files.length ? `<button class="ops-btn ghost" type="button" data-ops-download-record="${r.id}">Download ${files.length > 1 ? 'files (zip)' : 'file'}</button>` : '';
     const evidenceBody = synced
       ? `${trainingEvidenceListHtml(files, false)} <span class="ops-subtle">Evidence syncs automatically from Height Equipment.</span>`
       : `${trainingEvidenceListHtml(files, true)} ${trainingEvidenceUploadHtml(r.id)}`;
@@ -1587,7 +1916,7 @@
         ${r.notes ? `<div class="ops-record-wide"><dt>Notes</dt><dd>${esc(r.notes)}</dd></div>` : ''}
       </dl>
       <div class="ops-record-evidence"><div class="ops-record-evidence-title">Evidence</div>${evidenceBody}</div>
-      <div class="ops-actions ops-record-actions">${actions}</div>
+      <div class="ops-actions ops-record-actions">${actions}${downloadBtn}</div>
     </div>`;
   }
 
@@ -1608,15 +1937,19 @@
       : `<div class="ops-span-2 ops-record-form-evidence" id="opsRecordEvidenceBlock"><label>Evidence file(s)<input id="opsRecordNewFiles" type="file" accept="image/*,application/pdf" multiple></label><p class="ops-subtle">Add the certificate or a photo of it. Needed before a record can be marked Completed.</p></div>`;
     return `<form id="opsTrainingRecordForm" class="ops-form ops-form-panel ${editing ? 'ops-form-editing' : ''}" novalidate data-record-id="${editing ? editing.id : ''}" data-person-id="${person.id}" data-course-id="${course.id}" data-validity-months="${months || ''}">
       <h4 class="ops-span-2 ops-form-title">${editing ? 'Editing this record' : 'Add a training record'}</h4>
-      <label>Status<select id="opsRecordStatus">
-        <option value="Completed" ${editing?.status==='Completed'?'selected':''}>Completed</option>
-        <option value="In progress" ${(!editing||editing.status==='In progress')?'selected':''}>In progress</option>
-      </select></label>
-      <label>Completed date<input id="opsRecordCompletedDate" type="date" value="${completed}"></label>
-      <label>Expiry date<input id="opsRecordExpiryDate" type="date" value="${expiry}" ${months ? '' : 'placeholder="No expiry"'}>${months ? `<span class="ops-subtle">Fills in automatically (${months} months after the completed date). You can change it.</span>` : ''}</label>
-      <label>Provider / trainer<input id="opsRecordProvider" maxlength="200" value="${esc(editing?.provider_or_trainer || '')}"></label>
-      <label>Reference number<input id="opsRecordReference" maxlength="100" value="${esc(editing?.reference_number || '')}"></label>
-      <label class="ops-span-2">Notes<textarea id="opsRecordNotes" maxlength="2000">${esc(editing?.notes || '')}</textarea></label>
+      <div class="ops-span-2 ops-rec-grid">
+        <div class="ops-rec-left">
+          <label class="ops-r-a">Status<select id="opsRecordStatus">
+            <option value="Completed" ${editing?.status==='Completed'?'selected':''}>Completed</option>
+            <option value="In progress" ${(!editing||editing.status==='In progress')?'selected':''}>In progress</option>
+          </select></label>
+          <label class="ops-r-a">Completed date<input id="opsRecordCompletedDate" type="date" value="${completed}"></label>
+          <label class="ops-r-a">Expiry date<input id="opsRecordExpiryDate" type="date" value="${expiry}" ${months ? '' : 'placeholder="No expiry"'}></label>
+          <label class="ops-r-b">Provider / trainer<input id="opsRecordProvider" maxlength="200" value="${esc(editing?.provider_or_trainer || '')}"></label>
+          <label class="ops-r-b">Reference number<input id="opsRecordReference" maxlength="100" value="${esc(editing?.reference_number || '')}"></label>
+        </div>
+        <label class="ops-rec-notes">Notes<textarea id="opsRecordNotes" maxlength="2000">${esc(editing?.notes || '')}</textarea></label>
+      </div>
       ${evidenceBlock}
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add record'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingRecordEditor">Cancel</button></div>
     </form>`;
@@ -1664,20 +1997,19 @@
     const courses = state.trainingCourses.filter(c => c.active !== false && applicableCourseIds.includes(String(c.id))).sort((a,b) => String(a.name).localeCompare(String(b.name)));
     const sections = courses.length ? courses.map(c => trainingPersonCourseSectionHtml(person, c)).join('') : `<div class="ops-card"><p class="ops-subtle">No courses are marked as applicable for ${esc(person.full_name)} yet. Set that up in the <a href="#" onclick="showOperations('training-settings');return false;">Training Matrix</a> under Settings.</p></div>`;
     return `<div class="ops-card">
-      <button class="ops-btn ghost" type="button" onclick="showOperations('${returnView}')">${backLabel}</button>
-      <div class="ops-section-title">
+      <div class="ops-person-head">
+        <button class="ops-btn ghost" type="button" onclick="showOperations('${returnView}')">${backLabel}</button>
         <h3>${esc(person.full_name)}</h3>
-        <div class="ops-actions">
+        <span class="ops-subtle ops-person-desig">${contractor ? esc(contractor.company_name) : personTypeLabel}${person.active === false ? ' · Archived' : ''}</span>
+        <div class="ops-actions ops-person-head-actions">
           ${canEdit ? `<button class="ops-btn ghost" type="button" data-ops-edit-training-person="${person.id}">Edit</button>` : ''}
           <label class="ops-check ops-toggle-pill"><input type="checkbox" data-ops-toggle-training-person-active="${person.id}" ${person.active ? 'checked' : ''}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>
         </div>
       </div>
-      <p class="ops-subtle">${contractor ? esc(contractor.company_name) : personTypeLabel}${person.active === false ? ' · Archived' : ''}</p>
-      <div class="ops-form"><label>Competency<select data-ops-person-competency="${person.id}">
+      <div class="ops-person-comp"><label>Competency<select data-ops-person-competency="${person.id}">
         <option value="">— Not set —</option>
         ${TRAINING_COMPETENCY_LEVELS.map(t => `<option value="${t.value}" ${Number(person.competency_level)===t.value?'selected':''}>${t.value}: ${esc(t.label)}</option>`).join('')}
-      </select></label></div>
-      <p class="ops-subtle"><strong>Competency key:</strong> ${esc(trainingCompetencyKeyText())}</p>
+      </select></label><span class="ops-subtle"><strong>Key:</strong> ${esc(trainingCompetencyKeyText())}</span></div>
       ${editing ? trainingPersonFormHtml() : ''}
     </div>
     ${sections}`;
@@ -1877,34 +2209,36 @@
     const courseType = editing?.course_type === 'internal' ? 'internal' : 'external';
     return `<form id="opsTrainingCourseForm" class="ops-form ops-form-panel ${editing ? '' : 'ops-form-adding'}" novalidate data-course-id="${editing ? editing.id : ''}">
       <h4 class="ops-span-2 ops-form-title">${editing ? 'Course details' : 'Add a course'}</h4>
-      <label>Course name *<input id="opsCourseName" required maxlength="100" value="${esc(editing?.name || '')}"><span class="ops-subtle">Up to 100 characters.</span></label>
-      <label>Type<select id="opsCourseType">
-        <option value="external" ${courseType==='external'?'selected':''}>External Qualification</option>
-        <option value="internal" ${courseType==='internal'?'selected':''}>Internal Training</option>
-      </select></label>
-      <label>Validity (months)<input id="opsCourseValidity" type="number" min="1" max="120" step="1" value="${editing?.validity_period_months ?? ''}" placeholder="Leave blank if it doesn't expire"><span class="ops-subtle">Whole months, 1 to 120.</span></label>
-      <label>Display order<input id="opsCourseOrder" type="number" min="0" max="9999" step="1" value="${editing?.display_order ?? ''}" placeholder="Lower shows first in the Matrix"></label>
-      <label class="ops-span-2">NZQA code(s)<input id="opsCourseNzqaCodes" value="${esc(trainingCourseNzqaCodesText(editing))}" placeholder="e.g. 12345, 67890 — separate multiple codes with commas"></label>
-      <label class="ops-span-2">Description<textarea id="opsCourseDescription" maxlength="1000">${esc(editing?.description || '')}</textarea></label>
+      <div class="ops-span-2 ops-course-row1">
+        <label>Course name *<input id="opsCourseName" required maxlength="100" value="${esc(editing?.name || '')}"></label>
+        <label>Type<select id="opsCourseType">
+          <option value="external" ${courseType==='external'?'selected':''}>External Qualification</option>
+          <option value="internal" ${courseType==='internal'?'selected':''}>Internal Training</option>
+        </select></label>
+        <label class="ops-course-validity">Validity (months)<input id="opsCourseValidity" type="number" min="1" max="120" step="1" value="${editing?.validity_period_months ?? ''}" title="Whole months, 1 to 120. Leave blank if it doesn't expire"></label>
+        <label>NZQA code(s)<input id="opsCourseNzqaCodes" value="${esc(trainingCourseNzqaCodesText(editing))}" placeholder="e.g. 12345, 67890 (separate with commas)"></label>
+      </div>
       ${editing ? '' : `<label class="ops-check ops-toggle-pill"><input id="opsCourseActive" type="checkbox" checked><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>`}
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">${editing ? 'Save changes' : 'Add course'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingCourseEditor">Cancel</button></div>
     </form>`;
   }
 
-  function trainingCatalogRowHtml(c){
-    return `<tr><td><button type="button" class="ops-btn ghost" data-ops-view-course="${c.id}">${esc(c.name)}</button></td><td>${trainingIsInternalCourse(c) ? 'Internal' : 'External'}</td><td>${esc(trainingCourseNzqaCodesText(c)) || '—'}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Archived'}</td></tr>`;
+  function trainingCatalogRowHtml(c, draggable){
+    const grip = draggable ? `<td class="ops-grip-cell"><span class="ops-grip" title="Drag to reorder" aria-hidden="true">⋮⋮</span></td>` : '<td class="ops-grip-cell"></td>';
+    return `<tr ${draggable ? `draggable="true" data-ops-course-row="${c.id}"` : ''}>${grip}<td><button type="button" class="ops-btn ghost" data-ops-view-course="${c.id}">${esc(c.name)}</button></td><td>${trainingIsInternalCourse(c) ? 'Internal' : 'External'}</td><td>${esc(trainingCourseNzqaCodesText(c)) || '—'}</td><td>${c.validity_period_months ? c.validity_period_months+' months' : 'No expiry'}</td><td>${c.active ? 'Active' : 'Archived'}</td></tr>`;
   }
 
   function trainingCatalogHtml(){
     const courses = trainingSortCourses(state.trainingCourses);
     const active = courses.filter(c => c.active !== false);
     const archived = courses.filter(c => c.active === false);
-    const head = '<tr><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>';
-    const rows = active.map(trainingCatalogRowHtml).join('') || '<tr><td colspan="5" class="ops-subtle">No courses yet.</td></tr>';
-    const archivedRows = archived.map(trainingCatalogRowHtml).join('');
-    return `<div class="ops-card"><div class="ops-section-title"><h3>Course Catalog</h3><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
+    const head = '<tr><th class="ops-grip-cell"></th><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>';
+    const rows = active.map(c => trainingCatalogRowHtml(c, true)).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    const archivedRows = archived.map(c => trainingCatalogRowHtml(c, false)).join('');
+    return `<div class="ops-catalog-inner"><div class="ops-actions ops-catalog-actions"><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
-      <div class="ops-table-wrap"><table class="ops-table">${head}${rows}</table></div>
+      <p class="ops-subtle">Drag a course up or down to set the order it appears in the Matrix and Register.</p>
+      <div class="ops-table-wrap"><table class="ops-table ops-catalog-table">${head}${rows}</table></div>
       ${archived.length ? `<details class="ops-archived-list" data-ops-keep-open="archived-courses" ${opsKeepOpen('archived-courses')}><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-archived-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
     </div>`;
   }
@@ -1981,9 +2315,8 @@
     const id = form.dataset.courseId;
     const nameEl = byId('opsCourseName');
     const validityEl = byId('opsCourseValidity');
-    const orderEl = byId('opsCourseOrder');
-    const descEl = byId('opsCourseDescription');
     const codesEl = byId('opsCourseNzqaCodes');
+    const editingCourse = id ? state.trainingCourses.find(c => String(c.id) === String(id)) : null;
     const name = nameEl.value.trim().replace(/\s+/g, ' ');
     let problems = 0;
     const flag = (el, msg) => { opsFieldError(el, msg); problems++; };
@@ -1999,22 +2332,15 @@
       if(!Number.isInteger(v) || v < 1 || v > 120) flag(validityEl, 'Enter a whole number of months from 1 to 120, or leave it blank if the course does not expire.');
       else validity = v;
     }
-    let order = null;
-    if(orderEl.value.trim() !== ''){
-      const v = Number(orderEl.value);
-      if(!Number.isInteger(v) || v < 0 || v > 9999) flag(orderEl, 'Enter a whole number from 0 to 9999, or leave it blank.');
-      else order = v;
-    }
     const nzqaCodes = trainingParseNzqaCodes(codesEl.value);
     if(nzqaCodes.some(c => c.length > 20)) flag(codesEl, 'Each NZQA code must be 20 characters or fewer. Separate several codes with commas.');
-    if(descEl.value.length > 1000) flag(descEl, 'The description is too long. The limit is 1000 characters.');
     if(problems){ opsFocusFirstError(form); return; }
     const row = {
       name,
       course_type: byId('opsCourseType').value === 'internal' ? 'internal' : 'external',
       validity_period_months: validity,
-      display_order: order,
-      description: descEl.value.trim() || null,
+      display_order: editingCourse ? editingCourse.display_order : trainingNextCourseOrder(),
+      description: editingCourse ? (editingCourse.description ?? null) : null,
       active: byId('opsCourseActive').checked,
       nzqa_codes: nzqaCodes,
       nzqa_code: nzqaCodes[0] || null
@@ -2062,16 +2388,16 @@
         <option value="company" ${editing?.contractor_type==='company' ? 'selected' : ''}>Company</option>
       </select></label>
       ${editing ? '' : `<div class="ops-span-2 ops-admin-first">
-        <h5>First administrator</h5>
-        <p class="ops-subtle">The main contact for this contractor. They administer the company's details and can be added to jobs by Spray and Wash, but they only need training records if they also work on jobs. More administrators can be added later from the contractor's page.</p>
+        <h5>Primary contact</h5>
+        <p class="ops-subtle">The main contact for this contractor. They only need training records if they also work on jobs. More contacts can be added later from the contractor's page.</p>
         <div class="ops-form">
           <label>Name<input id="opsContractorAdminName" maxlength="150"></label>
           <label>Phone<input id="opsContractorAdminPhone" maxlength="40"></label>
           <label>Email<input id="opsContractorAdminEmail" type="email" maxlength="200"></label>
-          <label class="ops-check" id="opsContractorAdminWorksWrap"><input id="opsContractorAdminWorks" type="checkbox" checked> This person also works on jobs (needs training records)</label>
+          <label class="ops-check" id="opsContractorAdminWorksWrap"><input id="opsContractorAdminWorks" type="checkbox" checked> Also works on jobs (needs training records)</label>
         </div>
       </div>`}
-      <details class="ops-span-2 ops-business-details" data-ops-keep-open="contractor-business" ${editing ? 'open' : ''}>
+      <details class="ops-span-2 ops-business-details" data-ops-keep-open="contractor-business" ${editing ? 'open' : opsKeepOpen('contractor-business')}>
         <summary>Business details</summary>
         <div class="ops-form">
           <label>Legal name<input id="opsContractorLegalName" maxlength="150" value="${esc(editing?.legal_name || '')}"></label>
@@ -2158,6 +2484,7 @@
         </div>
       </div>
       ${editingContractor ? trainingContractorFormHtml() : trainingContractorSummaryHtml(contractor)}
+      ${(() => { const admins = trainingContractorAdmins(contractor.id); return admins.length ? `<p class="ops-contacts-line"><strong>${admins.length > 1 ? 'Contacts' : 'Primary contact'}:</strong> ${admins.map(a => esc(a.full_name)).join(', ')}</p>` : ''; })()}
       <p class="ops-subtle">People linked to ${esc(contractor.company_name)} only, so this contractor's own training records and evidence stay scoped to just their people.${contractor.contractor_type === 'sole_trader' ? ' A sole trader has one person, who is both the administrator and the worker.' : ' Administrators run the company\'s details and are the contacts for Spray and Wash. They only appear in the Matrix and Register if they also work on jobs.'}</p>
       ${showFormAtTop ? trainingPersonFormHtml() : ''}
       <div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Role</th><th>Phone / Email</th><th>Status</th></tr>${rows}</table></div>
@@ -2178,8 +2505,8 @@
       <label>Full name *<input id="opsPersonFullName" required maxlength="150" value="${esc(editing?.full_name || '')}"></label>
       <label>Phone<input id="opsPersonPhone" maxlength="40" value="${esc(editing?.phone || '')}"></label>
       <label>Email<input id="opsPersonEmail" type="email" maxlength="200" value="${esc(editing?.email || '')}"></label>
-      <label class="ops-check ops-span-2"><input id="opsPersonIsAdmin" type="checkbox" ${editing?.is_company_admin ? 'checked' : ''}> Company administrator (contact for the company's details)</label>
-      <label class="ops-check ops-span-2"><input id="opsPersonNeedsTraining" type="checkbox" ${(!editing || editing.needs_training !== false) ? 'checked' : ''}> Works on jobs, so needs training records</label>
+      <label class="ops-check ops-span-2"><input id="opsPersonIsAdmin" type="checkbox" ${editing?.is_company_admin ? 'checked' : ''}> Company contact (administrator)</label>
+      <label class="ops-check ops-span-2"><input id="opsPersonNeedsTraining" type="checkbox" ${(!editing || editing.needs_training !== false) ? 'checked' : ''}> Works on jobs (needs training records)</label>
       <label class="ops-check ops-toggle-pill"><input id="opsPersonActive" type="checkbox" ${editing ? (editing.active ? 'checked' : '') : 'checked'}><span class="ops-toggle-track"></span><span class="ops-toggle-on">Active</span><span class="ops-toggle-off">Archived</span></label>
       <p class="ops-span-2 ops-subtle">Person type (sole trader or subcontractor worker) is set automatically from the contractor's type above. Add the contractor first if it isn't listed.</p>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit" ${contractors.length ? '' : 'disabled'}>${editing ? 'Save changes' : 'Add person'}</button><button class="ops-btn ghost" type="button" data-ops-action="closeTrainingPersonEditor">Cancel</button></div>
@@ -2597,6 +2924,13 @@
   });
 
   function showOperations(view){
+    // The Register and Download evidence panels open collapsed each time the Register is entered,
+    // unless the user came from a Dashboard tile (which wants to show its results).
+    if(view === 'training-register' && state.currentView !== 'training-register'){
+      state.keepOpen = state.keepOpen || {};
+      if(!state.trainingRegisterForceOpen){ state.keepOpen['register-results'] = false; state.keepOpen['evidence-panel'] = false; }
+      state.trainingRegisterForceOpen = false;
+    }
     state.currentView = view || state.currentView || 'vehicle-checks';
     if(state.currentView === 'vehicles' || state.currentView === 'washing') state.currentView = 'assets';
     if(state.currentView === 'maintenance') state.currentView = 'tasks';
@@ -2840,11 +3174,15 @@
     const viewKey = [state.currentModule, state.currentView, state.trainingViewPersonId, state.viewingContractorId, state.trainingViewCourseId].join('|');
     const keepScroll = viewKey === opsLastViewKey;
     const scrollY = window.scrollY;
+    const innerScroll = Array.from(shell.querySelectorAll('.ops-table-wrap')).map(e => [e.scrollTop, e.scrollLeft]);
     opsLastViewKey = viewKey;
     shell.innerHTML = headerHtml() + (state.lastError ? `<div class="ops-error">${esc(state.lastError)}</div>` : '') + bodyHtml();
     opsRestoreFormDraft(shell, draft);
     bindRenderedEvents();
-    if(keepScroll && Math.abs(window.scrollY - scrollY) > 1) window.scrollTo({top:scrollY, left:0, behavior:'auto'});
+    if(keepScroll){
+      shell.querySelectorAll('.ops-table-wrap').forEach((e, i) => { if(innerScroll[i]){ e.scrollTop = innerScroll[i][0]; e.scrollLeft = innerScroll[i][1]; } });
+      if(Math.abs(window.scrollY - scrollY) > 1) window.scrollTo({top:scrollY, left:0, behavior:'auto'});
+    }
     refreshTopUserSummary();
     document.dispatchEvent(new CustomEvent('sw:operations-rendered'));
     if(state.currentModule === 'home') renderModuleHome();
@@ -3565,8 +3903,8 @@
     if(!isAdmin()) return alert('Only Admin users can update users.');
     const input=document.querySelector(`[data-ops-user-full-name="${CSS.escape(String(userId))}"]`);
     const displayName=titleCaseName(input?.value||'');
-    if(!displayName)return alert('Enter a first and last name.');
-    if(displayName.split(' ').length<2)return alert('Enter both the first and last name.');
+    if(!displayName)return opsFlagField(input,'Enter a first and last name.');
+    if(displayName.split(' ').length<2)return opsFlagField(input,'Enter both the first and last name.');
     const r=await state.sb.from('profiles').update({display_name:displayName}).eq('user_id',userId);
     if(r.error)return alert('Could not save the full name: '+r.error.message);
     const roles = Array.from(document.querySelectorAll('input[data-ops-role-user]'))
@@ -3610,7 +3948,11 @@
     e.preventDefault();
     const first=titleCaseName(byId('opsAccountFirst')?.value||''), last=titleCaseName(byId('opsAccountLast')?.value||''), email=String(byId('opsAccountEmail')?.value||'').trim().toLowerCase(), password=String(byId('opsAccountTempPassword')?.value||'');
     const roles=Array.from(document.querySelectorAll('input[data-ops-account-role]:checked')).map(i=>i.value);
-    if(!first||!last||!email||password.length<12||!roles.length)return alert('Enter names, email, a temporary password of at least 12 characters, and at least one permission.');
+    if(!first) return opsFlagField('opsAccountFirst','Enter the first name.');
+    if(!last) return opsFlagField('opsAccountLast','Enter the last name.');
+    if(!email) return opsFlagField('opsAccountEmail','Enter the email address.');
+    if(password.length<12) return opsFlagField('opsAccountTempPassword','The temporary password needs at least 12 characters.');
+    if(!roles.length) return alert('Select at least one permission for this account.');
     const result=await accountAdminAction('create',{first_name:first,last_name:last,email,password,roles});
     if(result){alert(`Account created for ${email}. Give the temporary password to the person directly; they must set their own password on first sign-in.`);await loadAll();}
   }
@@ -3706,7 +4048,7 @@
       const targetType=template.target_type;
       const vehicleId=byId('opsInspectionVehicle')?.value||null;
       const washId=byId('opsInspectionWash')?.value||null;
-      if(['vehicle','combined'].includes(targetType)&&!vehicleId)return alert('Select a vehicle before submitting.');
+      if(['vehicle','combined'].includes(targetType)&&!vehicleId)return opsFlagField('opsInspectionVehicle','Select a vehicle before submitting.');
       const answerRows=[]; const itemPhotos=[]; let hasProblem=false;
       try{
         document.querySelectorAll('.ops-question').forEach(q=>{
@@ -4551,7 +4893,7 @@
     const type=byId('opsMachineryType').value;
     const vehicleId=id?(existing.assigned_vehicle_id||null):(byId('opsWashVehicle').value||null);
     const side=id?(existing.mounting_side||null):(vehicleId?(byId('opsMachinerySide').value||null):null);
-    if(vehicleId&&!side){ if(submit)submit.disabled=false; return alert('Choose Driver or Passenger side for machinery installed on a vehicle.'); }
+    if(vehicleId&&!side){ if(submit)submit.disabled=false; return opsFlagField('opsMachinerySide','Choose Driver or Passenger side for machinery installed on a vehicle.'); }
     if(vehicleId&&state.washEquipment.some(w=>String(w.id)!==String(id)&&String(w.assigned_vehicle_id||'')===String(vehicleId)&&w.mounting_side===side&&machineryType(w)===type&&w.status!=='Retired')){
       if(submit)submit.disabled=false;
       return alert(`That vehicle already has a ${machineryTypeLabel(type).toLowerCase()} recorded on the ${side.toLowerCase()} side.`);
@@ -4639,7 +4981,7 @@
       if(!w)return alert('Machinery record not found.');
       const vehicleId=byId('opsTransferVehicle')?.value||null;
       const side=vehicleId?(byId('opsTransferSide')?.value||null):null;
-      if(vehicleId&&!side)return alert('Choose Driver or Passenger side for the new installation.');
+      if(vehicleId&&!side)return opsFlagField('opsTransferSide','Choose Driver or Passenger side for the new installation.');
       if(String(vehicleId||'')===String(w.assigned_vehicle_id||'')&&String(side||'')===String(w.mounting_side||''))return alert('Choose a different vehicle, side, or unassigned status.');
       if(vehicleId&&state.washEquipment.some(other=>String(other.id)!==String(w.id)&&String(other.assigned_vehicle_id||'')===String(vehicleId)&&other.mounting_side===side&&machineryType(other)===machineryType(w)&&other.status!=='Retired')){
         return alert(`The destination already has a ${machineryTypeLabel(w).toLowerCase()} recorded on the ${side.toLowerCase()} side.`);
@@ -4972,12 +5314,12 @@
         parts_used:row.querySelector('.ops-maintenance-item-parts')?.value.trim()||null
       }));
       const maintenanceItems=routineItems.concat(detailedItems);
-      if(!vehicleId)return alert('Choose a vehicle.');
-      if(!targetValue)return alert('Choose the vehicle or machinery maintained.');
+      if(!vehicleId)return opsFlagField('opsLogEntryVehicle','Choose a vehicle.');
+      if(!targetValue)return opsFlagField('opsLogEntryTarget','Choose the vehicle or machinery maintained.');
       if(machineryId&&!machinery)return alert('The selected machinery could not be found.');
       if(!maintenanceItems.length)return alert('Choose at least one maintenance item.');
       if(maintenanceItems.some(item=>['Repair','Other maintenance'].includes(item.maintenance_done)&&!item.description))return alert('Describe each repair or other maintenance item completed.');
-      if(!performedBy)return alert('Enter the service agent name.');
+      if(!performedBy)return opsFlagField(performedByChoice==='Other service agent'?'opsLogEntryOtherAgent':'opsLogEntryPerformedBy','Enter the service agent name.');
       const r=await state.sb.rpc('operations_add_maintenance_record_v4053',{
         p_record_date:byId('opsLogEntryDate')?.value||today(),
         p_vehicle_id:vehicleId,
@@ -5158,7 +5500,9 @@
     const title=String(byId('opsPlannedMaintenanceName')?.value||'').trim();
     const frequency=Number(byId('opsPlannedMaintenanceFrequency')?.value||0);
     const notes=String(byId('opsPlannedMaintenanceNotes')?.value||'').trim();
-    if(!target||!title||!Number.isFinite(frequency)||frequency<1) return alert('Choose an asset, enter the planned item and set its frequency in days.');
+    if(!target) return opsFlagField('opsPlannedMaintenanceTarget','Choose an asset.');
+    if(!title) return opsFlagField('opsPlannedMaintenanceName','Enter the planned item.');
+    if(!Number.isFinite(frequency)||frequency<1) return opsFlagField('opsPlannedMaintenanceFrequency','Set how often, in whole days.');
     const editing=maintenanceItemCatalog().find(row=>row.key===state.editingMaintenanceItemKey&&row.kind==='planned')||null;
     const isMachinery=target.startsWith('machinery:');
     const targetId=target.slice(target.indexOf(':')+1);
@@ -5291,16 +5635,32 @@
     }));
     document.querySelectorAll('[data-ops-pm-view]').forEach(btn => btn.addEventListener('click', () => { state.pmView = btn.dataset.opsPmView; state.scheduleQuickFilter=''; render(); }));
     document.querySelectorAll('[data-ops-shortcut]').forEach(card => { const go = () => handleDashboardShortcut(card.dataset.opsShortcut); card.addEventListener('click', go); card.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
-    document.querySelectorAll('[data-ops-dashboard-tile]').forEach(card => { const go = () => { state.trainingRegisterFilters = {personType:'all', trainingType:'all', status: card.dataset.opsDashboardTile || 'all'}; showOperations('training-register'); }; card.addEventListener('click', go); card.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
+    document.querySelectorAll('[data-ops-dashboard-tile]').forEach(card => { const go = () => { state.trainingRegisterFilters = {personType:'all', trainingType:'all', status: card.dataset.opsDashboardTile || 'all'}; state.trainingRegisterForceOpen = true; state.keepOpen = state.keepOpen || {}; state.keepOpen['register-results'] = true; showOperations('training-register'); }; card.addEventListener('click', go); card.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
     document.querySelectorAll('[data-ops-clear-register-status]').forEach(b => b.addEventListener('click', () => { state.trainingRegisterFilters = {...(state.trainingRegisterFilters||{}), status:'all'}; render(); }));
-    ['opsRegisterPersonType','opsRegisterTrainingType','opsRegisterStatus'].forEach(id => byId(id)?.addEventListener('change', () => {
+    ['opsRegisterPersonType','opsRegisterTrainingType','opsRegisterStatus','opsRegisterCourse'].forEach(id => byId(id)?.addEventListener('change', () => {
       state.trainingRegisterFilters = {
         personType: byId('opsRegisterPersonType')?.value || 'all',
         trainingType: byId('opsRegisterTrainingType')?.value || 'all',
-        status: byId('opsRegisterStatus')?.value || 'all'
+        status: byId('opsRegisterStatus')?.value || 'all',
+        courseId: byId('opsRegisterCourse')?.value || ''
       };
       render();
     }));
+    (() => {
+      const syncSole = () => {
+        const t = byId('opsContractorType'), w = byId('opsContractorAdminWorks');
+        if(t && w){ const sole = t.value === 'sole_trader'; if(sole) w.checked = true; w.disabled = sole; }
+        const c = byId('opsPersonContractorId'), n = byId('opsPersonNeedsTraining');
+        if(c && n){
+          const k = state.trainingContractors.find(x => String(x.id) === String(c.value));
+          const sole = !!k && k.contractor_type === 'sole_trader';
+          if(sole) n.checked = true; n.disabled = sole;
+        }
+      };
+      byId('opsContractorType')?.addEventListener('change', syncSole);
+      byId('opsPersonContractorId')?.addEventListener('change', syncSole);
+      syncSole();
+    })();
     byId('opsVehicleForm')?.addEventListener('submit', saveVehicle);
     byId('opsWashingForm')?.addEventListener('submit', saveWashing);
     byId('opsMachineryTransferForm')?.addEventListener('submit', saveMachineryTransfer);
@@ -5367,10 +5727,37 @@
     document.querySelectorAll('[data-ops-matrix-tab]').forEach(b => b.addEventListener('click', () => { state.trainingMatrixTab = b.dataset.opsMatrixTab; render(); }));
     document.querySelectorAll('[data-ops-open-person]').forEach(b => { const go = () => openTrainingPerson(b.dataset.opsOpenPerson); b.addEventListener('click', go); if(b.tagName !== 'BUTTON') b.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }); });
     document.querySelectorAll('[data-ops-add-record]').forEach(b => b.addEventListener('click', () => { state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=b.dataset.opsAddRecord; state.trainingEvidenceError=null; render(); }));
+    (() => {
+      let dragId = null;
+      const clearMarks = () => document.querySelectorAll('tr[data-ops-course-row]').forEach(r => r.classList.remove('ops-drop-before','ops-drop-after','ops-dragging'));
+      document.querySelectorAll('tr[data-ops-course-row]').forEach(tr => {
+        tr.addEventListener('dragstart', e => { dragId = tr.dataset.opsCourseRow; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); tr.classList.add('ops-dragging'); });
+        tr.addEventListener('dragend', () => { dragId = null; clearMarks(); });
+        tr.addEventListener('dragover', e => {
+          if(!dragId) return;
+          e.preventDefault();
+          const r = tr.getBoundingClientRect();
+          const after = e.clientY > r.top + r.height / 2;
+          tr.classList.toggle('ops-drop-before', !after);
+          tr.classList.toggle('ops-drop-after', after);
+        });
+        tr.addEventListener('dragleave', () => tr.classList.remove('ops-drop-before','ops-drop-after'));
+        tr.addEventListener('drop', e => {
+          e.preventDefault();
+          const r = tr.getBoundingClientRect();
+          const after = e.clientY > r.top + r.height / 2;
+          const id = dragId; dragId = null; clearMarks();
+          if(id) trainingMoveCourse(id, tr.dataset.opsCourseRow, after);
+        });
+      });
+    })();
     document.querySelectorAll('details[data-ops-keep-open]').forEach(d => d.addEventListener('toggle', () => { state.keepOpen = state.keepOpen || {}; state.keepOpen[d.dataset.opsKeepOpen] = d.open; }));
     document.querySelectorAll('details.ops-training-course').forEach(d => d.addEventListener('toggle', () => {
       const courseId = String(d.dataset.opsCourseId);
-      if(d.open) state.trainingExpandedCourseIds.add(courseId); else state.trainingExpandedCourseIds.delete(courseId);
+      if(d.open){
+        state.trainingExpandedCourseIds = new Set([courseId]);
+        document.querySelectorAll('details.ops-training-course[open]').forEach(o => { if(o !== d) o.open = false; });
+      } else state.trainingExpandedCourseIds.delete(courseId);
     }));
     byId('opsTrainingMatrixDetails')?.addEventListener('toggle', e => { state.trainingSettingsMatrixOpen = e.target.open; });
     byId('opsTrainingCatalogDetails')?.addEventListener('toggle', e => { state.trainingSettingsCatalogOpen = e.target.open; });
@@ -5381,8 +5768,22 @@
       state.trainingExpandedCourseIds = new Set([String(rec.course_id)]);
       render();
       const card = document.querySelector('[data-ops-editing-card]');
-      if(card) card.scrollIntoView({block:'start', behavior:'auto'});
+      if(card) opsScrollBelowHeader(card);
     }));
+    document.querySelectorAll('[data-ops-download-record]').forEach(b => b.addEventListener('click', () => downloadTrainingRecordFiles(b.dataset.opsDownloadRecord)));
+    document.querySelectorAll('[data-ops-download-register-evidence]').forEach(b => b.addEventListener('click', () => downloadRegisterEvidence(b)));
+    document.querySelectorAll('[data-ops-evidence-person]').forEach(cb => cb.addEventListener('change', () => { const id = String(cb.dataset.opsEvidencePerson); if(cb.checked) state.trainingRegisterSelected.add(id); else state.trainingRegisterSelected.delete(id); trainingEvidenceRefresh(); }));
+    document.querySelectorAll('[data-ops-evidence-quick]').forEach(b => b.addEventListener('click', () => trainingEvidenceQuick(b.dataset.opsEvidenceQuick)));
+    if(!window.__opsEvidencePickClose){
+      window.__opsEvidencePickClose = true;
+      document.addEventListener('click', ev => { const d = byId('opsEvidencePick'); if(d && d.open && !d.contains(ev.target)) d.open = false; });
+      document.addEventListener('keydown', ev => { if(ev.key === 'Escape'){ const d = byId('opsEvidencePick'); if(d && d.open){ d.open = false; d.querySelector('summary')?.focus(); } } });
+    }
+    byId('opsEvidenceSearch')?.addEventListener('input', e => {
+      state.trainingEvidenceSearch = e.target.value;
+      const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll('[data-ops-evidence-row]').forEach(row => { row.hidden = !!q && !row.textContent.toLowerCase().includes(q); });
+    });
     document.querySelectorAll('[data-ops-delete-record]').forEach(b => b.addEventListener('click', () => deleteTrainingRecord(b.dataset.opsDeleteRecord)));
     document.querySelectorAll('[data-ops-toggle-add-file]').forEach(b => b.addEventListener('click', () => {
       const recordId = b.dataset.opsToggleAddFile;
@@ -5750,7 +6151,7 @@
 
   function inspectorDetailsHtmlV415(q, fileUrl){
     return `<!doctype html><html><head><meta charset="utf-8"><title>Inspector Details - ${esc(q.inspector_name)}</title><style>
-      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:40px;color:#0f172a}.doc{max-width:850px;margin:auto;border:1px solid #cbd5e1;padding:34px;border-radius:18px}h1{margin:0 0 8px;color:#0f766e}.muted{color:#64748b}.grid{display:grid;grid-template-columns:180px 1fr;gap:10px;margin-top:24px}.label{font-weight:800;color:#334155;border-bottom:1px solid #e2e8f0;padding:8px}.value{border-bottom:1px solid #e2e8f0;padding:8px}.footer{margin-top:30px;font-size:12px;color:#64748b}.badge{display:inline-block;background:#ecfdf5;color:#0f766e;border-radius:999px;padding:6px 12px;font-weight:800}@media print{button{display:none}body{margin:0}.doc{border:0}}
+      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:40px;color:#0f172a}.doc{max-width:850px;margin:auto;border:1px solid #cbd5e1;padding:34px;border-radius:18px}h1{margin:0 0 8px;color:#003b73}.muted{color:#64748b}.grid{display:grid;grid-template-columns:180px 1fr;gap:10px;margin-top:24px}.label{font-weight:800;color:#334155;border-bottom:1px solid #e2e8f0;padding:8px}.value{border-bottom:1px solid #e2e8f0;padding:8px}.footer{margin-top:30px;font-size:12px;color:#64748b}.badge{display:inline-block;background:#edf6fc;color:#003b73;border-radius:999px;padding:6px 12px;font-weight:800}@media print{button{display:none}body{margin:0}.doc{border:0}}
     </style></head><body><div class="doc"><button onclick="window.print()">Print / Save as PDF</button><h1>Spray &amp; Wash Inspector Details</h1><p class="muted">Height Equipment Inspector Qualification Details</p><p class="badge">Inspector details</p><div class="grid">
       <div class="label">Inspector</div><div class="value">${esc(q.inspector_name || '—')}</div>
       <div class="label">Email</div><div class="value">${esc(q.email || '—')}</div>
@@ -5887,7 +6288,7 @@
     const st = document.createElement('style');
     st.id = 'sw417Styles';
     st.textContent = `
-      .sw417-filter-panel{background:#ecfdf5;border:1px solid #14b8a6;border-radius:14px;padding:14px;margin:12px 0;}
+      .sw417-filter-panel{background:#edf6fc;border:1px solid #4f9bd0;border-radius:14px;padding:14px;margin:12px 0;}
       .sw417-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;}
       .sw417-filter-grid label{display:flex;flex-direction:column;font-weight:800;font-size:.88rem;gap:5px;}
       .sw417-filter-grid input,.sw417-filter-grid select{border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:white;min-height:42px;}
@@ -6057,7 +6458,7 @@
       const cls = statusClass(i.result);
       return `<tr><td>${esc(e.serial || '')}</td><td>${esc(e.type || '')}</td><td>${esc(e.manufacturer || '')}</td><td>${esc(e.model || '')}</td><td>${nzDate(i.inspection_date)}</td><td><span class="pill ${cls}">${esc(result)}</span></td><td>${esc(i.inspector || '')}</td></tr>`;
     }).join('');
-    return `<!doctype html><html><head><meta charset="utf-8"><title>Spray & Wash Equipment Inspection Summary</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#0f172a}.doc{max-width:1100px;margin:auto}.head{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #0f766e;padding-bottom:16px;margin-bottom:18px}h1{margin:0;color:#0f766e}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9}.pill{border-radius:999px;padding:4px 8px;font-weight:800;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.muted{color:#64748b}.footer{margin-top:28px;font-size:12px;color:#64748b}@media print{button{display:none}}</style></head><body><div class="doc"><button onclick="print()">Print / Save as PDF</button><div class="head"><div><h1>Spray & Wash Equipment Inspection Summary</h1><p class="muted">Combined inspection certificate/report for selected height equipment.</p></div><div><strong>Generated</strong><br>${new Date().toLocaleString('en-NZ')}</div></div><table><thead><tr><th>Serial</th><th>Type</th><th>Manufacturer</th><th>Model</th><th>Inspection date</th><th>Result</th><th>Inspector</th></tr></thead><tbody>${rows}</tbody></table><div class="footer">This document summarises the latest inspection record for each selected item in Spray & Wash Operations.</div></div></body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Spray & Wash Equipment Inspection Summary</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#0f172a}.doc{max-width:1100px;margin:auto}.head{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #003b73;padding-bottom:16px;margin-bottom:18px}h1{margin:0;color:#003b73}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9}.pill{border-radius:999px;padding:4px 8px;font-weight:800;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.muted{color:#64748b}.footer{margin-top:28px;font-size:12px;color:#64748b}@media print{button{display:none}}</style></head><body><div class="doc"><button onclick="print()">Print / Save as PDF</button><div class="head"><div><h1>Spray & Wash Equipment Inspection Summary</h1><p class="muted">Combined inspection certificate/report for selected height equipment.</p></div><div><strong>Generated</strong><br>${new Date().toLocaleString('en-NZ')}</div></div><table><thead><tr><th>Serial</th><th>Type</th><th>Manufacturer</th><th>Model</th><th>Inspection date</th><th>Result</th><th>Inspector</th></tr></thead><tbody>${rows}</tbody></table><div class="footer">This document summarises the latest inspection record for each selected item in Spray & Wash Operations.</div></div></body></html>`;
   }
   async function generateCombinedCertificates(){
     const pairs = await selectedCertificatePairs();
@@ -6142,7 +6543,7 @@
         fileNote = q.file_name || 'Saved file embedded';
       }catch(e){ fileNote = 'Saved file could not be embedded: ' + (e.message || e); }
     }
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Inspector Details</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#0f172a}.doc{max-width:900px;margin:auto}.head{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}h1{color:#0f766e;margin:0}.grid{display:grid;grid-template-columns:210px 1fr;gap:0}.label,.value{border-bottom:1px solid #e5edf3;padding:9px}.label{font-weight:800;background:#f8fafc}.muted{color:#64748b}@media print{button{display:none}}</style></head><body><div class="doc"><button onclick="print()">Print / Save as PDF</button><div class="head"><h1>Spray &amp; Wash Inspector Details</h1><p class="muted">Height equipment inspector qualification details</p></div><div class="grid"><div class="label">Inspector</div><div class="value">${esc(q.inspector_name)}</div><div class="label">Email</div><div class="value">${esc(q.email||'—')}</div><div class="label">Qualification</div><div class="value">${esc(q.qualification_type||'—')}</div><div class="label">Provider</div><div class="value">${esc(q.provider||'—')}</div><div class="label">Reference</div><div class="value">${esc(q.reference_number||'—')}</div><div class="label">Issue date</div><div class="value">${nzDate(q.issue_date)}</div><div class="label">Expiry date</div><div class="value">${nzDate(q.expiry_date)}</div><div class="label">Saved file</div><div class="value">${esc(fileNote)}</div><div class="label">Notes</div><div class="value">${esc(q.notes||'—')}</div></div>${embed ? `<h2>Uploaded qualification file</h2>${embed}` : ''}<p class="muted">Generated ${new Date().toLocaleString('en-NZ')} from Spray &amp; Wash Operations.</p></div></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Inspector Details</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#0f172a}.doc{max-width:900px;margin:auto}.head{border-bottom:3px solid #003b73;padding-bottom:14px;margin-bottom:18px}h1{color:#003b73;margin:0}.grid{display:grid;grid-template-columns:210px 1fr;gap:0}.label,.value{border-bottom:1px solid #e5edf3;padding:9px}.label{font-weight:800;background:#f8fafc}.muted{color:#64748b}@media print{button{display:none}}</style></head><body><div class="doc"><button onclick="print()">Print / Save as PDF</button><div class="head"><h1>Spray &amp; Wash Inspector Details</h1><p class="muted">Height equipment inspector qualification details</p></div><div class="grid"><div class="label">Inspector</div><div class="value">${esc(q.inspector_name)}</div><div class="label">Email</div><div class="value">${esc(q.email||'—')}</div><div class="label">Qualification</div><div class="value">${esc(q.qualification_type||'—')}</div><div class="label">Provider</div><div class="value">${esc(q.provider||'—')}</div><div class="label">Reference</div><div class="value">${esc(q.reference_number||'—')}</div><div class="label">Issue date</div><div class="value">${nzDate(q.issue_date)}</div><div class="label">Expiry date</div><div class="value">${nzDate(q.expiry_date)}</div><div class="label">Saved file</div><div class="value">${esc(fileNote)}</div><div class="label">Notes</div><div class="value">${esc(q.notes||'—')}</div></div>${embed ? `<h2>Uploaded qualification file</h2>${embed}` : ''}<p class="muted">Generated ${new Date().toLocaleString('en-NZ')} from Spray &amp; Wash Operations.</p></div></body></html>`;
     const w = window.open('', '_blank');
     if(w){ w.document.open(); w.document.write(html); w.document.close(); }
     else { const blob = new Blob([html], {type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='inspector-details.html'; a.click(); URL.revokeObjectURL(a.href); }
@@ -6191,7 +6592,7 @@
     st.textContent = `
       #filterLabel,#dashTypes,.v415-compact-card:has(#dashTypes){display:none!important;}
       .sw418-clean-hidden{display:none!important;}
-      .sw418-filter-panel{background:#ecfdf5;border:1px solid #14b8a6;border-radius:14px;padding:14px;margin:12px 0;}
+      .sw418-filter-panel{background:#edf6fc;border:1px solid #4f9bd0;border-radius:14px;padding:14px;margin:12px 0;}
       .sw418-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;align-items:end;}
       .sw418-filter-grid label{display:flex;flex-direction:column;font-weight:800;font-size:.88rem;gap:5px;}
       .sw418-filter-grid input,.sw418-filter-grid select{border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:white;min-height:42px;}
@@ -6353,7 +6754,7 @@
     if(includeIns){ for(const p of (inspectionPhotos||[]).filter(p=>String(p.inspection_id)===String(i.id)).slice(0,6)){ const u=await signedUrl(PHOTO_BUCKET,p.file_path); if(u) ip.push(u); } }
     return {equipmentUrls:eq, inspectionUrls:ip};
   }
-  function certificateDocumentCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:36px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#0f766e;font-weight:900}.title{font-size:28px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:170px 1fr;gap:0;margin:16px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}.photoGrid img{width:100%;height:320px;object-fit:contain;border:1px solid #dbe7ee;border-radius:14px;background:#f8fafc}.checklist{columns:2;column-gap:32px;font-size:13px}.footer{margin-top:20px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:12px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#0f766e;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{height:310px}}`; }
+  function certificateDocumentCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:36px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #003b73;padding-bottom:14px;margin-bottom:18px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#003b73;font-weight:900}.title{font-size:28px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:170px 1fr;gap:0;margin:16px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}.photoGrid img{width:100%;height:320px;object-fit:contain;border:1px solid #dbe7ee;border-radius:14px;background:#f8fafc}.checklist{columns:2;column-gap:32px;font-size:13px}.footer{margin-top:20px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:12px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#003b73;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#003b73;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{height:310px}}`; }
   function checklistHtml(i){ const checks=Array.isArray(i.checklist)?i.checklist:[]; return checks.length ? `<h3>Checklist completed</h3><div class="checklist">${checks.map(c=>`<div>✓ ${esc(c)}</div>`).join('')}</div>` : ''; }
   function certificatePage(record){ const e=record.equipment||{}, i=record.inspection||{}, result=statusLabel(i.result); const cls=statusClass(i.result); return `<section class="page"><div class="head"><div><div class="brand">Spray &amp; Wash Operations</div><div class="title">Height Equipment Inspection Certificate</div><div class="muted">Generated ${new Date().toLocaleDateString('en-NZ')}</div></div><div><span class="pill ${cls}">${esc(result)}</span></div></div><div class="grid"><div class="label">Serial</div><div class="value"><strong>${esc(e.serial||'')}</strong></div><div class="label">Equipment type</div><div class="value">${esc(e.type||'')}</div><div class="label">Manufacturer</div><div class="value">${esc(e.manufacturer||'—')}</div><div class="label">Model</div><div class="value">${esc(e.model||'—')}</div><div class="label">Status</div><div class="value">${esc(e.status||'—')}</div><div class="label">Inspection date</div><div class="value">${nzDate(i.inspection_date)}</div><div class="label">Inspector</div><div class="value">${esc(i.inspector||'—')}</div><div class="label">Next due</div><div class="value">${nzDate(i.next_due)}</div><div class="label">Inspection result</div><div class="value"><span class="pill ${cls}">${esc(result)}</span></div><div class="label">Notes</div><div class="value">${esc(i.notes||'—')}</div></div>${checklistHtml(i)}<div class="footer">This certificate is generated from the latest saved inspection record for the selected item in Spray &amp; Wash Operations.</div></section>`; }
   function photoPage(record){ const urls=[...(record.images?.equipmentUrls||[]),...(record.images?.inspectionUrls||[])]; if(!urls.length) return ''; return `<section class="page photoPage"><div class="head"><div><div class="brand">Spray &amp; Wash Operations</div><div class="title">Inspection Photo Evidence</div><div class="muted">${esc(record.equipment.serial||'')} ${esc(record.equipment.type||'')}</div></div></div><div class="photoGrid">${urls.slice(0,6).map(u=>`<img src="${esc(u)}" alt="Certificate evidence photo">`).join('')}</div><div class="footer">Photos shown are selected equipment photos and photos attached to the latest inspection used for this certificate.</div></section>`; }
@@ -6511,7 +6912,7 @@
       .sw419-table{width:100%;border-collapse:collapse;font-size:14px;}
       .sw419-table th,.sw419-table td{padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top;}
       .sw419-table th{position:sticky;top:0;background:#f8fafc;z-index:1;font-weight:900;color:#334155;}
-      .sw419-filter-panel{background:#ecfdf5;border:1px solid #14b8a6;border-radius:14px;padding:14px;margin:12px 0;}
+      .sw419-filter-panel{background:#edf6fc;border:1px solid #4f9bd0;border-radius:14px;padding:14px;margin:12px 0;}
       .sw419-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;}
       .sw419-filter-grid label{display:flex;flex-direction:column;font-weight:800;font-size:.88rem;gap:5px;}
       .sw419-row-list{border:1px solid #dbe7ee;border-radius:14px;background:white;max-height:480px;overflow:auto;padding:8px;margin:10px 0;}
@@ -6687,7 +7088,7 @@
     }
     return {equipmentUrls, inspectionUrls};
   }
-  function certCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:36px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#0f766e;font-weight:900}.title{font-size:26px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:170px 1fr;gap:0;margin:16px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:7px 8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}.photoGrid img{width:100%;height:310px;object-fit:contain;border:1px solid #dbe7ee;border-radius:14px;background:#f8fafc}.equipmentPhotoStrip{margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px}.equipmentPhotoStrip img{width:48%;max-height:230px;object-fit:contain;border:1px solid #dbe7ee;border-radius:14px;background:#f8fafc;margin-right:10px}.checklist{columns:2;column-gap:32px;font-size:12px}.footer{margin-top:18px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#0f766e;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{height:310px}}`; }
+  function certCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:36px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #003b73;padding-bottom:14px;margin-bottom:18px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#003b73;font-weight:900}.title{font-size:26px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:170px 1fr;gap:0;margin:16px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:7px 8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}.photoGrid img{width:100%;height:310px;object-fit:contain;border:1px solid #dbe7ee;border-radius:14px;background:#f8fafc}.equipmentPhotoStrip{margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px}.equipmentPhotoStrip img{width:48%;max-height:230px;object-fit:contain;border:1px solid #dbe7ee;border-radius:14px;background:#f8fafc;margin-right:10px}.checklist{columns:2;column-gap:32px;font-size:12px}.footer{margin-top:18px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#003b73;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#003b73;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{height:310px}}`; }
   function checklistHtml(i){ const checks = Array.isArray(i?.checklist) ? i.checklist : []; return checks.length ? `<h3>Checklist completed</h3><div class="checklist">${checks.map(c=>`<div>✓ ${esc(c)}</div>`).join('')}</div>` : ''; }
   function equipmentPhotoBlock(record){
     const urls = record.images?.equipmentUrls || [];
@@ -6898,7 +7299,7 @@
     }
     return {equipmentUrls, inspectionUrls};
   }
-  function certCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:34px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #0f766e;padding-bottom:14px;margin-bottom:16px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#0f766e;font-weight:900}.title{font-size:26px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:165px 1fr;gap:0;margin:14px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:7px 8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.checklist{columns:2;column-gap:28px;font-size:12px}.photoStrip{margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px}.photoStrip h3{margin:0 0 8px;font-size:15px}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.photoGrid img{width:100%;height:210px;object-fit:contain;border:1px solid #dbe7ee;border-radius:12px;background:#f8fafc}.evidencePage .photoGrid img{height:360px}.footer{margin-top:16px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#0f766e;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{max-height:250px}}`; }
+  function certCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:34px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #003b73;padding-bottom:14px;margin-bottom:16px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#003b73;font-weight:900}.title{font-size:26px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:165px 1fr;gap:0;margin:14px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:7px 8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.checklist{columns:2;column-gap:28px;font-size:12px}.photoStrip{margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px}.photoStrip h3{margin:0 0 8px;font-size:15px}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.photoGrid img{width:100%;height:210px;object-fit:contain;border:1px solid #dbe7ee;border-radius:12px;background:#f8fafc}.evidencePage .photoGrid img{height:360px}.footer{margin-top:16px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#003b73;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#003b73;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{max-height:250px}}`; }
   function checklistHtml(i){ const checks = Array.isArray(i?.checklist) ? i.checklist : []; return checks.length ? `<h3>Checklist completed</h3><div class="checklist">${checks.map(c=>`<div>✓ ${esc(c)}</div>`).join('')}</div>` : ''; }
   function inspectionPhotoBlock(record){
     const urls = record.images?.inspectionUrls || [];
@@ -7009,7 +7410,7 @@
       #certItemsPanel>h3,#certItemsPanel>p,.certSelectionTools{display:none!important}.certificateControls>h3:first-child{display:none!important}
       #certFilterPanel{margin-top:0!important}
       .sw421-row-list{border:1px solid #dbe7ee;border-radius:14px;background:white;max-height:460px;overflow:auto;margin-top:10px}.sw421-table{width:100%;border-collapse:collapse}.sw421-table th,.sw421-table td{padding:9px 10px;border-bottom:1px solid #e5edf3;text-align:left;vertical-align:top}.sw421-table th{background:#f8fafc;font-weight:900}.sw421-click-row{cursor:pointer}.sw421-click-row:hover{background:#f8fafc}.sw421-pill{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-weight:800;font-size:.78rem}.sw421-pill.ok{background:#dcfce7;color:#047857}.sw421-pill.bad{background:#fee2e2;color:#b91c1c}.sw421-pill.warn{background:#fef3c7;color:#b45309}
-      .sw421-history-scroll{max-height:420px;overflow:auto;border:1px solid #e5edf3;border-radius:12px;background:white}.sw421-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.sw421-add-photo-menu{display:flex;gap:8px;flex-wrap:wrap}.sw421-qual-actions{display:flex;gap:8px;flex-wrap:wrap}.sw421-archive-modal{position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px}.sw421-archive-box{background:white;border-radius:18px;max-width:560px;width:100%;padding:16px;box-shadow:0 20px 80px #0008}.sw421-archive-box textarea{width:100%;min-height:110px}.sw421-report-active{background:#0f766e!important;color:white!important}
+      .sw421-history-scroll{max-height:420px;overflow:auto;border:1px solid #e5edf3;border-radius:12px;background:white}.sw421-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.sw421-add-photo-menu{display:flex;gap:8px;flex-wrap:wrap}.sw421-qual-actions{display:flex;gap:8px;flex-wrap:wrap}.sw421-archive-modal{position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px}.sw421-archive-box{background:white;border-radius:18px;max-width:560px;width:100%;padding:16px;box-shadow:0 20px 80px #0008}.sw421-archive-box textarea{width:100%;min-height:110px}.sw421-report-active{background:#003b73!important;color:white!important}
     `;
     document.head.appendChild(st);
   }
@@ -7193,7 +7594,7 @@
     const {equipment, inspections}=await loadHeightData();
     return equipment.filter(e=>ids.has(String(e.id))).map(e=>({equipment:e, inspection:latestInspectionFor(e, inspections)})).filter(p=>p.inspection);
   }
-  function certCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:34px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #0f766e;padding-bottom:14px;margin-bottom:16px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#0f766e;font-weight:900}.title{font-size:26px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:165px 1fr;gap:0;margin:14px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:7px 8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.checklist{columns:2;column-gap:28px;font-size:12px}.photoStrip{margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px}.photoStrip h3{margin:0 0 8px;font-size:15px}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.photoGrid img{width:100%;height:210px;object-fit:contain;border:1px solid #dbe7ee;border-radius:12px;background:#f8fafc}.evidencePage .photoGrid img{height:360px}.qualEvidence img{display:block;max-width:100%;max-height:780px;margin:auto;border:1px solid #dbe7ee;border-radius:12px;background:#f8fafc}.qualEvidence iframe{width:100%;height:780px;border:1px solid #dbe7ee;border-radius:12px}.footer{margin-top:16px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#0f766e;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{max-height:250px}}`; }
+  function certCss(){ return `body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#f8fafc}.page{background:white;max-width:920px;min-height:1180px;margin:22px auto;padding:34px;box-shadow:0 10px 35px #0f172a22;page-break-after:always}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:4px solid #003b73;padding-bottom:14px;margin-bottom:16px}.brand{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#003b73;font-weight:900}.title{font-size:26px;font-weight:900;margin:4px 0}.muted{color:#64748b}.grid{display:grid;grid-template-columns:165px 1fr;gap:0;margin:14px 0}.label,.value{border-bottom:1px solid #e2e8f0;padding:7px 8px}.label{font-weight:900;background:#f8fafc;color:#334155}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.ok{background:#dcfce7;color:#047857}.bad{background:#fee2e2;color:#b91c1c}.warn{background:#fef3c7;color:#b45309}.checklist{columns:2;column-gap:28px;font-size:12px}.photoStrip{margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px}.photoStrip h3{margin:0 0 8px;font-size:15px}.photoGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.photoGrid img{width:100%;height:210px;object-fit:contain;border:1px solid #dbe7ee;border-radius:12px;background:#f8fafc}.evidencePage .photoGrid img{height:360px}.qualEvidence img{display:block;max-width:100%;max-height:780px;margin:auto;border:1px solid #dbe7ee;border-radius:12px;background:#f8fafc}.qualEvidence iframe{width:100%;height:780px;border:1px solid #dbe7ee;border-radius:12px}.footer{margin-top:16px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #dbe7ee;padding:9px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155;font-weight:900}.noPrint{position:sticky;top:0;background:#003b73;color:white;padding:10px;text-align:center}.noPrint button{background:white;color:#003b73;border:0;border-radius:10px;padding:9px 14px;font-weight:900}@media print{body{background:white}.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}.photoGrid img{max-height:250px}}`; }
   async function imagesFor(e,i,eqPhotos,insPhotos){
     const eqId=String(e.id||''), serial=norm(e.serial), insId=String(i?.id||'');
     const eqRows=(eqPhotos||[]).filter(p=>String(p.equipment_id||'')===eqId || norm(p.serial)===serial).slice(0,4);
@@ -7411,7 +7812,7 @@
     if($('sw422Styles')) return;
     const st=document.createElement('style'); st.id='sw422Styles'; st.textContent=`
       .sw422-hidden{display:none!important}.notifyBtn,#notifyBadge,#notificationPanel{display:none!important}
-      .sw422-filter{background:#ecfdf5;border:1px solid #14b8a6;border-radius:16px;padding:14px;margin:12px 0}.sw422-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px}.sw422-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sw422-rowlist{border:1px solid #e2e8f0;border-radius:14px;overflow:auto;background:white}.sw422-rowlist table{width:100%;border-collapse:collapse;font-size:13px}.sw422-rowlist th,.sw422-rowlist td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}.sw422-rowlist tr[data-id],.sw422-rowlist tr[data-eqid]{cursor:pointer}.sw422-rowlist tr:hover{background:#f8fafc}.sw422-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-weight:800;font-size:12px}.sw422-pill.ok{background:#dcfce7;color:#166534}.sw422-pill.bad{background:#fee2e2;color:#991b1b}.sw422-pill.warn{background:#fef3c7;color:#92400e}.sw422-scroll{max-height:395px;overflow:auto;border:1px solid #e2e8f0;border-radius:14px;background:white}.sw422-cert-list{max-height:430px;overflow:auto;border:1px solid #cbd5e1;border-radius:14px;background:white}.sw422-cert-list label{display:flex!important;justify-content:flex-start!important;align-items:flex-start!important;gap:10px;text-align:left!important;margin:0!important;padding:12px;border-bottom:1px solid #e2e8f0;width:100%}.sw422-cert-list input{width:auto!important;margin-top:4px}.sw422-selected{text-align:left!important;margin-top:8px;font-weight:800}.certSelectList,.certItemCheckRow,.ops-cert-row{text-align:left!important;justify-content:flex-start!important;align-items:flex-start!important}.sw422-photo-choice{display:inline-block}.sw422-photo-choice .hidden{display:none!important}.sw422-archive-modal{position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px}.sw422-archive-box{background:white;border-radius:18px;max-width:540px;width:100%;padding:16px;box-shadow:0 20px 70px #0008}.sw422-qual-card details{border:1px solid #e2e8f0;border-radius:16px;background:white;margin:12px 0}.sw422-qual-card summary{padding:14px;font-weight:900;cursor:pointer}.sw422-qual-inner{padding:0 14px 14px}.sw422-report-active{background:#0f766e!important;color:white!important}
+      .sw422-filter{background:#edf6fc;border:1px solid #4f9bd0;border-radius:16px;padding:14px;margin:12px 0}.sw422-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px}.sw422-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sw422-rowlist{border:1px solid #e2e8f0;border-radius:14px;overflow:auto;background:white}.sw422-rowlist table{width:100%;border-collapse:collapse;font-size:13px}.sw422-rowlist th,.sw422-rowlist td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}.sw422-rowlist tr[data-id],.sw422-rowlist tr[data-eqid]{cursor:pointer}.sw422-rowlist tr:hover{background:#f8fafc}.sw422-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-weight:800;font-size:12px}.sw422-pill.ok{background:#dcfce7;color:#166534}.sw422-pill.bad{background:#fee2e2;color:#991b1b}.sw422-pill.warn{background:#fef3c7;color:#92400e}.sw422-scroll{max-height:395px;overflow:auto;border:1px solid #e2e8f0;border-radius:14px;background:white}.sw422-cert-list{max-height:430px;overflow:auto;border:1px solid #cbd5e1;border-radius:14px;background:white}.sw422-cert-list label{display:flex!important;justify-content:flex-start!important;align-items:flex-start!important;gap:10px;text-align:left!important;margin:0!important;padding:12px;border-bottom:1px solid #e2e8f0;width:100%}.sw422-cert-list input{width:auto!important;margin-top:4px}.sw422-selected{text-align:left!important;margin-top:8px;font-weight:800}.certSelectList,.certItemCheckRow,.ops-cert-row{text-align:left!important;justify-content:flex-start!important;align-items:flex-start!important}.sw422-photo-choice{display:inline-block}.sw422-photo-choice .hidden{display:none!important}.sw422-archive-modal{position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px}.sw422-archive-box{background:white;border-radius:18px;max-width:540px;width:100%;padding:16px;box-shadow:0 20px 70px #0008}.sw422-qual-card details{border:1px solid #e2e8f0;border-radius:16px;background:white;margin:12px 0}.sw422-qual-card summary{padding:14px;font-weight:900;cursor:pointer}.sw422-qual-inner{padding:0 14px 14px}.sw422-report-active{background:#003b73!important;color:white!important}
     `; document.head.appendChild(st);
   }
   async function renderRecent(){
@@ -7468,7 +7869,7 @@
     }
     return `<!doctype html><html><head><meta charset="utf-8"><title>Spray & Wash Certificate</title><style>${docCss()}</style></head><body><div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div>${pages}</body></html>`;
   }
-  function docCss(){return `body{font-family:Arial,sans-serif;margin:0;color:#0f172a;background:#f8fafc}.noPrint{position:sticky;top:0;padding:10px;background:white;border-bottom:1px solid #ddd;z-index:5}.page{background:white;max-width:920px;min-height:1120px;margin:20px auto;padding:34px;box-shadow:0 4px 20px #0001;page-break-after:always}.head{display:flex;justify-content:space-between;border-bottom:4px solid #0f766e;padding-bottom:14px;margin-bottom:20px}.brand{font-size:13px;font-weight:900;color:#0f766e;text-transform:uppercase;letter-spacing:.08em}h1{margin:4px 0;color:#0f172a}.meta,.muted{color:#64748b;font-size:13px}.grid{display:grid;grid-template-columns:190px 1fr;border-top:1px solid #e2e8f0}.label,.value{padding:10px;border-bottom:1px solid #e2e8f0}.label{font-weight:900;background:#f8fafc}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.photos{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}.photos img{width:100%;height:230px;object-fit:contain;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}.photos.large img{height:420px}@media print{.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}}`;}
+  function docCss(){return `body{font-family:Arial,sans-serif;margin:0;color:#0f172a;background:#f8fafc}.noPrint{position:sticky;top:0;padding:10px;background:white;border-bottom:1px solid #ddd;z-index:5}.page{background:white;max-width:920px;min-height:1120px;margin:20px auto;padding:34px;box-shadow:0 4px 20px #0001;page-break-after:always}.head{display:flex;justify-content:space-between;border-bottom:4px solid #003b73;padding-bottom:14px;margin-bottom:20px}.brand{font-size:13px;font-weight:900;color:#003b73;text-transform:uppercase;letter-spacing:.08em}h1{margin:4px 0;color:#0f172a}.meta,.muted{color:#64748b;font-size:13px}.grid{display:grid;grid-template-columns:190px 1fr;border-top:1px solid #e2e8f0}.label,.value{padding:10px;border-bottom:1px solid #e2e8f0}.label{font-weight:900;background:#f8fafc}.pill{border-radius:999px;padding:5px 10px;font-weight:900;display:inline-block}.pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}.photos{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}.photos img{width:100%;height:230px;object-fit:contain;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}.photos.large img{height:420px}@media print{.noPrint{display:none}.page{box-shadow:none;margin:0;max-width:none;min-height:auto;page-break-after:always}}`;}
   function openDoc(html,name){ const w=window.open('','_blank'); if(w){w.document.open();w.document.write(html);w.document.close();} else {const blob=new Blob([html],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);} }
   function installCertUi(){
     const cert=$('certificates'); if(!cert) return;
@@ -7535,7 +7936,7 @@
       html[data-sw-version="4.0.82"] #notificationPanel{display:none!important}
       .sw424-recent-box{max-height:370px;min-height:370px;overflow:auto;border:1px solid #e2e8f0;border-radius:14px;background:white;contain:layout paint;scrollbar-gutter:stable}
       .sw424-table{width:100%;border-collapse:collapse;font-size:13px}.sw424-table th,.sw424-table td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}.sw424-table tr[data-id],.sw424-table tr[data-eqid]{cursor:pointer}.sw424-table tr:hover{background:#f8fafc}
-      .sw424-filter{background:#ecfdf5;border:1px solid #14b8a6;border-radius:16px;padding:14px;margin:12px 0}.sw424-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px}.sw424-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sw424-muted{color:#64748b;font-size:13px}.sw424-results{border:1px solid #e2e8f0;border-radius:14px;overflow:auto;background:white}.sw424-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-weight:800;font-size:12px}.sw424-pill.ok{background:#dcfce7;color:#166534}.sw424-pill.bad{background:#fee2e2;color:#991b1b}.sw424-pill.warn{background:#fef3c7;color:#92400e}
+      .sw424-filter{background:#edf6fc;border:1px solid #4f9bd0;border-radius:16px;padding:14px;margin:12px 0}.sw424-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px}.sw424-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sw424-muted{color:#64748b;font-size:13px}.sw424-results{border:1px solid #e2e8f0;border-radius:14px;overflow:auto;background:white}.sw424-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-weight:800;font-size:12px}.sw424-pill.ok{background:#dcfce7;color:#166534}.sw424-pill.bad{background:#fee2e2;color:#991b1b}.sw424-pill.warn{background:#fef3c7;color:#92400e}
       #equipment .sw422-filter:not(#sw424EqFilter),#equipment #sw422EqFilter,#equipment .filterBar + .row{display:none!important}
       .sw424-cert{padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}.sw424-cert-list{display:grid;gap:10px;margin:10px 0;background:transparent}.sw424-cert-list label{display:flex!important;justify-content:flex-start!important;align-items:flex-start!important;gap:10px;text-align:left!important;margin:0!important;padding:14px;border:1px solid #e2e8f0;border-radius:16px;background:white;width:100%;box-sizing:border-box;cursor:pointer;transition:.15s transform,.15s box-shadow}.sw424-cert-list label:hover{transform:translateY(-1px);box-shadow:0 10px 22px #0f172a12}.sw424-cert-list input{width:auto!important;margin-top:4px;flex:0 0 auto}.sw424-cert-list span{display:block;text-align:left!important}.sw424-selected{text-align:left!important;font-weight:800;margin:8px 0}
       .sw424-qual details{border:1px solid #e2e8f0;border-radius:16px;background:white;margin:12px 0}.sw424-qual summary{cursor:pointer;padding:14px;font-weight:900}.sw424-qual-body{padding:0 14px 14px}
@@ -7658,7 +8059,7 @@
   async function certRecords(ids){ const data=await loadHeight(); const list=data.equipment.filter(e=>ids.has(String(e.id))).map(e=>({equipment:e,inspection:latestInspection(e,data.inspections)})).filter(p=>p.inspection); return {data,list}; }
   function photoRowsForInspection(photos, insp){ const id=String(insp.id||''), ser=norm(insp.serial); return photos.filter(p=>String(p.inspection_id||'')===id || norm(p.serial)===ser); }
   function photoRowsForEquipment(photos,e){ const id=String(e.id||''), ser=norm(e.serial); return photos.filter(p=>String(p.equipment_id||'')===id || norm(p.serial)===ser); }
-  function certCss(){ return `@page{size:A4;margin:0}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#fff}.noPrint{padding:12px}.page{page-break-after:always;padding:14mm;box-sizing:border-box;min-height:100vh}.head{display:flex;justify-content:space-between;gap:18px;border-bottom:4px solid #0f766e;padding-bottom:10px;margin-bottom:12px}.certificate-brand{display:flex;align-items:center;gap:12px}.certificate-logo{display:block;width:70px;height:45px;object-fit:contain}.brand{font-weight:900;color:#0f766e;font-size:18px}.title{font-size:24px;font-weight:900;margin-top:4px}.meta{font-size:12px;color:#475569;text-align:right}.grid{display:grid;grid-template-columns:155px 1fr;gap:0;border:1px solid #dbe7ee;border-bottom:0}.label,.value{padding:6px 8px;border-bottom:1px solid #dbe7ee}.label{background:#f8fafc;font-weight:800}.pill{border-radius:999px;padding:4px 9px;font-weight:800}.ok{background:#dcfce7;color:#166534}.bad{background:#fee2e2;color:#991b1b}.warn{background:#fef3c7;color:#92400e}.item-photo{margin-top:10px;text-align:center;break-inside:avoid}.item-photo h3{font-size:15px;margin:0 0 6px;text-align:left}.item-photo img{display:block;width:100%;height:92mm;object-fit:contain;border:1px solid #dbe7ee;border-radius:8px;background:#f8fafc}.inspection-evidence .explanation{font-size:14px;color:#475569;margin:0 0 12px}.photos{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}.inspection-evidence .photos img{width:100%;height:105mm;object-fit:contain;border:1px solid #dbe7ee;border-radius:8px;background:#f8fafc}.footer{margin-top:10px;font-size:11px;color:#64748b}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #dbe7ee;padding:8px;text-align:left}th{background:#f8fafc}@media print{.noPrint{display:none}.page{page-break-after:always;min-height:297mm}}`; }
+  function certCss(){ return `@page{size:A4;margin:0}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#fff}.noPrint{padding:12px}.page{page-break-after:always;padding:14mm;box-sizing:border-box;min-height:100vh}.head{display:flex;justify-content:space-between;gap:18px;border-bottom:4px solid #003b73;padding-bottom:10px;margin-bottom:12px}.certificate-brand{display:flex;align-items:center;gap:12px}.certificate-logo{display:block;width:70px;height:45px;object-fit:contain}.brand{font-weight:900;color:#003b73;font-size:18px}.title{font-size:24px;font-weight:900;margin-top:4px}.meta{font-size:12px;color:#475569;text-align:right}.grid{display:grid;grid-template-columns:155px 1fr;gap:0;border:1px solid #dbe7ee;border-bottom:0}.label,.value{padding:6px 8px;border-bottom:1px solid #dbe7ee}.label{background:#f8fafc;font-weight:800}.pill{border-radius:999px;padding:4px 9px;font-weight:800}.ok{background:#dcfce7;color:#166534}.bad{background:#fee2e2;color:#991b1b}.warn{background:#fef3c7;color:#92400e}.item-photo{margin-top:10px;text-align:center;break-inside:avoid}.item-photo h3{font-size:15px;margin:0 0 6px;text-align:left}.item-photo img{display:block;width:100%;height:92mm;object-fit:contain;border:1px solid #dbe7ee;border-radius:8px;background:#f8fafc}.inspection-evidence .explanation{font-size:14px;color:#475569;margin:0 0 12px}.photos{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}.inspection-evidence .photos img{width:100%;height:105mm;object-fit:contain;border:1px solid #dbe7ee;border-radius:8px;background:#f8fafc}.footer{margin-top:10px;font-size:11px;color:#64748b}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #dbe7ee;padding:8px;text-align:left}th{background:#f8fafc}@media print{.noPrint{display:none}.page{page-break-after:always;min-height:297mm}}`; }
   function certificateHeader(title,meta){
     const logo=window.companyLogoMarkup?.('certificate-logo')||'';
     const company=window.adminSettingsSnapshot?.().companyName||'Spray & Wash';
@@ -8077,7 +8478,7 @@
       const logo = window.companyLogoMarkup?.('certificate-logo') || '';
       const company = window.adminSettingsSnapshot?.().companyName || 'Spray & Wash';
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>Inspector Qualification Details</title><style>
-        @page{size:A4;margin:10mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#fff}.noPrint{padding:12px;background:#0f766e;text-align:center}.noPrint button{background:#fff;color:#0f766e;border:0;border-radius:10px;padding:9px 14px;font-weight:800}.page{padding:10mm;box-sizing:border-box}.head{display:flex;justify-content:space-between;gap:18px;border-bottom:4px solid #0f766e;padding-bottom:8px;margin-bottom:10px}.certificate-brand{display:flex;align-items:center;gap:11px}.certificate-logo{display:block;width:66px;height:42px;object-fit:contain}.brand{font-weight:900;color:#0f766e;font-size:17px}.title{font-size:22px;font-weight:900;margin-top:3px}.grid{display:grid;grid-template-columns:145px 1fr;border:1px solid #dbe7ee;border-bottom:0}.label,.value{padding:5px 7px;border-bottom:1px solid #dbe7ee;font-size:12px;line-height:1.25;overflow-wrap:anywhere}.label{background:#f8fafc;font-weight:800}.evidence-block{margin-top:9px;text-align:center;break-inside:avoid}.evidence-block h2{font-size:15px;text-align:left;margin:0 0 6px}.qualification-evidence{display:block;width:100%;max-width:100%;height:128mm;object-fit:contain;margin:0 auto;border:1px solid #dbe7ee;border-radius:10px;background:#f8fafc;box-sizing:border-box}.qualification-pdf{height:128mm}@media print{.noPrint{display:none}.page{padding:0}.evidence-block{break-inside:avoid}}
+        @page{size:A4;margin:10mm}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#fff}.noPrint{padding:12px;background:#003b73;text-align:center}.noPrint button{background:#fff;color:#003b73;border:0;border-radius:10px;padding:9px 14px;font-weight:800}.page{padding:10mm;box-sizing:border-box}.head{display:flex;justify-content:space-between;gap:18px;border-bottom:4px solid #003b73;padding-bottom:8px;margin-bottom:10px}.certificate-brand{display:flex;align-items:center;gap:11px}.certificate-logo{display:block;width:66px;height:42px;object-fit:contain}.brand{font-weight:900;color:#003b73;font-size:17px}.title{font-size:22px;font-weight:900;margin-top:3px}.grid{display:grid;grid-template-columns:145px 1fr;border:1px solid #dbe7ee;border-bottom:0}.label,.value{padding:5px 7px;border-bottom:1px solid #dbe7ee;font-size:12px;line-height:1.25;overflow-wrap:anywhere}.label{background:#f8fafc;font-weight:800}.evidence-block{margin-top:9px;text-align:center;break-inside:avoid}.evidence-block h2{font-size:15px;text-align:left;margin:0 0 6px}.qualification-evidence{display:block;width:100%;max-width:100%;height:128mm;object-fit:contain;margin:0 auto;border:1px solid #dbe7ee;border-radius:10px;background:#f8fafc;box-sizing:border-box}.qualification-pdf{height:128mm}@media print{.noPrint{display:none}.page{padding:0}.evidence-block{break-inside:avoid}}
       </style></head><body><div class="noPrint"><button onclick="print()">Print / Save as PDF</button></div><section class="page"><div class="head"><div class="certificate-brand">${logo}<div><div class="brand">${esc(company)}</div><div class="title">Inspector Qualification Details</div></div></div><div>${new Date().toLocaleDateString('en-NZ')}</div></div><div class="grid"><div class="label">Inspector</div><div class="value">${esc(titleCase(record.inspector_name))}</div><div class="label">Email</div><div class="value">${esc(record.email || '—')}</div><div class="label">Qualification</div><div class="value">${esc(record.qualification_type || '—')}</div><div class="label">Provider</div><div class="value">${esc(record.provider || '—')}</div><div class="label">Reference</div><div class="value">${esc(record.reference_number || '—')}</div><div class="label">Issue date</div><div class="value">${nzDate(record.issue_date)}</div><div class="label">Expiry date</div><div class="value">${nzDate(record.expiry_date)}</div><div class="label">File</div><div class="value">${esc(record.file_name || '—')}</div><div class="label">Notes</div><div class="value">${esc(record.notes || '—')}</div></div><div class="evidence-block"><h2>Uploaded Qualification Evidence</h2>${evidence}</div></section></body></html>`;
       const popup = window.open('', '_blank');
       if (popup) { popup.document.open(); popup.document.write(html); popup.document.close(); }

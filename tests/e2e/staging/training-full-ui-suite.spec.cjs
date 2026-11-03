@@ -154,9 +154,9 @@ test.describe('Training module — full UI regression suite', () => {
     await expect(row).toContainText('No expiry');
 
     const matrix = await openSettingsPanel(page, 'Training Matrix');
-    await matrix.getByRole('button', { name: /Internal \(\d+\)/ }).click();
+    await matrix.getByRole('button', { name: /Internal Training \(\d+\)/ }).click();
     await expect(matrix.getByRole('columnheader', { name: fixture.courseName })).toBeVisible();
-    await matrix.getByRole('button', { name: /External \(\d+\)/ }).click();
+    await matrix.getByRole('button', { name: /External Qualification \(\d+\)/ }).click();
     await expect(matrix.getByRole('columnheader', { name: fixture.courseName })).toHaveCount(0);
   });
 
@@ -290,7 +290,7 @@ test.describe('Training module — full UI regression suite', () => {
     await openTrainingModule(page);
     const matrix = await openSettingsPanel(page, 'Training Matrix');
     // TRAINING-SUITE-005 switched the fixture course to Internal, and the Matrix opens on the External tab.
-    await matrix.getByRole('button', { name: /Internal \(\d+\)/ }).click();
+    await matrix.getByRole('button', { name: /Internal Training \(\d+\)/ }).click();
     const cell = matrix.locator(`button[data-ops-matrix-cell][data-person="${fixture.personId}"][data-course="${fixture.courseId}"]`);
     await expect(cell, 'Expected a Matrix cell for the fixture person × fixture course').toHaveCount(1, { timeout: 10_000 });
 
@@ -421,6 +421,7 @@ test.describe('Training module — full UI regression suite', () => {
     await signIn(page, config);
     await openTrainingModule(page);
     await goToTab(page, 'Register');
+    await page.locator('#opsRegisterPanel > summary').click();
 
     const resultsRow = page.locator('tr', { has: page.getByRole('button', { name: fixture.personName, exact: true }) });
     await expect(resultsRow).toContainText(fixture.courseName);
