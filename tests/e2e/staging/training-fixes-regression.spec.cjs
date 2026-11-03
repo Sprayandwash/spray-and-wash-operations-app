@@ -575,6 +575,14 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     expect(Math.abs(lay.provider.top - lay.ref.top)).toBeLessThan(4);
     expect(lay.notes.left).toBeGreaterThan(lay.expiry.right - 4);
     expect(lay.notes.height).toBeGreaterThan(lay.status.height * 1.8);
+    const before = lay.notes.height;
+    const box = await page.locator('#opsRecordNotes').boundingBox();
+    await page.mouse.move(box.x + box.width - 6, box.y + box.height - 6);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 6, box.y + box.height + 74, { steps: 5 });
+    await page.mouse.up();
+    const after = (await page.locator('#opsRecordNotes').boundingBox()).height;
+    expect(after, 'Notes box can be dragged taller').toBeGreaterThan(before + 40);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await goToTab(page, 'Settings');
     const mat = await openPanel(page, 'Training Matrix').catch(() => null);

@@ -682,7 +682,7 @@
       .ops-rec-left .ops-r-b { grid-column:span 3; }
       .ops-course-left { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .ops-rec-notes { display:flex; flex-direction:column; gap:.25rem; }
-      .ops-rec-notes textarea { flex:1; min-height:110px; resize:vertical; }
+      .ops-rec-notes textarea { flex:1 1 auto; height:auto; min-height:110px; resize:vertical; }
       @media(max-width:760px){ .ops-rec-grid { grid-template-columns:1fr; } }
       /* Register fits inside its card */
       .ops-register-table { min-width:0 !important; table-layout:auto; }
