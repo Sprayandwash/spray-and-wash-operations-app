@@ -1,0 +1,108 @@
+name: Training UI regression suite on pull requests
+
+# Runs the Training module full UI suite (training-full-ui-suite, training-fixes-regression and the app-wide
+# layout check) against Staging for every pull request from this repository that touches app or test code.
+# Confirmed by Brendan, 3 Nov 2026: the Training UI bugs in the regression catalogue (REG-146 to REG-156)
+# must be re-checked automatically whenever a change is proposed, not only when someone runs it by hand.
+#
+# The suite creates and deletes its own tagged throwaway fixtures in Staging (never production). Runs are
+# serialised with the manual suite so two runs never touch Staging at the same time.
+# Pull requests from forks are skipped because they cannot read the staging secrets.
+
+on:
+  pull_request:
+    paths:
+      - 'operations-v4.js'
+      - 'operations-rules.js'
+      - 'app.js'
+      - 'index.html'
+      - 'config.js'
+      - 'tests/e2e/**'
+      - 'playwright.staging.training.full-suite.config.cjs'
+      - '.github/workflows/staging-training-ui-on-pr.yml'
+      - '.github/workflows/build-staging-app.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: Build this pull request as an isolated Staging bundle
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/build-staging-app.yml
+    with:
+      artifact_name: spray-wash-staging-app-pr
+    secrets: inherit
+
+  training-ui-suite:
+    name: Run the Training module full UI regression suite against Staging
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: staging
+    concurrency:
+      group: staging-training-full-ui-suite
+      cancel-in-progress: false
+    env:
+      E2E_STAGING_TRAINING_EMAIL: ${{ secrets.E2E_STAGING_TRAINING_EMAIL }}
+      E2E_STAGING_TRAINING_PASSWORD: ${{ secrets.E2E_STAGING_TRAINING_PASSWORD }}
+      E2E_STAGING_HEIGHT_READONLY_EMAIL: ${{ secrets.E2E_STAGING_HEIGHT_READONLY_EMAIL }}
+      E2E_STAGING_HEIGHT_READONLY_PASSWORD: ${{ secrets.E2E_STAGING_HEIGHT_READONLY_PASSWORD }}
+    steps:
+      - name: Check the dedicated staging credentials exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in E2E_STAGING_TRAINING_EMAIL E2E_STAGING_TRAINING_PASSWORD E2E_STAGING_HEIGHT_READONLY_EMAIL E2E_STAGING_HEIGHT_READONLY_PASSWORD; do
+            test -n "${!v:-}" || { echo "Missing $v in the staging environment." >&2; exit 1; }
+          done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked test tooling
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Download this pull request's Staging bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spray-wash-staging-app-pr
+          path: staging-app
+      - name: Safety checks on the bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f staging-app/index.html
+          test -f staging-app/config.js
+          ref="$(sed -n 's/^Supabase project ref: //p' staging-app/STAGING-README.txt | head -n 1)"
+          test -n "$ref" || { echo 'Staging bundle has no project ref.' >&2; exit 1; }
+          test "$ref" != 'twkgfmctuffmkvkmdkct' || { echo 'SAFETY STOP: bundle identifies production.' >&2; exit 1; }
+          ! grep -F 'twkgfmctuffmkvkmdkct' staging-app/config.js >/dev/null || { echo 'SAFETY STOP: bundle config references production.' >&2; exit 1; }
+          echo "E2E_STAGING_PROJECT_REF=$ref" >> "$GITHUB_ENV"
+      - name: Serve the bundle and run the full UI suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install http-server staging-app -p 4174 -c-1 > staging-http-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4174/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4174/ >/dev/null
+          E2E_STAGING_BASE_URL=http://127.0.0.1:4174 npm run test:staging:training-full-suite
+      - name: Upload Playwright failure evidence
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-ui-suite-pr-failure-evidence
+          path: |
+            playwright-report/
+            test-results/
+            staging-http-server.log
+          if-no-files-found: warn
+          retention-days: 14
