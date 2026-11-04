@@ -16,3 +16,13 @@ test('REG-156: a missing required field is flagged in red beside that field, not
   assert.doesNotMatch(ops, /alert\('Select a vehicle before submitting\.'\)/);
   assert.doesNotMatch(ops, /alert\('Choose an asset, enter the planned item/);
 });
+
+test('REG-157: every Operations form turns all its missing required fields red together instead of using the browser pop-up', () => {
+  assert.match(ops, /window\.__opsRequiredFieldsAllRed/);
+  assert.match(ops, /form\.closest\('#opsShell'\)/);
+  assert.match(ops, /!el\.checkValidity\(\)/);
+  assert.match(ops, /ev\.stopImmediatePropagation\(\)/);
+  assert.match(ops, /form\.dataset\.opsAutoValidate = '1'/, 'the browser pop-up is switched off when a submit button is pressed');
+  assert.match(ops, /\}, true\);/, 'runs in the capture phase so it goes before each form\'s own handler');
+});
+
