@@ -456,6 +456,11 @@
       .ops-photo-buttons .ops-photo-button { padding:6px 10px; min-height:30px; font-size:.78rem; }
       .ops-asset-photo-thumb { width:44px; height:44px; border-radius:.5rem; object-fit:cover; border:1px solid #d7dee8; background:#f1f5f9; flex-shrink:0; }
       .ops-asset-photo-thumb-empty { display:inline-block; }
+      .ops-asset-media { display:flex; align-items:flex-start; gap:.8rem; flex-wrap:wrap; margin:.5rem 0; }
+      .ops-asset-media-photo { border:0; padding:0; background:none; cursor:pointer; }
+      .ops-asset-media-photo .ops-asset-photo-thumb { width:72px; height:72px; }
+      .ops-asset-files-view { display:flex; flex-direction:column; gap:.2rem; min-width:0; }
+      .ops-asset-photo-field > strong { display:block; margin-bottom:.25rem; }
       .ops-photo-count { margin-top:.5rem; }
       .ops-check-section { margin:1rem 0; padding:.8rem; border:1px solid #dbe3ec; border-radius:1rem; background:#f8fafc; }
       .ops-check-section h4 { margin:.1rem 0 .6rem; }
@@ -687,18 +692,34 @@
       .ops-person-head-actions { margin-left:auto; display:flex; align-items:center; gap:.5rem; }
       .ops-person-comp { display:flex; align-items:center; gap:.9rem; flex-wrap:wrap; }
       .ops-person-comp label { flex-direction:row; align-items:center; gap:.5rem; display:flex; font-weight:700; font-size:.9rem; }
-      .ops-person-comp select { width:auto; min-width:180px; }
+      .ops-person-comp label { max-width:100%; min-width:0; }
+      .ops-person-comp select { width:auto; min-width:0; max-width:100%; flex:1 1 180px; }
+      @media(max-width:600px){ .ops-person-comp, .ops-person-comp label { width:100%; flex-wrap:nowrap; } .ops-person-comp select { width:100%; } }
       .ops-rec-grid { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:.5rem .9rem; align-items:stretch; }
       .ops-rec-left { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.5rem .8rem; align-content:start; }
       .ops-rec-left .ops-r-a { grid-column:span 2; }
       .ops-rec-left .ops-r-b { grid-column:span 3; }
       .ops-course-row1 { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) 96px minmax(0,1.6fr); gap:.5rem .8rem; align-items:end; }
       .ops-course-validity input { text-align:center; }
-      @media(max-width:900px){ .ops-course-row1 { grid-template-columns:1fr 1fr; } }
+      @media(max-width:900px){
+        /* Phone/tablet: name and type full width; the small Validity box sits beside the NZQA codes */
+        .ops-course-row1 { grid-template-columns:96px minmax(0,1fr); }
+        .ops-course-row1 > label:nth-child(1), .ops-course-row1 > label:nth-child(2) { grid-column:1 / -1; }
+        .ops-course-row1 input, .ops-course-row1 select { width:100%; min-width:0; box-sizing:border-box; }
+      }
       .ops-catalog-actions { justify-content:flex-end; margin:0 0 .4rem; }
+      .ops-catalog-section { margin:.9rem 0 .4rem; }
+      .ops-catalog-section-title { margin:0 0 .35rem; color:#003b73; }
       .ops-rec-notes { display:flex; flex-direction:column; gap:.25rem; }
       .ops-rec-notes textarea { flex:1 1 auto; height:auto; min-height:110px; resize:vertical; }
       @media(max-width:760px){ .ops-rec-grid { grid-template-columns:1fr; } }
+      @media(max-width:600px){
+        /* Phone: Status on its own row, then Completed and Expiry side by side, all the same height */
+        .ops-rec-left .ops-r-a:nth-child(1) { grid-column:span 6; }
+        .ops-rec-left .ops-r-a:nth-child(2), .ops-rec-left .ops-r-a:nth-child(3) { grid-column:span 3; }
+        .ops-rec-left .ops-r-b { grid-column:span 6; }
+        .ops-rec-left input, .ops-rec-left select { width:100%; min-width:0; box-sizing:border-box; min-height:44px; height:44px; }
+      }
       /* Register fits inside its card */
       .ops-register-table { min-width:0 !important; table-layout:auto; }
       .ops-evidence-body { margin-top:.6rem; }
@@ -1519,6 +1540,10 @@
     const ids = trainingSortCourses(state.trainingCourses.filter(c => c.active !== false)).map(c => String(c.id));
     const from = ids.indexOf(String(dragId));
     if(from < 0 || String(dragId) === String(targetId)) return;
+    // Courses are ordered within their own section (External Qualification / Internal Training)
+    const dragged = state.trainingCourses.find(c => String(c.id) === String(dragId));
+    const target = state.trainingCourses.find(c => String(c.id) === String(targetId));
+    if(dragged && target && trainingIsInternalCourse(dragged) !== trainingIsInternalCourse(target)) return;
     ids.splice(from, 1);
     let to = ids.indexOf(String(targetId));
     if(to < 0) return;
@@ -2233,12 +2258,14 @@
     const active = courses.filter(c => c.active !== false);
     const archived = courses.filter(c => c.active === false);
     const head = '<tr><th class="ops-grip-cell"></th><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>';
-    const rows = active.map(c => trainingCatalogRowHtml(c, true)).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    const section = (title, list, internal) => `<div class="ops-catalog-section" data-ops-catalog-section="${internal ? 'internal' : 'external'}"><h4 class="ops-catalog-section-title">${title} <span class="ops-attention-count">${list.length}</span></h4><div class="ops-table-wrap"><table class="ops-table ops-catalog-table">${head}${list.map(c => trainingCatalogRowHtml(c, true)).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>'}</table></div></div>`;
+    const externalSection = section('External Qualification', active.filter(c => !trainingIsInternalCourse(c)), false);
+    const internalSection = section('Internal Training', active.filter(c => trainingIsInternalCourse(c)), true);
     const archivedRows = archived.map(c => trainingCatalogRowHtml(c, false)).join('');
     return `<div class="ops-catalog-inner"><div class="ops-actions ops-catalog-actions"><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
-      <p class="ops-subtle">Drag a course up or down to set the order it appears in the Matrix and Register.</p>
-      <div class="ops-table-wrap"><table class="ops-table ops-catalog-table">${head}${rows}</table></div>
+      <p class="ops-subtle">Drag a course up or down within its section to set the order it appears in the Matrix and Register.</p>
+      ${externalSection}${internalSection}
       ${archived.length ? `<details class="ops-archived-list" data-ops-keep-open="archived-courses" ${opsKeepOpen('archived-courses')}><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-archived-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
     </div>`;
   }
@@ -2754,13 +2781,14 @@
     if(!signedIn){
       cards.push(`<div class="ops-card"><h3>Sign in required</h3><p class="ops-subtle">Use the Account button to sign in, then choose the module you need.</p></div>`);
     } else {
-      if(canUseHeight()) cards.push(moduleCard('Height Equipment', '', 'openHeightModule()'));
+      // One fixed order for everyone (each person only sees the modules they can use); Admin is always last.
       if(canUseVehicleChecks()) cards.push(moduleCard('Vehicle Checks', '', 'openVehicleChecksModule()'));
+      if(canUseHeight()) cards.push(moduleCard('Height Equipment', '', 'openHeightModule()'));
       if(canUseManagement()) cards.push(moduleCard('Maintenance', '', 'openOpsManagementModule()'));
       if(canUseTraining()) cards.push(moduleCard('Training', '', 'openTrainingModule()'));
-      if(isAdmin()) cards.push(moduleCard('Admin', '', 'openAdminModule()'));
-      const hasRoleCards = cards.length > 0;
+      const hasRoleCards = cards.length > 0 || isAdmin();
       cards.push(moduleCard('My Training', '', 'openMyTrainingModule()'));
+      if(isAdmin()) cards.push(moduleCard('Admin', '', 'openAdminModule()'));
       if(!hasRoleCards) cards.push(`<div class="ops-card"><h3>No other access yet</h3><p class="ops-subtle">Your account needs an assigned role before other modules will appear. You can still check your training status above.</p></div>`);
     }
     const attention=appAttentionItems();
@@ -3166,10 +3194,36 @@
       if('checked' in f) el.checked = f.checked; else el.value = f.value;
     });
   }
+  // Choosing a photo opens the phone's camera or gallery, which can make the page refresh its data when you
+  // come back. Chosen files are held and put back so the choice is not lost.
+  function opsFileFormSig(form){
+    return form.id + '|' + JSON.stringify(form.dataset) + '|' + Array.from(form.querySelectorAll('input[type=hidden]')).map(i => i.value).join(',');
+  }
+  function opsCaptureFiles(shell){
+    const out = [];
+    shell.querySelectorAll('form#opsVehicleForm, form#opsWashingForm, form[id^="opsTraining"]').forEach(form => {
+      const files = {};
+      form.querySelectorAll('input[type=file][id]').forEach(i => { if(i.files && i.files.length) files[i.id] = Array.from(i.files); });
+      if(Object.keys(files).length) out.push({ sig: opsFileFormSig(form), formId: form.id, files });
+    });
+    return out;
+  }
+  function opsRestoreFiles(shell, saved){
+    (saved || []).forEach(item => {
+      const form = shell.querySelector('form#' + item.formId);
+      if(!form || opsFileFormSig(form) !== item.sig) return;
+      Object.keys(item.files).forEach(id => {
+        const input = form.querySelector('#' + id);
+        if(!input || (input.files && input.files.length)) return;
+        try{ const dt = new DataTransfer(); item.files[id].forEach(f => dt.items.add(f)); input.files = dt.files; }catch(e){}
+      });
+    });
+  }
   function render(){
     const shell = byId('opsShell');
     if(!shell) return;
     updateExternalTabVisibility();
+    const savedFiles = opsCaptureFiles(shell);
     const draft = opsCaptureFormDraft(shell);
     const viewKey = [state.currentModule, state.currentView, state.trainingViewPersonId, state.viewingContractorId, state.trainingViewCourseId].join('|');
     const keepScroll = viewKey === opsLastViewKey;
@@ -3178,6 +3232,7 @@
     opsLastViewKey = viewKey;
     shell.innerHTML = headerHtml() + (state.lastError ? `<div class="ops-error">${esc(state.lastError)}</div>` : '') + bodyHtml();
     opsRestoreFormDraft(shell, draft);
+    opsRestoreFiles(shell, savedFiles);
     bindRenderedEvents();
     if(keepScroll){
       shell.querySelectorAll('.ops-table-wrap').forEach((e, i) => { if(innerScroll[i]){ e.scrollTop = innerScroll[i][0]; e.scrollLeft = innerScroll[i][1]; } });
@@ -3430,6 +3485,14 @@
     }
     return common.filter(Boolean).join('') || '<div class="ops-subtle">No machinery specifications entered.</div>';
   }
+  function assetMediaViewHtml(kind, row){
+    const files = state.assetFiles.filter(f => kind === 'vehicle' ? String(f.vehicle_id) === String(row.id) : String(f.washing_equipment_id) === String(row.id));
+    if(!row.photo_path && !files.length) return '';
+    return `<div class="ops-asset-media">
+      ${row.photo_path ? `<button class="ops-asset-media-photo" type="button" data-ops-view-asset-photo="${esc(row.photo_path)}" aria-label="View photo"><img class="ops-asset-photo-thumb" alt="Asset photo" data-ops-asset-photo-thumb="${esc(row.photo_path)}"></button>` : ''}
+      ${files.length ? `<div class="ops-asset-files-view"><strong>Files</strong>${files.map(f => `<div>${esc(f.file_name)} <button class="ops-btn ghost" type="button" data-ops-view-asset-file="${f.id}">View</button></div>`).join('')}</div>` : ''}
+    </div>`;
+  }
   function machineryCardHtml(w){
     return `<div class="ops-machinery-card">
       <div class="ops-machinery-card-head">
@@ -3437,6 +3500,7 @@
         <div>${statusPill(w.status)} ${canManage()?`<button class="ops-btn ghost" type="button" data-ops-transfer-machinery="${esc(w.id)}">Transfer</button> <button class="ops-btn ghost" type="button" data-ops-edit-wash="${esc(w.id)}">Edit</button>`:''}</div>
       </div>
       <div class="ops-spec-list">${machinerySpecsHtml(w)}</div>
+      ${assetMediaViewHtml('washing_equipment', w)}
       ${w.service_notes || w.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(w.service_notes || w.notes)}</div>` : ''}
     </div>`;
   }
@@ -3461,7 +3525,7 @@
   function vehicleAssetCardHtml(v, machineryRows){
     const driver = machineryRows.filter(w=>w.mounting_side==='Driver');
     const passenger = machineryRows.filter(w=>w.mounting_side==='Passenger');
-    return `<details class="ops-vehicle-asset">
+    return `<details class="ops-vehicle-asset" data-ops-keep-open="vehicle-${esc(v.id)}" ${opsKeepOpen('vehicle-' + v.id)}>
       <summary class="ops-vehicle-asset-head">
         <div>
           <div class="ops-asset-id">${esc(normalizeRego(v.rego) || 'Vehicle')}</div>
@@ -3473,9 +3537,10 @@
         <div class="ops-section-title"><div></div>
         <div class="ops-spec-list">${vehicleServiceSpecsHtml(v) || '<div class="ops-subtle">No vehicle service specifications entered.</div>'}</div>
           ${canManage()?`<button class="ops-btn ghost" type="button" data-ops-edit-vehicle="${esc(v.id)}">Edit vehicle</button>`:''}</div>
+        ${assetMediaViewHtml('vehicle', v)}
         ${v.service_notes || v.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(v.service_notes || v.notes)}</div>` : ''}
       </div>
-      <details class="ops-subassets"><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}</div></details>
+      <details class="ops-subassets" data-ops-keep-open="subassets-${esc(v.id)}" ${opsKeepOpen('subassets-' + v.id)}><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}</div></details>
     </details>`;
   }
   function assetEditorHtml(){
@@ -3497,7 +3562,7 @@
     ${canManage()&&state.transferringMachineryId?machineryTransferFormHtml():''}
     ${!canManage()?'<div class="ops-card"><p class="ops-subtle">Read-only. Ask an Admin or Maintenance manager to edit assets.</p></div>':''}
     ${vehicles.length ? vehicles.map(x=>vehicleAssetCardHtml(x.v,x.rows)).join('') : '<div class="ops-card"><p class="ops-subtle">No vehicles added yet.</p></div>'}
-    <details class="ops-card ops-unassigned"><summary><strong>Standalone machinery (${unassigned.length})</strong></summary><div style="padding-top:.8rem">
+    <details class="ops-card ops-unassigned" data-ops-keep-open="standalone-machinery" ${opsKeepOpen('standalone-machinery')}><summary><strong>Standalone machinery (${unassigned.length})</strong></summary><div style="padding-top:.8rem">
       ${unassigned.length ? unassigned.map(machineryCardHtml).join('') : '<p class="ops-subtle">No standalone machinery.</p>'}
     </div></details>`;
   }
@@ -4709,15 +4774,36 @@
     // Bug fix (Sep 2026, staging review): buttons were too large and the saved
     // photo had no visual preview - now a small thumbnail sits beside compact
     // Camera/Gallery buttons, with an explicit View photo button alongside it.
-    return `<label class="ops-span-2">Asset photo<div class="ops-photo-buttons">
+    return `<div class="ops-span-2 ops-asset-photo-field" data-ops-asset-photo-field="${id}"><strong>Asset photo</strong><div class="ops-photo-buttons">
         ${path ? `<img class="ops-asset-photo-thumb" alt="Saved asset photo" data-ops-asset-photo-thumb="${esc(path)}">` : `<span class="ops-asset-photo-thumb ops-asset-photo-thumb-empty" aria-hidden="true"></span>`}
         <label class="ops-btn ghost ops-photo-button">Camera<input id="${id}Camera" class="ops-asset-photo-input" type="file" accept="image/*" capture="environment"></label>
         <label class="ops-btn ghost ops-photo-button">Gallery<input id="${id}Gallery" class="ops-asset-photo-input" type="file" accept="image/*"></label>
         ${path ? `<button class="ops-btn ghost ops-photo-button" type="button" data-ops-view-asset-photo="${esc(path)}">View photo</button>` : ''}
-      </div></label>`;
+      </div><small class="ops-subtle" data-ops-asset-photo-note></small></div>`;
   }
   function assetPhotoFile(id){
     return byId(`${id}Camera`)?.files?.[0] || byId(`${id}Gallery`)?.files?.[0] || null;
+  }
+  // Shows what was picked straight away (the photo itself is saved with the Save button) and keeps
+  // only one of Camera/Gallery selected, so the photo you chose last is the one that is saved.
+  function assetPhotoPreview(input){
+    const field = input.closest('[data-ops-asset-photo-field]');
+    if(!field) return;
+    const base = field.dataset.opsAssetPhotoField;
+    const other = byId(input.id === base + 'Camera' ? base + 'Gallery' : base + 'Camera');
+    if(input.files?.length && other) other.value = '';
+    const file = assetPhotoFile(base);
+    const note = field.querySelector('[data-ops-asset-photo-note]');
+    let thumb = field.querySelector('.ops-asset-photo-thumb');
+    if(file){
+      if(thumb){
+        const img = document.createElement('img');
+        img.className = 'ops-asset-photo-thumb'; img.alt = 'Chosen photo';
+        img.src = URL.createObjectURL(file);
+        thumb.replaceWith(img);
+      }
+      if(note) note.textContent = `Photo chosen: ${file.name}. It is saved when you press Save.`;
+    } else if(note) note.textContent = '';
   }
   function vehicleFormHtml(){
     const v = state.vehicles.find(x=>x.id===state.editingVehicleId) || {};
@@ -5882,6 +5968,7 @@
     updateMachineryFormVisibility();
     ['opsTransferVehicle','opsTransferSide'].forEach(id=>byId(id)?.addEventListener('change',updateMachineryTransferPreview));
     updateMachineryTransferPreview();
+    document.querySelectorAll('.ops-asset-photo-input').forEach(i=>{ i.addEventListener('change',()=>assetPhotoPreview(i)); if(i.files&&i.files.length) assetPhotoPreview(i); });
     document.querySelectorAll('[data-ops-view-asset-photo]').forEach(b=>b.addEventListener('click',()=>openAssetPhoto(b.dataset.opsViewAssetPhoto)));
     document.querySelectorAll('[data-ops-asset-photo-thumb]').forEach(img=>{
       const path = img.dataset.opsAssetPhotoThumb;
