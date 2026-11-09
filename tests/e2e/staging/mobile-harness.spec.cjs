@@ -39,9 +39,9 @@ async function navLabels(page) {
 
 async function navigate(page, pathParts) {
   await goHome(page);
-  if (pathParts[0]) await page.locator('.ops-branch-card', { hasText: pathParts[0] }).first().click();
+  if (pathParts[0]) await page.locator('.ops-branch-card').filter({ hasText: pathParts[0], visible: true }).first().click({ timeout: 10_000 });
   await page.waitForTimeout(900);
-  if (pathParts[1]) await page.locator(NAV_SELECTOR, { hasText: pathParts[1] }).first().click();
+  if (pathParts[1]) await page.locator(NAV_SELECTOR).filter({ hasText: pathParts[1], visible: true }).first().click({ timeout: 10_000 });
   await page.waitForTimeout(700);
 }
 
@@ -155,13 +155,14 @@ for (const account of accounts) {
     };
 
     // The walk: each tile, then each tab inside it.
+    const harnessStep = async (label, fn) => {
+      try { await fn(); } catch (err) { findings.add('warn', 'H', label, `Harness could not complete this step: ${String(err.message).split('\n')[0].slice(0, 160)}`); }
+    };
     for (const tile of tiles) {
-      await navigate(page, [tile]);
-      const tabs = await navLabels(page);
-      await scanScreen([tile], tile);
+      let tabs = [];
+      await harnessStep(tile, async () => { await navigate(page, [tile]); tabs = await navLabels(page); await scanScreen([tile], tile); });
       for (const tab of tabs) {
-        await navigate(page, [tile, tab]);
-        await scanScreen([tile, tab], `${tile} > ${tab}`);
+        await harnessStep(`${tile} > ${tab}`, async () => { await navigate(page, [tile, tab]); await scanScreen([tile, tab], `${tile} > ${tab}`); });
       }
     }
 
