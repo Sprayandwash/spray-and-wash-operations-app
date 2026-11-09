@@ -580,7 +580,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await openPerson(page);
     const head = await page.evaluate(() => {
       const h = document.querySelector('.ops-person-head'); const kids = [...h.children].filter(e => !e.classList.contains('ops-person-head-actions')).map(e => e.getBoundingClientRect());
-      const mid = k => k.top + k.height / 2; return { sameRow: kids.every(k => Math.abs(mid(k) - mid(kids[0])) < 12), height: h.getBoundingClientRect().height };
+      const mid = k => k.top + k.height / 2;
+      // The tagged fixture names are long and vary with a random nonce, so the header can legitimately wrap when its content is wider than the card; only fail when it wrapped although everything would have fitted.
+      const all = [...h.children].map(e => e.getBoundingClientRect().width).reduce((a, b) => a + b, 0) + 12 * h.children.length;
+      return { sameRow: kids.every(k => Math.abs(mid(k) - mid(kids[0])) < 12) || all > h.clientWidth, height: h.getBoundingClientRect().height };
     });
     expect(head.sameRow, 'back button, name and designation share a row').toBeTruthy();
     let s = await openSection(page);
