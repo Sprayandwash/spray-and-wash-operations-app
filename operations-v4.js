@@ -5778,7 +5778,7 @@
     byId('opsPlannedMaintenanceForm')?.addEventListener('submit', savePlannedMaintenanceItem);
     byId('opsStandardMaintenanceItemForm')?.addEventListener('submit', saveStandardMaintenanceItem);
     byId('opsPlannedMaintenanceVehicle')?.addEventListener('change', updatePlannedMaintenanceTargetOptions);
-    document.querySelectorAll('[data-ops-maintenance-item]').forEach(row=>{ const open=()=>{state.editingMaintenanceItemKey=row.dataset.opsMaintenanceItem;state.addingMaintenanceItem=false;render();}; row.addEventListener('click',open);row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}}); });
+    document.querySelectorAll('[data-ops-maintenance-item]').forEach(row=>{ const open=()=>{state.editingMaintenanceItemKey=row.dataset.opsMaintenanceItem;state.addingMaintenanceItem=false;render();opsScrollBelowHeader(byId('opsPlannedMaintenanceForm')?.closest('.ops-card'));}; row.addEventListener('click',open);row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}}); });
     byId('opsServiceItemForm')?.addEventListener('submit', saveServiceItem);
     byId('opsServiceRunForm')?.addEventListener('submit', saveServiceRun);
     byId('opsServiceRunAsset')?.addEventListener('change', e => { state.serviceRunAssetId = e.target.value; state.pmView='service'; render(); });
@@ -6023,7 +6023,7 @@
     if(action === 'uploadCompanyLogo'){ await window.uploadCompanyLogo?.(byId('opsCompanyLogoFile')?.files?.[0]); }
     if(action === 'clearMaintenanceLogFilters'){ state.logAssetId='';state.logMachineryId='';state.logType='';state.logDateFrom='';state.logDateTo='';state.logKeyword='';render(); }
     if(action === 'clearPreventiveMaintenanceSearch'){ state.preventiveMaintenanceSearch='';state.preventiveMaintenanceAsset='';state.preventiveMaintenanceFrequency='';render(); }
-    if(action === 'addMaintenanceItem'){ state.addingMaintenanceItem=true;state.editingMaintenanceItemKey='';render(); }
+    if(action === 'addMaintenanceItem'){ state.addingMaintenanceItem=true;state.editingMaintenanceItemKey='';render();opsScrollBelowHeader(byId('opsPlannedMaintenanceForm')?.closest('.ops-card')); }
     if(action === 'closeMaintenanceItemEditor'){ state.addingMaintenanceItem=false;state.editingMaintenanceItemKey='';render(); }
     if(action === 'clearTaskFilter'){ state.taskQuickFilter=''; render(); }
     if(action === 'clearScheduleFilter'){ state.scheduleQuickFilter=''; render(); }
