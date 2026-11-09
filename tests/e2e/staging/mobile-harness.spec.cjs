@@ -49,7 +49,7 @@ async function screenSignature(page) {
   return page.evaluate(() => { const s = document.getElementById('opsShell') || document.body; return `${s.innerHTML.length}|${document.querySelectorAll('details[open]').length}|${(s.querySelector('h2')?.textContent || '')}|${(document.querySelector('#opsNav .active')?.textContent || '')}`; });
 }
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'default' });
 test.setTimeout(900_000);
 const WALK_BUDGET_MS = 7 * 60 * 1000;
 
@@ -138,7 +138,7 @@ for (const account of accounts) {
         const re = new RegExp(deny, 'i');
         const seen = {};
         return [...document.querySelectorAll('#opsShell button, #opsShell [role=button]')]
-          .filter(b => (b.offsetWidth || b.offsetHeight) && !b.disabled)
+          .filter(b => (b.offsetWidth || b.offsetHeight) && !b.disabled && !b.closest('#opsNav'))
           .map(b => b.textContent.trim().replace(/\s+/g, ' '))
           .filter(t => t && t.length < 60 && !re.test(t) && !/^(cancel|close|back|← home)/i.test(t))
           .map(t => { seen[t] = (seen[t] || 0); const nth = seen[t]; seen[t] += 1; return { text: t, nth }; })

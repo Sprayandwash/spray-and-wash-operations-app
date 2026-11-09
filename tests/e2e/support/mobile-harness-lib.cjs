@@ -32,12 +32,15 @@ function installProbes(page, findings, getWhere) {
     if (ALERT_PROBLEM.test(message)) findings.add('error', 'I', getWhere(), `Alert shown: "${message.slice(0, 160)}"`);
     if (dialog.type() === 'confirm' || dialog.type() === 'prompt') await dialog.dismiss(); else await dialog.accept();
   });
-  page.on('pageerror', err => findings.add('error', 'H', getWhere(), `Uncaught page error: ${String(err.message).slice(0, 160)}`));
+  page.on('pageerror', err => {
+    const frames = String(err.stack || '').split('\n').filter(f => /\sat /.test(f)).slice(0, 3).map(f => f.trim().replace(/https?:\/\/[^/]+\//, '')).join(' <- ');
+    findings.add('error', 'H', getWhere(), `Uncaught page error: ${String(err.message).slice(0, 120)} [${frames}]`);
+  });
   page.on('console', msg => {
     if (msg.type() !== 'error') return;
     const text = msg.text();
     if (/favicon|ResizeObserver|Failed to load resource: net::ERR_(ABORTED|BLOCKED)/i.test(text)) return;
-    findings.add('warn', 'H', getWhere(), `Console error: ${text.slice(0, 160)}`);
+    findings.add('warn', 'H', 'app-wide', `Console error: ${text.slice(0, 160)}`);
   });
   page.on('response', response => {
     const status = response.status();
@@ -45,7 +48,7 @@ function installProbes(page, findings, getWhere) {
     const url = response.url();
     if (/\/auth\/v1\/(token|user)/.test(url) && status === 400) return;
     if (/(favicon|\.map$|push|notification)/i.test(url)) return;
-    findings.add('warn', 'I', getWhere(), `HTTP ${status} from ${url.replace(/^https?:\/\/[^/]+/, '').split('?')[0].slice(0, 100)}`);
+    findings.add('warn', 'I', 'app-wide', `HTTP ${status} from ${url.replace(/^https?:\/\/[^/]+/, '').split('?')[0].slice(0, 100)}`);
   });
 }
 
