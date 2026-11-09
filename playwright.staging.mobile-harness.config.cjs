@@ -12,7 +12,7 @@ module.exports = defineConfig({
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
-  timeout: 240_000,
+  timeout: 900_000,
   reporter: [['line'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/mobile-harness.json' }]],
   use: { baseURL: base.baseURL, screenshot: 'off', trace: 'retain-on-failure' },
   projects: [

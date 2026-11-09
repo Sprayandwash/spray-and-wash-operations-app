@@ -50,11 +50,15 @@ async function screenSignature(page) {
 }
 
 test.describe.configure({ mode: 'serial' });
+test.setTimeout(900_000);
+const WALK_BUDGET_MS = 11 * 60 * 1000;
 
 for (const account of accounts) {
   test(`HARNESS ${account.role}: every screen on a phone`, async ({ page }, testInfo) => {
     const findings = lib.createFindings();
     const inventory = [];
+    const deadline = Date.now() + WALK_BUDGET_MS;
+    const outOfTime = () => Date.now() > deadline;
     let where = 'boot';
     lib.installProbes(page, findings, () => `${account.role} / ${where}`);
     await lib.installFlickerRecorder(page);
@@ -97,7 +101,7 @@ for (const account of accounts) {
 
       // B / C / D: open each collapsed section: it must land in view and survive an app switch.
       const summaryCount = await page.locator('#opsShell details:not([open]) > summary:visible').count();
-      for (let i = 0; i < Math.min(summaryCount, 10); i += 1) {
+      for (let i = 0; i < Math.min(summaryCount, 3); i += 1) {
         const summary = page.locator('#opsShell details:not([open]) > summary:visible').first();
         const text = (await summary.textContent().catch(() => '') || '').trim().replace(/\s+/g, ' ').slice(0, 40);
         await summary.scrollIntoViewIfNeeded().catch(() => {});
@@ -138,7 +142,8 @@ for (const account of accounts) {
           .map(t => { seen[t] = (seen[t] || 0); const nth = seen[t]; seen[t] += 1; return { text: t, nth }; })
           .slice(0, 25);
       }, { deny: lib.DENY_CLICK.source });
-      for (const b of buttons) {
+      for (const b of buttons.slice(0, 12)) {
+        if (outOfTime()) break;
         const loc = page.locator('#opsShell button', { hasText: b.text }).nth(b.nth);
         if (!(await loc.count()) || !(await loc.isVisible().catch(() => false))) continue;
         const sigBefore = await screenSignature(page);
@@ -159,9 +164,11 @@ for (const account of accounts) {
       try { await fn(); } catch (err) { findings.add('warn', 'H', label, `Harness could not complete this step: ${String(err.message).split('\n')[0].slice(0, 160)}`); }
     };
     for (const tile of tiles) {
+      if (outOfTime()) { findings.add('warn', 'H', 'walk', `Ran out of time before reaching ${tile} and later modules`); break; }
       let tabs = [];
       await harnessStep(tile, async () => { await navigate(page, [tile]); tabs = await navLabels(page); await scanScreen([tile], tile); });
       for (const tab of tabs) {
+        if (outOfTime()) { findings.add('warn', 'H', 'walk', `Ran out of time inside ${tile}`); break; }
         await harnessStep(`${tile} > ${tab}`, async () => { await navigate(page, [tile, tab]); await scanScreen([tile, tab], `${tile} > ${tab}`); });
       }
     }

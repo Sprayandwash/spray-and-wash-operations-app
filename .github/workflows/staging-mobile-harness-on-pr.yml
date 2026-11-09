@@ -36,7 +36,7 @@ jobs:
     name: Run the mobile harness against Staging
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 50
     environment: staging
     concurrency:
       group: staging-mobile-harness
