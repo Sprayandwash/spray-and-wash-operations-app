@@ -2983,12 +2983,19 @@
       render();
       return;
     }
+    // Lets the phone test suite rebuild the page the way a data refresh does, to prove nothing typed is lost.
+    document.addEventListener('sw:operations-force-refresh', () => render());
     state.sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
     state.sb.auth.onAuthStateChange(async (_event, eventSession) => {
       // A separate Supabase client is used by the Operations module. During a
       // rapid sign-out/sign-in, its delayed sign-out event can arrive after a
       // newer sign-in. Always reconcile against this client's current session.
       const { data } = await state.sb.auth.getSession();
+      // Coming back from the phone camera or gallery makes the sign-in library announce the same user again.
+      // Rebuilding the whole page for that threw away whatever was being typed, so a repeat for the same
+      // signed-in user, with data already loaded, is ignored.
+      const sameUserId = data?.session?.user?.id || eventSession?.user?.id || '';
+      if(['SIGNED_IN','TOKEN_REFRESHED'].includes(_event) && state.dataLoadedOnce && sameUserId && sameUserId === state.activeUserId){ state.user = data?.session?.user || eventSession?.user || state.user; return; }
       const revision=++state.authRevision;
       state.user = data?.session?.user || eventSession?.user || null;
       const nextUserId = state.user?.id || '';
@@ -3219,12 +3226,56 @@
       });
     });
   }
+  // The Vehicle Check form has no field ids on its questions, so it is captured by question. Without this, coming
+  // back from the phone camera (which can refresh the page data) cleared every answer and the chosen photo.
+  function opsCaptureInspection(shell){
+    const form = shell.querySelector('form#opsInspectionForm');
+    if(!form) return null;
+    const top = {};
+    form.querySelectorAll(':scope > label input[id], :scope > label select[id], :scope > label textarea[id]').forEach(el => { if(el.type !== 'hidden' && !el.readOnly) top[el.id] = el.value; });
+    const questions = {};
+    form.querySelectorAll('.ops-question[data-item-id]').forEach(q => {
+      const answer = q.querySelector('select.ops-answer-value, input.ops-answer-value:not([type=hidden])');
+      const notes = q.querySelector('.ops-answer-notes');
+      const files = Array.from(q.querySelectorAll('.ops-item-photo')).map(i => Array.from(i.files || []));
+      const entry = { answer: answer ? answer.value : '', notes: notes ? notes.value : '', files };
+      if(entry.answer || entry.notes || files.some(f => f.length)) questions[q.dataset.itemId] = entry;
+    });
+    if(!Object.keys(top).length && !Object.keys(questions).length) return null;
+    return { template: form.querySelector('#opsInspectionTemplate')?.value || '', top, questions };
+  }
+  function opsRestoreInspection(shell, saved){
+    if(!saved) return;
+    const form = shell.querySelector('form#opsInspectionForm');
+    if(!form || (form.querySelector('#opsInspectionTemplate')?.value || '') !== saved.template) return;
+    Object.keys(saved.top).forEach(id => {
+      if(id === 'opsInspectionVehicle' && state.prefillVehicleCheckId) return;
+      const el = form.querySelector('#' + id);
+      if(el) el.value = saved.top[id];
+    });
+    form.querySelectorAll('.ops-question[data-item-id]').forEach(q => {
+      const entry = saved.questions[q.dataset.itemId];
+      if(!entry) return;
+      const answer = q.querySelector('select.ops-answer-value, input.ops-answer-value:not([type=hidden])');
+      if(answer && entry.answer) answer.value = entry.answer;
+      const notes = q.querySelector('.ops-answer-notes');
+      if(notes && entry.notes) notes.value = entry.notes;
+      q.querySelectorAll('.ops-item-photo').forEach((input, idx) => {
+        const list = entry.files[idx];
+        if(!list || !list.length || (input.files && input.files.length)) return;
+        try{ const dt = new DataTransfer(); list.forEach(f => dt.items.add(f)); input.files = dt.files; }catch(e){}
+      });
+      const first = q.querySelector('.ops-item-photo');
+      if(first) updateInspectionPhotoCount(first);
+    });
+  }
   function render(){
     const shell = byId('opsShell');
     if(!shell) return;
     updateExternalTabVisibility();
     const savedFiles = opsCaptureFiles(shell);
     const draft = opsCaptureFormDraft(shell);
+    const inspectionDraft = opsCaptureInspection(shell);
     // Remember which keep-open sections are open right now, in case the page re-renders before their toggle event has been recorded.
     shell.querySelectorAll('details[data-ops-keep-open]').forEach(d => { state.keepOpen = state.keepOpen || {}; if(d.open) state.keepOpen[d.dataset.opsKeepOpen] = true; });
     const viewKey = [state.currentModule, state.currentView, state.trainingViewPersonId, state.viewingContractorId, state.trainingViewCourseId].join('|');
@@ -3235,6 +3286,7 @@
     shell.innerHTML = headerHtml() + (state.lastError ? `<div class="ops-error">${esc(state.lastError)}</div>` : '') + bodyHtml();
     opsRestoreFormDraft(shell, draft);
     opsRestoreFiles(shell, savedFiles);
+    opsRestoreInspection(shell, inspectionDraft);
     bindRenderedEvents();
     if(!byId('opsAssetEditorCard')) state.assetEditorDirty = false;
     if(keepScroll){

@@ -132,6 +132,30 @@ for (const account of accounts) {
         }
       }
 
+      // B: a part-filled Vehicle Check (an answer, a note and a chosen photo) must survive an app switch
+      // and a page refresh, as happens when the phone camera closes. Production lost all of it (REG-175).
+      if (await page.locator('#opsInspectionForm .ops-question').count()) {
+        await harnessStep(`${name} (part-filled check)`, async () => {
+          const q = page.locator('#opsInspectionForm .ops-question:has(select.ops-answer-value)').first();
+          const photoQ = page.locator('#opsInspectionForm .ops-question[data-photo-required="true"]').first();
+          const select = q.locator('select.ops-answer-value').first();
+          if (!(await select.count())) return;
+          const value = await select.locator('option:not([value=""])').first().getAttribute('value');
+          await select.selectOption(value);
+          if (await photoQ.count()) {
+            await photoQ.locator('input.ops-item-photo').first().setInputFiles({ name: 'harness.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') });
+          }
+          await lib.simulateAppSwitch(page);
+          await page.evaluate(() => document.dispatchEvent(new CustomEvent('sw:operations-force-refresh')));
+          await page.waitForTimeout(800);
+          if ((await select.inputValue().catch(() => '')) !== value) findings.add('error', 'B', name, 'Part-filled Vehicle Check lost an answer after leaving and returning');
+          if (await photoQ.count()) {
+            const kept = await photoQ.locator('input.ops-item-photo').first().evaluate(el => el.files.length).catch(() => 0);
+            if (!kept) findings.add('error', 'B', name, 'Part-filled Vehicle Check lost its chosen photo after leaving and returning');
+          }
+        });
+      }
+
       // H / C: press every safe button once: it must do something, not raise errors, and any
       // form it opens must be on screen.
       const buttons = await page.evaluate(({ deny }) => {

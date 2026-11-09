@@ -61,3 +61,16 @@ test('REG-174: purging a test account is Admin-only, previews first, and is enfo
   for(const gate of ['cannot purge your own account','Admin accounts cannot be purged','Block the account before purging','never purged','more than the']) assert.ok(sql.includes(gate),`gate: ${gate}`);
   assert.match(sql,/grant execute on function public\.purge_test_account\(uuid, uuid, boolean\) to service_role/);
 });
+
+test('REG-175: a part-filled Vehicle Check survives a page refresh (answers, notes, odometer and chosen photos)',()=>{
+  assert.match(app,/function opsCaptureInspection\(shell\)/);
+  assert.match(app,/function opsRestoreInspection\(shell, saved\)/);
+  assert.match(app,/const inspectionDraft = opsCaptureInspection\(shell\);/);
+  assert.match(app,/opsRestoreInspection\(shell, inspectionDraft\);/);
+  assert.match(app,/new DataTransfer\(\)/);
+});
+
+test('REG-176: the sign-in library repeating "signed in" for the same user does not rebuild the page',()=>{
+  assert.match(app,/\['SIGNED_IN','TOKEN_REFRESHED'\]\.includes\(_event\) && state\.dataLoadedOnce && sameUserId && sameUserId === state\.activeUserId/);
+  assert.match(app,/sw:operations-force-refresh/);
+});
