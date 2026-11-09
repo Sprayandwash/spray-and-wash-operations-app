@@ -3225,6 +3225,8 @@
     updateExternalTabVisibility();
     const savedFiles = opsCaptureFiles(shell);
     const draft = opsCaptureFormDraft(shell);
+    // Remember which keep-open sections are open right now, in case the page re-renders before their toggle event has been recorded.
+    shell.querySelectorAll('details[data-ops-keep-open]').forEach(d => { state.keepOpen = state.keepOpen || {}; if(d.open) state.keepOpen[d.dataset.opsKeepOpen] = true; });
     const viewKey = [state.currentModule, state.currentView, state.trainingViewPersonId, state.viewingContractorId, state.trainingViewCourseId].join('|');
     const keepScroll = viewKey === opsLastViewKey;
     const scrollY = window.scrollY;
