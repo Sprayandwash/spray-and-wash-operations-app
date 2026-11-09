@@ -14,7 +14,7 @@ module.exports = defineConfig({
   retries: 0,
   timeout: 900_000,
   reporter: [['line'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/mobile-harness.json' }]],
-  use: { baseURL: base.baseURL, screenshot: 'off', trace: 'retain-on-failure' },
+  use: { baseURL: base.baseURL, screenshot: 'off', trace: 'off' },
   projects: [
     { name: 'android-360', use: { ...devices['Pixel 7'], viewport: { width: 360, height: 800 } } },
     { name: 'iphone-390', use: { ...devices['iPhone 13'], browserName: 'chromium', viewport: { width: 390, height: 844 } } }

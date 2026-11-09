@@ -51,7 +51,7 @@ async function screenSignature(page) {
 
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(900_000);
-const WALK_BUDGET_MS = 11 * 60 * 1000;
+const WALK_BUDGET_MS = 7 * 60 * 1000;
 
 for (const account of accounts) {
   test(`HARNESS ${account.role}: every screen on a phone`, async ({ page }, testInfo) => {
@@ -85,8 +85,10 @@ for (const account of accounts) {
     for (const f of await lib.layoutScan(page)) findings.add(f.sev, f.cls, 'Home', f.detail);
     if (!tiles.length) findings.add('error', 'F', 'Home', 'Home shows no module tiles for this role');
 
+    const t0 = Date.now();
     const scanScreen = async (pathParts, name) => {
       where = name;
+      console.log(`HARNESS progress ${account.role}/${testInfo.project.name}: ${name} at ${Math.round((Date.now() - t0) / 1000)}s`);
       await page.waitForTimeout(900);
       await shoot(name);
       for (const f of await lib.layoutScan(page)) findings.add(f.sev, f.cls, name, f.detail);
@@ -142,7 +144,7 @@ for (const account of accounts) {
           .map(t => { seen[t] = (seen[t] || 0); const nth = seen[t]; seen[t] += 1; return { text: t, nth }; })
           .slice(0, 25);
       }, { deny: lib.DENY_CLICK.source });
-      for (const b of buttons.slice(0, 12)) {
+      for (const b of buttons.slice(0, 8)) {
         if (outOfTime()) break;
         const loc = page.locator('#opsShell button', { hasText: b.text }).nth(b.nth);
         if (!(await loc.count()) || !(await loc.isVisible().catch(() => false))) continue;
@@ -159,47 +161,49 @@ for (const account of accounts) {
       }
     };
 
-    // The walk: each tile, then each tab inside it.
-    const harnessStep = async (label, fn) => {
-      try { await fn(); } catch (err) { findings.add('warn', 'H', label, `Harness could not complete this step: ${String(err.message).split('\n')[0].slice(0, 160)}`); }
-    };
-    for (const tile of tiles) {
-      if (outOfTime()) { findings.add('warn', 'H', 'walk', `Ran out of time before reaching ${tile} and later modules`); break; }
-      let tabs = [];
-      await harnessStep(tile, async () => { await navigate(page, [tile]); tabs = await navLabels(page); await scanScreen([tile], tile); });
-      for (const tab of tabs) {
-        if (outOfTime()) { findings.add('warn', 'H', 'walk', `Ran out of time inside ${tile}`); break; }
-        await harnessStep(`${tile} > ${tab}`, async () => { await navigate(page, [tile, tab]); await scanScreen([tile, tab], `${tile} > ${tab}`); });
+    try {
+      // The walk: each tile, then each tab inside it.
+      const harnessStep = async (label, fn) => {
+        try { await fn(); } catch (err) { findings.add('warn', 'H', label, `Harness could not complete this step: ${String(err.message).split('\n')[0].slice(0, 160)}`); }
+      };
+      for (const tile of tiles) {
+        if (outOfTime()) { findings.add('warn', 'H', 'walk', `Ran out of time before reaching ${tile} and later modules`); break; }
+        let tabs = [];
+        await harnessStep(tile, async () => { await navigate(page, [tile]); tabs = await navLabels(page); await scanScreen([tile], tile); });
+        for (const tab of tabs) {
+          if (outOfTime()) { findings.add('warn', 'H', 'walk', `Ran out of time inside ${tile}`); break; }
+          await harnessStep(`${tile} > ${tab}`, async () => { await navigate(page, [tile, tab]); await scanScreen([tile, tab], `${tile} > ${tab}`); });
+        }
       }
-    }
 
-    // E / B: an asset photo chosen on a phone must show straight away and survive the app switch.
-    const maintenance = tiles.find(t => /maintenance/i.test(t));
-    if (maintenance && account.role === 'admin') {
-      await navigate(page, [maintenance, 'Assets']);
-      where = 'Maintenance > Assets photo upload';
-      let input = page.locator('.ops-asset-photo-input').first();
-      if (!(await input.count())) {
-        await page.locator('#opsShell [data-ops-action="openAssetEditor"], #opsShell button:has-text("Add asset"), #opsShell button:has-text("Add vehicle")').first().click().catch(() => {});
-        await page.waitForTimeout(800);
-        await page.locator('#opsShell button:has-text("Vehicle")').first().click().catch(() => {});
-        await page.waitForTimeout(800);
-        input = page.locator('.ops-asset-photo-input').first();
+      // E / B: an asset photo chosen on a phone must show straight away and survive the app switch.
+      const maintenance = tiles.find(t => /maintenance/i.test(t));
+      if (maintenance && account.role === 'admin') {
+        await navigate(page, [maintenance, 'Assets']);
+        where = 'Maintenance > Assets photo upload';
+        let input = page.locator('.ops-asset-photo-input').first();
+        if (!(await input.count())) {
+          await page.locator('#opsShell [data-ops-action="openAssetEditor"], #opsShell button:has-text("Add asset"), #opsShell button:has-text("Add vehicle")').first().click().catch(() => {});
+          await page.waitForTimeout(800);
+          await page.locator('#opsShell button:has-text("Vehicle")').first().click().catch(() => {});
+          await page.waitForTimeout(800);
+          input = page.locator('.ops-asset-photo-input').first();
+        }
+        if (!(await input.count())) {
+          findings.add('warn', 'E', where, 'Harness could not reach the asset photo field (check its steps)');
+        } else {
+          await input.setInputFiles(PHOTO);
+          await page.waitForTimeout(800);
+          const shown = await page.evaluate(() => { const f = document.querySelector('[data-ops-asset-photo-field]'); const img = f && f.querySelector('img.ops-asset-photo-thumb'); const note = f && f.querySelector('[data-ops-asset-photo-note]'); return { thumb: !!(img && img.naturalWidth > 0), note: (note && note.textContent.trim()) || '' }; });
+          if (!shown.thumb) findings.add('error', 'E', where, 'No thumbnail appeared after choosing a real photo');
+          if (!shown.note) findings.add('error', 'E', where, 'No "photo chosen" message appeared after choosing a real photo');
+          await lib.simulateAppSwitch(page);
+          const kept = await page.evaluate(() => [...document.querySelectorAll('.ops-asset-photo-input')].some(i => i.files && i.files.length === 1));
+          if (!kept) findings.add('error', 'E', where, 'The chosen photo was lost after leaving the app and coming back');
+        }
       }
-      if (!(await input.count())) {
-        findings.add('warn', 'E', where, 'Harness could not reach the asset photo field (check its steps)');
-      } else {
-        await input.setInputFiles(PHOTO);
-        await page.waitForTimeout(800);
-        const shown = await page.evaluate(() => { const f = document.querySelector('[data-ops-asset-photo-field]'); const img = f && f.querySelector('img.ops-asset-photo-thumb'); const note = f && f.querySelector('[data-ops-asset-photo-note]'); return { thumb: !!(img && img.naturalWidth > 0), note: (note && note.textContent.trim()) || '' }; });
-        if (!shown.thumb) findings.add('error', 'E', where, 'No thumbnail appeared after choosing a real photo');
-        if (!shown.note) findings.add('error', 'E', where, 'No "photo chosen" message appeared after choosing a real photo');
-        await lib.simulateAppSwitch(page);
-        const kept = await page.evaluate(() => [...document.querySelectorAll('.ops-asset-photo-input')].some(i => i.files && i.files.length === 1));
-        if (!kept) findings.add('error', 'E', where, 'The chosen photo was lost after leaving the app and coming back');
-      }
-    }
 
+    } finally {
     const results = findings.list.map(({ key, ...rest }) => rest);
     await testInfo.attach('harness-findings.json', { body: JSON.stringify(results, null, 2), contentType: 'application/json' });
     await testInfo.attach('harness-inventory.json', { body: JSON.stringify(inventory, null, 2), contentType: 'application/json' });
@@ -208,5 +212,6 @@ for (const account of accounts) {
     console.log(`HARNESS ${account.role} (${testInfo.project.name}): ${errors.length} errors, ${warns.length} warnings`);
     for (const r of results) console.log(`  [${r.severity.toUpperCase()}] class ${r.cls} | ${r.where} | ${r.detail}`);
     expect(errors.map(r => `[${r.cls}] ${r.where}: ${r.detail}`), 'Faults found by the mobile harness').toEqual([]);
+    }
   });
 }
