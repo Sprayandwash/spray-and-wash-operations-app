@@ -522,7 +522,7 @@
       .ops-vehicle-asset{border:1px solid #dbe3ec;border-radius:1rem;background:#fff;margin:1rem 0;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.05)}
       .ops-vehicle-asset-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;padding:1rem;background:#f8fafc;border-bottom:1px solid #e5ebf2}
       .ops-vehicle-asset>summary{cursor:pointer;list-style:none}.ops-vehicle-asset>summary::-webkit-details-marker{display:none}
-      .ops-vehicle-asset-body{padding:1rem}
+      .ops-vehicle-asset-body{padding:1rem}.ops-vehicle-body-row{align-items:flex-start;flex-wrap:nowrap}@media(max-width:640px){.ops-vehicle-body-row{flex-wrap:wrap}}
       .ops-asset-id{font-size:1.15rem;font-weight:900;letter-spacing:.02em;color:#0f4f4a}
       .ops-asset-meta{display:flex;gap:.45rem .8rem;flex-wrap:wrap;margin-top:.35rem;color:#64748b;font-size:.88rem}
       .ops-service-note{margin-top:.65rem;padding:.65rem .75rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:.7rem;color:#7c2d12;white-space:pre-wrap}
@@ -3129,7 +3129,7 @@
         loadTable('operations_maintenance_log_items','*',{column:'sort_order'}),
         loadTable('operations_asset_files','*',{column:'created_at', ascending:false}).catch(error=>{console.warn('Asset files unavailable:',error.message);return [];})
       ]);
-      Object.assign(state,{vehicles,washEquipment,templates,checklistItems,inspections,answers,photos,procedures,procedureSteps,schedules,tasks,taskSteps,parts,maintenanceLog,maintenanceLogItems,assetFiles});
+      state.dataLoadedOnce=true; Object.assign(state,{vehicles,washEquipment,templates,checklistItems,inspections,answers,photos,procedures,procedureSteps,schedules,tasks,taskSteps,parts,maintenanceLog,maintenanceLogItems,assetFiles});
       if(isAdmin()||canMaintain()){
         try { state.pendingUsers = await loadTable('operations_preloaded_users','*',{column:'email'}); }
         catch(e){ console.warn('Preloaded users table unavailable:', e.message); state.pendingUsers = []; }
@@ -3236,6 +3236,7 @@
     opsRestoreFormDraft(shell, draft);
     opsRestoreFiles(shell, savedFiles);
     bindRenderedEvents();
+    if(!byId('opsAssetEditorCard')) state.assetEditorDirty = false;
     if(keepScroll){
       shell.querySelectorAll('.ops-table-wrap').forEach((e, i) => { if(innerScroll[i]){ e.scrollTop = innerScroll[i][0]; e.scrollLeft = innerScroll[i][1]; } });
       if(Math.abs(window.scrollY - scrollY) > 1) window.scrollTo({top:scrollY, left:0, behavior:'auto'});
@@ -3527,6 +3528,7 @@
   function vehicleAssetCardHtml(v, machineryRows){
     const driver = machineryRows.filter(w=>w.mounting_side==='Driver');
     const passenger = machineryRows.filter(w=>w.mounting_side==='Passenger');
+    const noSide = machineryRows.filter(w=>w.mounting_side!=='Driver' && w.mounting_side!=='Passenger');
     return `<details class="ops-vehicle-asset" data-ops-keep-open="vehicle-${esc(v.id)}" ${opsKeepOpen('vehicle-' + v.id)}>
       <summary class="ops-vehicle-asset-head">
         <div>
@@ -3536,13 +3538,13 @@
         </div>
       </summary>
       <div class="ops-vehicle-asset-body">
-        <div class="ops-section-title"><div></div>
-        <div class="ops-spec-list">${vehicleServiceSpecsHtml(v) || '<div class="ops-subtle">No vehicle service specifications entered.</div>'}</div>
+        <div class="ops-section-title ops-vehicle-body-row">
+        <div class="ops-spec-list" style="flex:1 1 0;min-width:0;margin-top:0">${vehicleServiceSpecsHtml(v) || '<div class="ops-subtle">No vehicle service specifications entered.</div>'}</div>
           ${canManage()?`<button class="ops-btn ghost" type="button" data-ops-edit-vehicle="${esc(v.id)}">Edit vehicle</button>`:''}</div>
         ${assetMediaViewHtml('vehicle', v)}
         ${v.service_notes || v.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(v.service_notes || v.notes)}</div>` : ''}
       </div>
-      <details class="ops-subassets" data-ops-keep-open="subassets-${esc(v.id)}" ${opsKeepOpen('subassets-' + v.id)}><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}</div></details>
+      <details class="ops-subassets" data-ops-keep-open="subassets-${esc(v.id)}" ${opsKeepOpen('subassets-' + v.id)}><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}${noSide.length?`<div class="ops-machinery-side"><div class="ops-machinery-side-head"><h4>No side set</h4></div><p class="ops-subtle">These records have no Driver or Passenger side. Open Edit to set one.</p>${noSide.map(machineryCardHtml).join('')}</div>`:''}</div></details>
     </details>`;
   }
   function assetEditorHtml(){
@@ -3550,7 +3552,7 @@
     const editingMachinery=Boolean(state.editingWashId);
     const selectedType=editingVehicle?'vehicle':editingMachinery?'machinery':state.assetAddType;
     const title=editingVehicle?'Edit vehicle':editingMachinery?'Edit machinery':'Add Asset';
-    return `<div class="ops-card" style="margin-top:1rem">
+    return `<div class="ops-card" id="opsAssetEditorCard" style="margin-top:1rem">
       <div class="ops-section-title"><h3>${title}</h3><button class="ops-btn ghost" type="button" data-ops-action="closeAssetEditor">Cancel</button></div>
       ${!editingVehicle&&!editingMachinery?`<label style="display:block;max-width:420px;margin-bottom:1rem"><strong>What type of asset do you want to add?</strong><select id="opsAssetAddType" style="display:block;width:100%;margin-top:.35rem"><option value=""></option><option value="vehicle" ${selectedType==='vehicle'?'selected':''}>Vehicle (asset)</option><option value="machinery" ${selectedType==='machinery'?'selected':''}>Machinery (sub-asset)</option></select></label>`:''}
       ${selectedType==='vehicle'?vehicleFormHtml():selectedType==='machinery'?washingFormHtml():'<p class="ops-subtle">Choose Vehicle or Machinery to continue.</p>'}
@@ -3577,7 +3579,9 @@
   function inspectionFormHtml(templateId){
     const template = state.templates.find(t => t.id === templateId) || vehicleChecklistTemplate() || {};
     const type = template.target_type || 'vehicle';
-    return `<form id="opsInspectionForm" class="ops-form" autocomplete="off">
+    const noAccessNote = (state.dataLoadedOnce && ['vehicle','combined'].includes(type) && !state.vehicles.some(v=>v.status==='Active'))
+      ? `<div class="ops-error ops-span-2" id="opsNoVehiclesNote" role="alert"><strong>No vehicles are available to you.</strong> If you expected to see vehicles here, your account may not have access yet. Ask an Admin to check your permissions.</div>` : '';
+    return `<form id="opsInspectionForm" class="ops-form" autocomplete="off">${noAccessNote}
       <input type="hidden" id="opsInspectionTemplate" value="${esc(template.id || '')}">
       <label>Inspection date *<input id="opsInspectionDate" type="date" value="${today()}" required></label>
       <label>Inspector<input id="opsInspectorName" value="${esc(inspectorDisplayName())}" readonly></label>
@@ -3949,7 +3953,7 @@
         </div>
         ${editing?`<label class="ops-user-full-name">Full name<input type="text" data-ops-user-full-name="${esc(id)}" value="${esc(displayNameOfProfile(u))}" placeholder="First and last name"></label>
         <div class="ops-permission-grid" style="margin-top:.75rem">${roleCheckboxGridForUser(id, roles)}</div>
-        <div class="ops-actions"><button class="ops-btn primary" type="button" data-ops-save-user="${esc(id)}">Save user</button><button class="ops-btn ghost" type="button" data-ops-cancel-user-edit>Cancel</button></div>`:`<div class="ops-actions"><button class="ops-btn" type="button" data-ops-edit-user="${esc(id)}">Edit user</button>${String(id)===String(state.user?.id)?'':`<button class="ops-btn" type="button" data-ops-account-${accountAction}="${esc(id)}">${accountLabel}</button><button class="ops-btn ghost" type="button" data-ops-account-signout="${esc(id)}">Sign out everywhere</button><button class="ops-btn danger" type="button" data-ops-account-delete="${esc(id)}" data-ops-account-email="${esc(email)}">Delete</button>`}</div>`}
+        <div class="ops-actions"><button class="ops-btn primary" type="button" data-ops-save-user="${esc(id)}">Save user</button><button class="ops-btn ghost" type="button" data-ops-cancel-user-edit>Cancel</button></div>`:`<div class="ops-actions"><button class="ops-btn" type="button" data-ops-edit-user="${esc(id)}">Edit user</button>${String(id)===String(state.user?.id)?'':`<button class="ops-btn" type="button" data-ops-account-${accountAction}="${esc(id)}">${accountLabel}</button><button class="ops-btn ghost" type="button" data-ops-account-signout="${esc(id)}">Sign out everywhere</button><button class="ops-btn danger" type="button" data-ops-account-delete="${esc(id)}" data-ops-account-email="${esc(email)}">Delete</button>${accessStatus==='Blocked'?`<button class="ops-btn" type="button" data-ops-account-purge="${esc(id)}" data-ops-account-email="${esc(email)}">Purge test account…</button>`:''}`}</div>`}
       </div>`;
     }).join('');
   }
@@ -4008,7 +4012,14 @@
   async function accountAdminAction(action, payload={}){
     if(!isAdmin()) return alert('Only Admin users can manage accounts.');
     const r=await state.sb.functions.invoke('account-admin',{body:{action,...payload}});
-    if(r.error || r.data?.error) return alert(`Account action failed: ${r.data?.error||r.error.message}`);
+    if(r.error || r.data?.error){
+      // A refused request comes back as a non-2xx status; the function's own explanation is in the response body.
+      let reason = r.data?.error || '';
+      if(!reason && r.error?.context && typeof r.error.context.json === 'function'){
+        try{ const body = await r.error.context.json(); reason = body?.error || body?.message || ''; }catch(_){ /* body unreadable: fall back below */ }
+      }
+      return alert(`Account action failed: ${reason || r.error.message}`);
+    }
     return r.data;
   }
   async function createStaffAccount(e){
@@ -4024,6 +4035,19 @@
     if(result){alert(`Account created for ${email}. Give the temporary password to the person directly; they must set their own password on first sign-in.`);await loadAll();}
   }
   async function accountActionWithConfirm(action,userId,message){if(!window.confirm(message))return;const result=await accountAdminAction(action,{user_id:userId});if(result){if(action==='delete')alert('Account permanently deleted.');await loadAll();}}
+  // Admin-only, Blocked accounts only. Preview first, then two typed confirmations; the server enforces every gate again.
+  async function purgeTestAccount(userId,email){
+    if(!isAdmin()) return alert('Only Admin users can purge accounts.');
+    const typedEmail=window.prompt(`PURGE TEST ACCOUNT\n\nThis permanently deletes the login AND all history it created. Use it only for accounts made for testing.\n\nType ${email} exactly to see what would be removed.`);
+    if(typedEmail!==email) return;
+    const preview=await accountAdminAction('purge_preview',{user_id:userId,confirmation_email:typedEmail});
+    const c=preview?.preview; if(!c) return;
+    const lines=[`Maintenance tasks: ${c.maintenance_tasks}`,`Inspections (with answers and photos): ${c.inspections}`,`Maintenance readings: ${c.maintenance_readings}`,`Audit log rows by this account: ${c.audit_log_rows}`,`Other records only unlinked from this account: ${c.task_steps_completed + c.inspection_photos + c.asset_files_uploaded}`];
+    const word=window.prompt(`This will permanently remove ${c.email} and:\n\n${lines.join('\n')}\n\nThis cannot be undone. Type PURGE (capitals) to confirm.`);
+    if(word!=='PURGE') return;
+    const result=await accountAdminAction('purge',{user_id:userId,confirmation_email:typedEmail,confirmation_word:word});
+    if(result){ alert('Test account purged.'); await loadAll(); }
+  }
   async function deleteAccount(userId,email){const confirmation=window.prompt(`Type ${email} exactly to permanently delete this account. Accounts with operational history cannot be deleted.`);if(confirmation!==email)return;const result=await accountAdminAction('delete',{user_id:userId,confirmation_email:confirmation});if(result){alert('Account permanently deleted.');await loadAll();}}
   async function saveFirstPassword(e){e.preventDefault();const password=String(byId('opsFirstPassword')?.value||'');if(password.length<12||password!==String(byId('opsFirstPasswordConfirm')?.value||''))return alert('Use matching passwords of at least 12 characters.');const r=await state.sb.functions.invoke('account-admin',{body:{action:'complete_first_password',password}});if(r.error||r.data?.error)return alert(`Password could not be saved: ${r.data?.error||r.error.message}`);const refreshed=await state.sb.auth.refreshSession();if(refreshed.error){await state.sb.auth.signOut();return alert('Password saved. Please sign in again with your new password.');}await loadRoles();await loadAll();}
 
@@ -5793,6 +5817,7 @@
     document.querySelectorAll('[data-ops-account-block]').forEach(b=>b.addEventListener('click',()=>accountActionWithConfirm('block',b.dataset.opsAccountBlock,'Block this account and sign it out everywhere?')));
     document.querySelectorAll('[data-ops-account-unblock]').forEach(b=>b.addEventListener('click',()=>accountActionWithConfirm('unblock',b.dataset.opsAccountUnblock,'Unblock this account? The person must sign in again.')));
     document.querySelectorAll('[data-ops-account-signout]').forEach(b=>b.addEventListener('click',()=>accountActionWithConfirm('sign_out_all',b.dataset.opsAccountSignout,'Sign this user out of all sessions?')));
+    document.querySelectorAll('[data-ops-account-purge]').forEach(b=>b.addEventListener('click',()=>purgeTestAccount(b.dataset.opsAccountPurge,b.dataset.opsAccountEmail)));
     document.querySelectorAll('[data-ops-account-delete]').forEach(b=>b.addEventListener('click',()=>deleteAccount(b.dataset.opsAccountDelete,b.dataset.opsAccountEmail)));
     document.querySelectorAll('[data-ops-edit-preload-user]').forEach(b => b.addEventListener('click', () => { state.editingPreloadedUserId=b.dataset.opsEditPreloadUser; render(); }));
     document.querySelectorAll('[data-ops-delete-preload-user]').forEach(b => b.addEventListener('click', () => deletePreloadedUser(b.dataset.opsDeletePreloadUser)));
@@ -5839,7 +5864,29 @@
         });
       });
     })();
-    document.querySelectorAll('details[data-ops-keep-open]').forEach(d => d.addEventListener('toggle', () => { state.keepOpen = state.keepOpen || {}; state.keepOpen[d.dataset.opsKeepOpen] = d.open; }));
+    document.querySelectorAll('details[data-ops-keep-open]').forEach(d => d.addEventListener('toggle', () => {
+      state.keepOpen = state.keepOpen || {}; state.keepOpen[d.dataset.opsKeepOpen] = d.open;
+      // Only one vehicle is open at a time, so it is obvious which one is being worked on.
+      if(d.open && d.classList.contains('ops-vehicle-asset')){
+        document.querySelectorAll('details.ops-vehicle-asset[open]').forEach(o => { if(o !== d){ o.open = false; state.keepOpen[o.dataset.opsKeepOpen] = false; } });
+      }
+    }));
+    if(!window.__opsAssetDirtyGuard){
+      window.__opsAssetDirtyGuard = true;
+      const inEditor = el => Boolean(el && el.closest && el.closest('#opsAssetEditorCard'));
+      const markDirty = e => { if(inEditor(e.target)) state.assetEditorDirty = true; };
+      document.addEventListener('input', markDirty, true);
+      document.addEventListener('change', markDirty, true);
+      // Leaving a half-edited asset form (by Cancel, another tab, Home, or opening another record) asks first.
+      document.addEventListener('click', e => {
+        if(!state.assetEditorDirty || !byId('opsAssetEditorCard')) return;
+        const t = e.target && e.target.closest ? e.target.closest('[data-ops-view], [data-ops-action="closeAssetEditor"], [data-ops-action="openAssetEditor"], [data-ops-edit-vehicle], [data-ops-edit-wash], [data-ops-add-machinery], [data-ops-transfer-machinery], .ops-branch-card, header .logo, [data-ops-home]') : null;
+        if(!t) return;
+        if(inEditor(t) && !t.matches('[data-ops-action="closeAssetEditor"]')) return;
+        if(!confirm('You have unsaved changes on this form. Leave without saving them?')){ e.preventDefault(); e.stopImmediatePropagation(); }
+        else state.assetEditorDirty = false;
+      }, true);
+    }
     document.querySelectorAll('details.ops-training-course').forEach(d => d.addEventListener('toggle', () => {
       const courseId = String(d.dataset.opsCourseId);
       if(d.open){
@@ -5992,8 +6039,8 @@
     document.querySelectorAll('[data-ops-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=b.dataset.opsDeleteWash; render(); }));
     document.querySelectorAll('[data-ops-confirm-delete-wash]').forEach(b=>b.addEventListener('click',()=>deleteWashing(b.dataset.opsConfirmDeleteWash)));
     document.querySelectorAll('[data-ops-cancel-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=''; render(); }));
-    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
-    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
+    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }));
+    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }));
     document.querySelectorAll('[data-ops-transfer-machinery]').forEach(b=>b.addEventListener('click',()=>{state.transferringMachineryId=b.dataset.opsTransferMachinery;state.editingWashId='';state.editingVehicleId='';state.assetEditorOpen=false;render();}));
     document.querySelectorAll('[data-ops-add-machinery]').forEach(b => b.addEventListener('click', () => {
       state.editingWashId='';
@@ -6003,13 +6050,14 @@
       state.prefillMachineryVehicleId=b.dataset.opsAddMachinery||'';
       state.prefillMachinerySide=b.dataset.opsMachinerySide||'';
       render();
+      const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed);
     }));
     document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = b.dataset.opsOpenTask; render(); }));
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 
   async function handleAction(action){
-    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
+    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }
     if(action === 'closeAssetEditor'||action === 'clearVehicle'||action === 'clearWash'){ clearAssetDraft('vehicle');clearAssetDraft('machinery');state.assetEditorOpen=false;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
     if(action === 'openMaintenanceEditor'){ state.maintenanceEditorOpen=true;render(); }
     if(action === 'openMaintenanceRecord'){ state.currentView='history';state.maintenanceEditorOpen=true;render(); }

@@ -23,7 +23,7 @@ Deno.serve(async req=>{
   }
   if(!callerAccess || callerAccess.status!=='Active' || callerAccess.must_change_password || !(callerRoles||[]).some(r=>r.role==='Admin')) return json({error:'Admin access required'},403);
   const target=String(body.user_id||'');
-  if(['block','unblock','sign_out_all','delete'].includes(action) && (!target || target===user.id))return json({error:'You cannot perform this action on your own account.'},400);
+  if(['block','unblock','sign_out_all','delete','purge_preview','purge'].includes(action) && (!target || target===user.id))return json({error:'You cannot perform this action on your own account.'},400);
   if(action==='create'){
     const roles=Array.isArray(body.roles)?body.roles:[]; if(!body.email||!body.password||body.password.length<12||!body.first_name||!body.last_name||!roles.length||roles.some((r:string)=>!allowedRoles.includes(r)))return json({error:'Invalid account details.'},400);
     const {data,error}=await service.auth.admin.createUser({email:String(body.email).toLowerCase(),password:body.password,email_confirm:true,user_metadata:{first_name:body.first_name,last_name:body.last_name,full_name:`${body.first_name} ${body.last_name}`}}); if(error)return json({error:error.message},400);
@@ -34,6 +34,17 @@ Deno.serve(async req=>{
   if(action==='sign_out_all'){const {error}=await service.auth.admin.signOut(target,'global');return error?json({error:error.message},400):json({ok:true});}
   if(action==='block'){const {error}=await service.auth.admin.updateUserById(target,{ban_duration:'876000h'});if(error)return json({error:error.message},400);await service.from('app_user_access').update({status:'Blocked',updated_at:new Date().toISOString(),updated_by:user.id}).eq('user_id',target);await service.auth.admin.signOut(target,'global');return json({ok:true});}
   if(action==='unblock'){const {error}=await service.auth.admin.updateUserById(target,{ban_duration:'none'});if(error)return json({error:error.message},400);await service.from('app_user_access').update({status:'Active',updated_at:new Date().toISOString(),updated_by:user.id}).eq('user_id',target);return json({ok:true});}
+  if(action==='purge_preview'||action==='purge'){
+    const {data:targetProfile}=await service.from('profiles').select('email').eq('user_id',target).maybeSingle();
+    if(!targetProfile||String(body.confirmation_email||'').toLowerCase()!==String(targetProfile.email||'').toLowerCase())return json({error:'Email confirmation did not match.'},400);
+    const dry=action==='purge_preview';
+    if(!dry&&String(body.confirmation_word||'')!=='PURGE')return json({error:'Type PURGE in capitals to confirm.'},400);
+    const {data:counts,error:purgeError}=await service.rpc('purge_test_account',{target,caller:user.id,dry_run:dry});
+    if(purgeError)return json({error:purgeError.message},400);
+    if(dry)return json({ok:true,preview:counts});
+    const {error:deleteError}=await service.auth.admin.deleteUser(target);
+    return deleteError?json({error:'Records were removed but the login could not be deleted: '+deleteError.message},400):json({ok:true,purged:counts});
+  }
   if(action==='delete'){const {data:targetProfile}=await service.from('profiles').select('email').eq('user_id',target).maybeSingle();if(!targetProfile||String(body.confirmation_email||'').toLowerCase()!==String(targetProfile.email||'').toLowerCase())return json({error:'Email confirmation did not match.'},400);const {count}=await service.from('operations_maintenance_tasks').select('*',{count:'exact',head:true}).or(`created_by.eq.${target},completed_by.eq.${target}`);if(count)return json({error:'This account has operational history. Block it instead.'},400);const {error}=await service.auth.admin.deleteUser(target);return error?json({error:error.message},400):json({ok:true});}
   return json({error:'Unknown action'},400);
 });
