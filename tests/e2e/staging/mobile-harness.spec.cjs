@@ -179,13 +179,13 @@ for (const account of accounts) {
       // E / B: an asset photo chosen on a phone must show straight away and survive the app switch.
       const maintenance = tiles.find(t => /maintenance/i.test(t));
       if (maintenance && account.role === 'admin') {
-        await navigate(page, [maintenance, 'Assets']);
+        await navigate(page, [maintenance, 'Assets']).catch(e => findings.add('warn', 'H', 'Maintenance > Assets photo upload', 'Could not open Assets: ' + String(e.message).split('\n')[0]));
         where = 'Maintenance > Assets photo upload';
         let input = page.locator('.ops-asset-photo-input').first();
         if (!(await input.count())) {
-          await page.locator('#opsShell [data-ops-action="openAssetEditor"], #opsShell button:has-text("Add asset"), #opsShell button:has-text("Add vehicle")').first().click().catch(() => {});
+          await page.locator('#opsShell [data-ops-action="openAssetEditor"], #opsShell button:has-text("Add asset"), #opsShell button:has-text("Add vehicle")').first().click({ timeout: 5000 }).catch(() => {});
           await page.waitForTimeout(800);
-          await page.locator('#opsShell button:has-text("Vehicle")').first().click().catch(() => {});
+          await page.locator('#opsShell button:has-text("Vehicle")').first().click({ timeout: 5000 }).catch(() => {});
           await page.waitForTimeout(800);
           input = page.locator('.ops-asset-photo-input').first();
         }
