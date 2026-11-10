@@ -1,0 +1,42 @@
+name: Apply Purge test account to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type APPLY PURGE TO STAGING to confirm
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    environment: staging
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_STAGING_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
+      PRODUCTION_PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate staging-only confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "APPLY PURGE TO STAGING"
+          test -n "$SUPABASE_STAGING_DB_URL"
+          if printf '%s' "$SUPABASE_STAGING_DB_URL" | grep -q "$PRODUCTION_PROJECT_REF"; then echo 'SAFETY STOP: production database target.' >&2; exit 1; fi
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Apply the purge function (staging database only)
+        run: |
+          set -euo pipefail
+          psql --set ON_ERROR_STOP=1 --dbname "$SUPABASE_STAGING_DB_URL" --file supabase/migrations/20261109_purge_test_account.sql
+      - name: Deploy account-admin to staging only
+        run: |
+          set -euo pipefail
+          ref="$(supabase projects list --output json | jq -r '.[] | select(.name=="Spray and Wash Staging") | (.id // .ref)')"
+          test -n "$ref" && test "$ref" != "$PRODUCTION_PROJECT_REF"
+          supabase functions deploy account-admin --project-ref "$ref"
