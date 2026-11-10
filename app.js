@@ -288,7 +288,7 @@ async function init(){
 }
 function fillTypes(){let opts=EQUIPMENT_TYPES.map(t=>`<option>${esc(t)}</option>`).join(""); eqType.innerHTML=opts; inType.innerHTML=opts;}
 function updateAuthUI(){signedOut.classList.toggle("hidden",!!currentUser); signedIn.classList.toggle("hidden",!currentUser); appMain.classList.toggle("hidden",!currentUser); userEmail.textContent=currentUser?.email||""; if(window.userRolesText) userRolesText.textContent=currentRoleText(); applyPermissions(); window.refreshPushNotificationSettings?.();}
-async function signIn(){let email=loginEmail.value.trim(),password=loginPassword.value;if(!email||!password)return alert("Enter email and password.");let {error}=await sb.auth.signInWithPassword({email,password});if(error)return alert(error.message);let {data:{session}}=await sb.auth.getSession();currentUser=session?.user||null;updateAuthUI();await ensureCurrentProfile();await loadRoles();await loadAppSettings();await loadData();await refreshAuditLogs();}
+async function signIn(){let email=loginEmail.value.trim(),password=loginPassword.value;if(!email||!password)return alert("Enter email and password.");document.dispatchEvent(new CustomEvent("sw:signing-in"));let {error}=await sb.auth.signInWithPassword({email,password});if(error){document.dispatchEvent(new CustomEvent("sw:signin-failed"));return alert(error.message);}let {data:{session}}=await sb.auth.getSession();currentUser=session?.user||null;updateAuthUI();await ensureCurrentProfile();await loadRoles();await loadAppSettings();await loadData();await refreshAuditLogs();}
 async function signOut(){await sb.auth.signOut();currentUser=null;currentRoles=[];userProfiles=[];roleAssignments=[];equipment=[];inspections=[];photos=[];heightEquipmentDataState="idle";updateAuthUI();renderAll();}
 
 async function ensureCurrentProfile(){
@@ -601,34 +601,32 @@ function toggleRopeLengthField(){eqRopeLenWrap.classList.toggle("hidden",!typeNe
 
 function initDateParts(){
   ["eqMade","eqFirst","eqRetired"].forEach(prefix=>{
-    ["Day","Month","Year"].forEach(part=>{
-      const el=document.getElementById(prefix+part);
-      if(!el)return;
-      el.addEventListener("input",()=>{
-        syncHiddenDate(prefix);
-        if(prefix==="eqMade"||prefix==="eqFirst") maybeAutoCalculateRetire();
-      });
-      el.addEventListener("change",()=>{
-        syncHiddenDate(prefix);
-        if(prefix==="eqMade"||prefix==="eqFirst") maybeAutoCalculateRetire();
-      });
-    });
+    const pick=document.getElementById(prefix+"Pick");
+    if(!pick)return;
+    const onChange=()=>{
+      syncHiddenDate(prefix);
+      if(prefix==="eqMade"||prefix==="eqFirst") maybeAutoCalculateRetire();
+    };
+    pick.addEventListener("input",onChange);
+    pick.addEventListener("change",onChange);
   });
   if(window.eqServiceLife) eqServiceLife.addEventListener("change",maybeAutoCalculateRetire);
   if(window.eqRetireBasis) eqRetireBasis.addEventListener("change",maybeAutoCalculateRetire);
 }
+// Every date uses the standard browser picker. "Date manufactured" is month and year only, so its picker holds YYYY-MM
+// and the stored date uses the first of that month.
 function syncHiddenDate(prefix){
-  const dayEl=document.getElementById(prefix+"Day"),monthEl=document.getElementById(prefix+"Month"),yearEl=document.getElementById(prefix+"Year"),hidden=document.getElementById(prefix);
-  if(!dayEl||!monthEl||!yearEl||!hidden)return;
-  const y=String(yearEl.value||"").trim(),m=String(monthEl.value||"").trim(),d=String(dayEl.value||"01").trim().padStart(2,"0");
-  hidden.value=(y&&m)?`${y}-${m}-${d}`:"";
+  const pick=document.getElementById(prefix+"Pick"),hidden=document.getElementById(prefix);
+  if(!pick||!hidden)return;
+  const v=String(pick.value||"").trim();
+  hidden.value=!v?"":(prefix==="eqMade"&&/^\d{4}-\d{2}$/.test(v)?v+"-01":v);
 }
 function setDateParts(prefix,iso){
-  const dayEl=document.getElementById(prefix+"Day"),monthEl=document.getElementById(prefix+"Month"),yearEl=document.getElementById(prefix+"Year"),hidden=document.getElementById(prefix);
-  if(!dayEl||!monthEl||!yearEl||!hidden)return;
+  const pick=document.getElementById(prefix+"Pick"),hidden=document.getElementById(prefix);
+  if(!pick||!hidden)return;
   hidden.value=iso||"";
-  const match=String(iso||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  yearEl.value=match?match[1]:""; monthEl.value=match?match[2]:""; dayEl.value=match?String(Number(match[3])):"";
+  const v=String(iso||"").slice(0,10);
+  pick.value=prefix==="eqMade"?v.slice(0,7):v;
 }
 function addYearsIso(iso,years){
   if(!iso||!years)return "";
@@ -647,14 +645,21 @@ function calculateRetirementDate(){
   if(result)setDateParts("eqRetired",result);
 }
 
+// Turns raw database errors into plain language where the cause is well known.
+function friendlyDbError(message){
+  const m=String(message||"");
+  if(/equipment_serial_key/.test(m)) return "That serial number is already in the register. Search for it, or check the Archived items.";
+  if(/duplicate key value violates unique constraint/i.test(m)) return "That already exists, and it has to be unique. Check the existing records first.";
+  return m;
+}
 async function saveEquipment(){
   if(!requirePerm(canEditEquipment(),"Only Admin or Height equipment manager users can save equipment."))return;
   let serial=eqSerial.value.trim();if(!serial)return alert("Serial number required.");
   let row={serial,type:eqType.value,manufacturer:eqMaker.value.trim(),model:eqModel.value.trim(),date_manufactured:eqMade.value||null,date_first_used:eqFirst.value||null,retirement_date:eqRetired.value||null,inspection_frequency:eqFrequency.value,status:eqStatus.value,notes:eqNotes.value.trim(),rope_length_m:typeNeedsLength(eqType.value)&&(eqRopeLength.value!=="")?Number(eqRopeLength.value):null};
   let savedId=eqId.value;
   const wasNew=!savedId;
-  if(savedId){let r=await sb.from("equipment").update(row).eq("id",savedId).select().single();if(r.error)return alert(r.error.message);}
-  else{let r=await sb.from("equipment").insert({...row,initial_inspection_required:true}).select().single();if(r.error)return alert(r.error.message);savedId=r.data.id;}
+  if(savedId){let r=await sb.from("equipment").update(row).eq("id",savedId).select().single();if(r.error)return alert(friendlyDbError(r.error.message));}
+  else{let r=await sb.from("equipment").insert({...row,initial_inspection_required:true}).select().single();if(r.error)return alert(friendlyDbError(r.error.message));savedId=r.data.id;}
   await logAudit(wasNew?"equipment_created":"equipment_updated","equipment",savedId,`${wasNew?"Created":"Updated"} equipment ${serial}`,row);
   if(pendingEquipmentPhotos.length){for(const p of pendingEquipmentPhotos){await uploadBlobToEquipment(savedId,p.blob,p.fileName);}pendingEquipmentPhotos=[];}
   await loadData();
@@ -955,3 +960,68 @@ function downloadRowsCSV(rows,name){if(!rows.length)return alert("Nothing to exp
 function exportCSV(kind){if(!requirePerm(canExport(),"Only Admin, Office / Reports or Certificate Approver users can export data."))return;let rows=kind==="equipment"?equipment:inspections.map(i=>({...i,checklist:JSON.stringify(i.checklist||[])}));downloadRowsCSV(rows,kind+".csv");}
 function exportJSONBackup(){if(!requirePerm(canExport(),"Only Admin, Office / Reports or Certificate Approver users can export data."))return;downloadBlob(JSON.stringify({exported_at:new Date().toISOString(),equipment,inspections,photos,inspectionPhotos,certificates,auditLogs,appSettings},null,2),"height-safety-full-backup.json","application/json");}
 function downloadBlob(content,name,type){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+
+// ---- Saving indicator (all Save/Submit buttons) -------------------------------------------------------------
+// While a save runs the button is disabled and reads "Saving..." with a small spinner, so it is clear the app is
+// working and a second tap cannot save twice. Afterwards a brief "Saved" message shows, unless the save raised an alert.
+(function(){
+  const SAVE_WORDS = /save|submit|add |create|update|record|complete|generate|send|upload|transfer|confirm|finish|log |purge|import|restore/i;
+  let active = [];            // {btn, text, timer}
+  let alertedDuringSave = false;
+  let toastTimer = null;
+  function showSavedToast(){
+    let t = document.getElementById('swSavedToast');
+    if(!t){ t = document.createElement('div'); t.id = 'swSavedToast'; t.className = 'swToast'; t.setAttribute('role','status'); document.body.appendChild(t); }
+    t.textContent = 'Saved'; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+  function restore(item){
+    clearTimeout(item.timer);
+    const b = item.btn;
+    if(b && b.isConnected){
+      b.disabled = false; b.classList.remove('is-saving');
+      if(item.text !== null) b.textContent = item.text;
+    }
+  }
+  function endAll(showSaved){
+    if(!active.length) return;
+    const items = active; active = [];
+    items.forEach(restore);
+    if(showSaved && !alertedDuringSave) showSavedToast();
+    alertedDuringSave = false;
+  }
+  function start(btn){
+    if(!btn || btn.disabled || btn.classList.contains('is-saving')) return false;
+    const item = { btn, text: null, timer: null };
+    if(!btn.children.length){ item.text = btn.textContent; btn.textContent = 'Saving...'; }
+    btn.classList.add('is-saving');
+    // Disable on the next turn so the click or submit that started this still goes through.
+    setTimeout(() => { if(btn.classList.contains('is-saving')) btn.disabled = true; }, 0);
+    item.timer = setTimeout(() => { active = active.filter(x => x !== item); restore(item); }, 15000);
+    alertedDuringSave = false;
+    active.push(item);
+    return true;
+  }
+  const nativeAlert = window.alert.bind(window);
+  window.alert = function(msg){ alertedDuringSave = true; endAll(false); alertedDuringSave = false; return nativeAlert(msg); };
+  // Forms in the Operations screens: the page redraws after a save, which also replaces the button.
+  document.addEventListener('submit', e => {
+    const btn = e.submitter || e.target.querySelector('button[type=submit], button:not([type])');
+    if(btn && SAVE_WORDS.test(btn.textContent || '')) start(btn);
+  }, true);
+  document.addEventListener('sw:operations-rendered', () => endAll(true));
+  // Older Height Equipment buttons call a function directly, so wrap those to finish exactly when they do.
+  ['saveEquipment','saveInspection','saveCrop'].forEach(name => {
+    const original = window[name] || (typeof globalThis[name] === 'function' ? globalThis[name] : null);
+    if(typeof original !== 'function') return;
+    const wrapped = async function(...args){
+      const btn = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : document.querySelector(`button[onclick^="${name}("]`);
+      if(btn && btn.classList.contains('is-saving')) return;
+      start(btn);
+      try{ return await original.apply(this, args); }
+      finally{ endAll(true); }
+    };
+    window[name] = wrapped;
+  });
+  window.swSaving = { start, endAll };
+})();

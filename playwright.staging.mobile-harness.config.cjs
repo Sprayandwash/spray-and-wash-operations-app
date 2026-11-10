@@ -8,7 +8,7 @@ const { base } = getHarnessAccounts();
 // uses Chromium with iPhone dimensions (WebKit is a later, lower-priority addition).
 module.exports = defineConfig({
   testDir: './tests/e2e/staging',
-  testMatch: '**/mobile-harness.spec.cjs',
+  testMatch: ['**/mobile-harness.spec.cjs', '**/signin-home-render.spec.cjs'],
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,

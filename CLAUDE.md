@@ -96,3 +96,12 @@ This has already caused repeated back-and-forth once (round 8, Sep/Oct 2026)
 when a combined extract+serve command was given instead of the plain
 one-liner above. Check the doc section first, every time, to avoid repeating
 that.
+
+## UI convention — date fields
+
+Every date field in the app uses the standard browser date picker (a date input), never
+separate typed Day/Month/Year boxes. The one exception is Height Equipment "Date manufactured",
+which is month and year only (a month picker; stored as the first of that month). Any new date
+field follows this rule. Confirmed directly by Brendan on 11 Nov 2026, after the Height
+Equipment form was found using typed Day and Year boxes while every other date field already
+used the picker.
