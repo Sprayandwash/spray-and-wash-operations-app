@@ -56,3 +56,8 @@ test('REG-186: a staging test records every Home screen shown while signing in',
   assert.match(spec,/Home showed "Sign in required" after Sign in was pressed/);
   assert.match(read('playwright.staging.mobile-harness.config.cjs'),/signin-home-render\.spec\.cjs/);
 });
+
+test('REG-187: the header says "Signing in..." while Home is loading after Sign in',()=>{
+  assert.match(ops,/state\.signingIn \? 'Signing in\.\.\.' : 'Not signed in'/);
+  assert.match(ops,/sw:signing-in', \(\) => \{[^\n]*refreshTopUserSummary\(\)/);
+});

@@ -2996,8 +2996,8 @@
     // The sign-in form belongs to the older app script, which has its own sign-in client. It announces the start
     // (and any failure) so Home shows "Loading..." in the gap before this client hears about the new session.
     let signingInTimer = null;
-    const endSigningIn = () => { clearTimeout(signingInTimer); if(state.signingIn){ state.signingIn = false; if(state.currentModule === 'home') renderModuleHome(); } };
-    document.addEventListener('sw:signing-in', () => { state.signingIn = true; clearTimeout(signingInTimer); signingInTimer = setTimeout(endSigningIn, 20000); if(state.currentModule === 'home') renderModuleHome(); });
+    const endSigningIn = () => { clearTimeout(signingInTimer); if(state.signingIn){ state.signingIn = false; refreshTopUserSummary(); if(state.currentModule === 'home') renderModuleHome(); } };
+    document.addEventListener('sw:signing-in', () => { state.signingIn = true; clearTimeout(signingInTimer); signingInTimer = setTimeout(endSigningIn, 20000); refreshTopUserSummary(); if(state.currentModule === 'home') renderModuleHome(); });
     document.addEventListener('sw:signin-failed', endSigningIn);
     state.sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
     state.sb.auth.onAuthStateChange(async (_event, eventSession) => {
@@ -4571,7 +4571,7 @@
       el.textContent = `Signed in: ${state.user.email}${roles ? ' | ' + roles : ''}`;
       el.classList.remove('hidden');
     } else {
-      el.textContent = 'Not signed in';
+      el.textContent = state.signingIn ? 'Signing in...' : 'Not signed in';
     }
   }
 
