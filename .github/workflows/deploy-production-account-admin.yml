@@ -1,0 +1,36 @@
+name: Deploy production account-admin function
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY PRODUCTION ACCOUNT ADMIN
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Validate
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "DEPLOY PRODUCTION ACCOUNT ADMIN"
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+          grep -q purge_test_account supabase/functions/account-admin/index.ts
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Deploy account-admin to production only
+        run: supabase functions deploy account-admin --project-ref "$PROJECT_REF" --yes
