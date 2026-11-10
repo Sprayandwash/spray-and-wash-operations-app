@@ -135,11 +135,11 @@ for (const account of accounts) {
       // B: a part-filled Vehicle Check (an answer, a note and a chosen photo) must survive an app switch
       // and a page refresh, as happens when the phone camera closes. Production lost all of it (REG-175).
       if (await page.locator('#opsInspectionForm .ops-question').count()) {
-        await harnessStep(`${name} (part-filled check)`, async () => {
+        try {
           const q = page.locator('#opsInspectionForm .ops-question:has(select.ops-answer-value)').first();
           const photoQ = page.locator('#opsInspectionForm .ops-question[data-photo-required="true"]').first();
           const select = q.locator('select.ops-answer-value').first();
-          if (!(await select.count())) return;
+          if (!(await select.count())) throw new Error('no answer dropdown found');
           const value = await select.locator('option:not([value=""])').first().getAttribute('value');
           await select.selectOption(value);
           if (await photoQ.count()) {
@@ -153,7 +153,7 @@ for (const account of accounts) {
             const kept = await photoQ.locator('input.ops-item-photo').first().evaluate(el => el.files.length).catch(() => 0);
             if (!kept) findings.add('error', 'B', name, 'Part-filled Vehicle Check lost its chosen photo after leaving and returning');
           }
-        });
+        } catch (err) { findings.add('warn', 'H', name, `Harness could not complete the part-filled check step: ${String(err.message).split('\n')[0].slice(0, 160)}`); }
       }
 
       // H / C: press every safe button once: it must do something, not raise errors, and any
