@@ -432,7 +432,8 @@
       tr.ops-row-link { cursor:pointer; }
       tr.ops-row-link:hover, tr.ops-row-link:focus-visible { background:#f6f9fe; outline:none; }
       tr.ops-row-editing { background:#eef6ff; box-shadow:inset 3px 0 0 #003b73; }
-      .ops-form { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:.8rem; }
+      .ops-form { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(220px,100%),1fr)); gap:.8rem; }
+      .ops-form > * { min-width:0; }
       .ops-form label { display:flex; flex-direction:column; gap:.25rem; font-size:.9rem; font-weight:700; color:#344054; }
       .ops-form input, .ops-form select, .ops-form textarea { width:100%; border:1px solid #cfd8e3; border-radius:.6rem; padding:.58rem .65rem; font:inherit; box-sizing:border-box; }
       .ops-form textarea { min-height:90px; }
@@ -456,6 +457,8 @@
       .ops-photo-buttons .ops-photo-button { padding:6px 10px; min-height:30px; font-size:.78rem; }
       .ops-asset-photo-thumb { width:44px; height:44px; border-radius:.5rem; object-fit:cover; border:1px solid #d7dee8; background:#f1f5f9; flex-shrink:0; }
       .ops-asset-photo-thumb-empty { display:inline-block; }
+      .ops-inspection-photos { display:flex; flex-wrap:wrap; gap:.8rem; margin-top:.5rem; }
+      .ops-inspection-photo { display:flex; flex-direction:column; align-items:flex-start; gap:.3rem; max-width:200px; }
       .ops-asset-media { display:flex; align-items:flex-start; gap:.8rem; flex-wrap:wrap; margin:.5rem 0; }
       .ops-asset-media-photo { border:0; padding:0; background:none; cursor:pointer; }
       .ops-asset-media-photo .ops-asset-photo-thumb { width:72px; height:72px; }
@@ -2801,7 +2804,7 @@
         <div class="ops-module-title"><h2>Spray &amp; Wash Operations</h2><div class="ops-subtle">Choose the area you need.</div></div>
       </div>
       <div class="ops-branch-grid">${cards.join('')}</div>
-      ${signedIn&&attentionHomeHtml({critical,soon,tasks,filtered})}`;
+      ${signedIn?attentionHomeHtml({critical,soon,tasks,filtered}):""}`;
   }
 
   function qualificationAttentionItems(){
@@ -5328,7 +5331,8 @@
     const photos=state.photos.filter(p=>String(p.inspection_id)===String(i.id));
     return `<div class="ops-grid two"><div><strong>Inspector</strong><br>${esc(i.inspector_name||i.submitted_by_email||'—')}</div><div><strong>Result</strong><br>${statusPill(i.overall_result)}</div><div><strong>Odometer</strong><br>${esc(i.odometer??'—')}</div><div><strong>General notes</strong><br>${esc(i.notes||'—')}</div></div>
       <h4>Checklist answers</h4>${answers.length?`<div class="ops-table-wrap"><table class="ops-table"><tr><th>Question</th><th>Answer</th><th>Issue?</th><th>Notes</th></tr>${answers.map(a=>`<tr><td>${esc(a.question_text)}</td><td>${esc(displayStatusLabel(a.answer_value))}</td><td>${a.is_problem?statusPill('Issue to report'):statusPill('Completed OK')}</td><td>${esc(a.notes||'')}</td></tr>`).join('')}</table></div>`:'<p class="ops-subtle">No answers recorded.</p>'}
-      <p class="ops-subtle">${photos.length} photo${photos.length===1?'':'s'} recorded.</p>`;
+      <p class="ops-subtle">${photos.length} photo${photos.length===1?'':'s'} recorded.</p>
+      ${photos.length?`<div class="ops-inspection-photos">${photos.map(p=>{const q=state.checklistItems.find(x=>String(x.id)===String(p.checklist_item_id));const label=q?.question_text||p.caption||p.file_name||'Photo';return `<div class="ops-inspection-photo"><button class="ops-asset-media-photo" type="button" data-ops-view-asset-photo="${esc(p.storage_path)}" aria-label="View photo: ${esc(label)}"><img class="ops-asset-photo-thumb" alt="${esc(label)}" data-ops-asset-photo-thumb="${esc(p.storage_path)}"></button><span class="ops-subtle">${esc(label)}</span><button class="ops-btn ghost" type="button" data-ops-view-asset-photo="${esc(p.storage_path)}">View photo</button></div>`;}).join('')}</div>`:''}`;
   }
   function manualLogDetails(row){
     const items=maintenanceItemsForRecord(row.id);

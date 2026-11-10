@@ -74,3 +74,24 @@ test('REG-176: the sign-in library repeating "signed in" for the same user does 
   assert.match(app,/\['SIGNED_IN','TOKEN_REFRESHED'\]\.includes\(_event\) && state\.dataLoadedOnce && sameUserId && sameUserId === state\.activeUserId/);
   assert.match(app,/sw:operations-force-refresh/);
 });
+
+test('REG-177: the signed-out Home screen no longer prints the word "false"',()=>{
+  assert.doesNotMatch(app,/\$\{signedIn&&attentionHomeHtml/);
+  assert.match(app,/\$\{signedIn\?attentionHomeHtml\(\{critical,soon,tasks,filtered\}\):""\}/);
+});
+
+test('REG-178: the Account button scrolls with the page instead of floating over forms',()=>{
+  const index=read('index.html');
+  assert.match(index,/\.accountTray\{position:absolute;right:14px;top:14px/);
+  assert.doesNotMatch(index,/\.accountTray\{position:fixed/);
+});
+
+test('REG-179: form boxes fit inside narrow cards on a phone',()=>{
+  assert.match(app,/repeat\(auto-fit, minmax\(min\(220px,100%\),1fr\)\)/);
+  assert.match(app,/\.ops-form > \* \{ min-width:0; \}/);
+});
+
+test('REG-180: an inspection record shows its photos with a View photo button',()=>{
+  assert.match(app,/class="ops-inspection-photos"/);
+  assert.match(app,/data-ops-view-asset-photo="\$\{esc\(p\.storage_path\)\}"/);
+});
