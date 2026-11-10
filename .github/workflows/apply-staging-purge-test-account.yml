@@ -6,6 +6,10 @@ on:
       confirmation:
         description: Type APPLY PURGE TO STAGING to confirm
         required: true
+      source_branch:
+        description: Branch holding the purge migration and account-admin code
+        required: true
+        default: claude/mobile-and-maintenance-fixes
 
 permissions:
   contents: read
@@ -20,6 +24,8 @@ jobs:
       PRODUCTION_PROJECT_REF: twkgfmctuffmkvkmdkct
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_branch }}
       - name: Validate staging-only confirmation
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
@@ -39,4 +45,4 @@ jobs:
           set -euo pipefail
           ref="$(supabase projects list --output json | jq -r '.[] | select(.name=="Spray and Wash Staging") | (.id // .ref)')"
           test -n "$ref" && test "$ref" != "$PRODUCTION_PROJECT_REF"
-          supabase functions deploy account-admin --project-ref "$ref"
+          supabase functions deploy account-admin --project-ref "$ref" --yes
