@@ -432,7 +432,8 @@
       tr.ops-row-link { cursor:pointer; }
       tr.ops-row-link:hover, tr.ops-row-link:focus-visible { background:#f6f9fe; outline:none; }
       tr.ops-row-editing { background:#eef6ff; box-shadow:inset 3px 0 0 #003b73; }
-      .ops-form { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:.8rem; }
+      .ops-form { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(220px,100%),1fr)); gap:.8rem; }
+      .ops-form > * { min-width:0; }
       .ops-form label { display:flex; flex-direction:column; gap:.25rem; font-size:.9rem; font-weight:700; color:#344054; }
       .ops-form input, .ops-form select, .ops-form textarea { width:100%; border:1px solid #cfd8e3; border-radius:.6rem; padding:.58rem .65rem; font:inherit; box-sizing:border-box; }
       .ops-form textarea { min-height:90px; }
@@ -456,6 +457,13 @@
       .ops-photo-buttons .ops-photo-button { padding:6px 10px; min-height:30px; font-size:.78rem; }
       .ops-asset-photo-thumb { width:44px; height:44px; border-radius:.5rem; object-fit:cover; border:1px solid #d7dee8; background:#f1f5f9; flex-shrink:0; }
       .ops-asset-photo-thumb-empty { display:inline-block; }
+      .ops-inspection-photos { display:flex; flex-wrap:wrap; gap:.8rem; margin-top:.5rem; }
+      .ops-inspection-photo { display:flex; flex-direction:column; align-items:flex-start; gap:.3rem; max-width:200px; }
+      .ops-asset-media { display:flex; align-items:flex-start; gap:.8rem; flex-wrap:wrap; margin:.5rem 0; }
+      .ops-asset-media-photo { border:0; padding:0; background:none; cursor:pointer; }
+      .ops-asset-media-photo .ops-asset-photo-thumb { width:72px; height:72px; }
+      .ops-asset-files-view { display:flex; flex-direction:column; gap:.2rem; min-width:0; }
+      .ops-asset-photo-field > strong { display:block; margin-bottom:.25rem; }
       .ops-photo-count { margin-top:.5rem; }
       .ops-check-section { margin:1rem 0; padding:.8rem; border:1px solid #dbe3ec; border-radius:1rem; background:#f8fafc; }
       .ops-check-section h4 { margin:.1rem 0 .6rem; }
@@ -517,7 +525,7 @@
       .ops-vehicle-asset{border:1px solid #dbe3ec;border-radius:1rem;background:#fff;margin:1rem 0;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.05)}
       .ops-vehicle-asset-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;padding:1rem;background:#f8fafc;border-bottom:1px solid #e5ebf2}
       .ops-vehicle-asset>summary{cursor:pointer;list-style:none}.ops-vehicle-asset>summary::-webkit-details-marker{display:none}
-      .ops-vehicle-asset-body{padding:1rem}
+      .ops-vehicle-asset-body{padding:1rem}.ops-vehicle-body-row{align-items:flex-start;flex-wrap:nowrap}@media(max-width:640px){.ops-vehicle-body-row{flex-wrap:wrap}}
       .ops-asset-id{font-size:1.15rem;font-weight:900;letter-spacing:.02em;color:#0f4f4a}
       .ops-asset-meta{display:flex;gap:.45rem .8rem;flex-wrap:wrap;margin-top:.35rem;color:#64748b;font-size:.88rem}
       .ops-service-note{margin-top:.65rem;padding:.65rem .75rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:.7rem;color:#7c2d12;white-space:pre-wrap}
@@ -687,18 +695,34 @@
       .ops-person-head-actions { margin-left:auto; display:flex; align-items:center; gap:.5rem; }
       .ops-person-comp { display:flex; align-items:center; gap:.9rem; flex-wrap:wrap; }
       .ops-person-comp label { flex-direction:row; align-items:center; gap:.5rem; display:flex; font-weight:700; font-size:.9rem; }
-      .ops-person-comp select { width:auto; min-width:180px; }
+      .ops-person-comp label { max-width:100%; min-width:0; }
+      .ops-person-comp select { width:auto; min-width:0; max-width:100%; flex:1 1 180px; }
+      @media(max-width:600px){ .ops-person-comp, .ops-person-comp label { width:100%; flex-wrap:nowrap; } .ops-person-comp select { width:100%; } }
       .ops-rec-grid { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:.5rem .9rem; align-items:stretch; }
       .ops-rec-left { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.5rem .8rem; align-content:start; }
       .ops-rec-left .ops-r-a { grid-column:span 2; }
       .ops-rec-left .ops-r-b { grid-column:span 3; }
       .ops-course-row1 { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) 96px minmax(0,1.6fr); gap:.5rem .8rem; align-items:end; }
       .ops-course-validity input { text-align:center; }
-      @media(max-width:900px){ .ops-course-row1 { grid-template-columns:1fr 1fr; } }
+      @media(max-width:900px){
+        /* Phone/tablet: name and type full width; the small Validity box sits beside the NZQA codes */
+        .ops-course-row1 { grid-template-columns:96px minmax(0,1fr); }
+        .ops-course-row1 > label:nth-child(1), .ops-course-row1 > label:nth-child(2) { grid-column:1 / -1; }
+        .ops-course-row1 input, .ops-course-row1 select { width:100%; min-width:0; box-sizing:border-box; }
+      }
       .ops-catalog-actions { justify-content:flex-end; margin:0 0 .4rem; }
+      .ops-catalog-section { margin:.9rem 0 .4rem; }
+      .ops-catalog-section-title { margin:0 0 .35rem; color:#003b73; }
       .ops-rec-notes { display:flex; flex-direction:column; gap:.25rem; }
       .ops-rec-notes textarea { flex:1 1 auto; height:auto; min-height:110px; resize:vertical; }
       @media(max-width:760px){ .ops-rec-grid { grid-template-columns:1fr; } }
+      @media(max-width:600px){
+        /* Phone: Status on its own row, then Completed and Expiry side by side, all the same height */
+        .ops-rec-left .ops-r-a:nth-child(1) { grid-column:span 6; }
+        .ops-rec-left .ops-r-a:nth-child(2), .ops-rec-left .ops-r-a:nth-child(3) { grid-column:span 3; }
+        .ops-rec-left .ops-r-b { grid-column:span 6; }
+        .ops-rec-left input, .ops-rec-left select { width:100%; min-width:0; box-sizing:border-box; min-height:44px; height:44px; }
+      }
       /* Register fits inside its card */
       .ops-register-table { min-width:0 !important; table-layout:auto; }
       .ops-evidence-body { margin-top:.6rem; }
@@ -1519,6 +1543,10 @@
     const ids = trainingSortCourses(state.trainingCourses.filter(c => c.active !== false)).map(c => String(c.id));
     const from = ids.indexOf(String(dragId));
     if(from < 0 || String(dragId) === String(targetId)) return;
+    // Courses are ordered within their own section (External Qualification / Internal Training)
+    const dragged = state.trainingCourses.find(c => String(c.id) === String(dragId));
+    const target = state.trainingCourses.find(c => String(c.id) === String(targetId));
+    if(dragged && target && trainingIsInternalCourse(dragged) !== trainingIsInternalCourse(target)) return;
     ids.splice(from, 1);
     let to = ids.indexOf(String(targetId));
     if(to < 0) return;
@@ -2233,12 +2261,14 @@
     const active = courses.filter(c => c.active !== false);
     const archived = courses.filter(c => c.active === false);
     const head = '<tr><th class="ops-grip-cell"></th><th>Course</th><th>Type</th><th>NZQA</th><th>Validity</th><th>Status</th></tr>';
-    const rows = active.map(c => trainingCatalogRowHtml(c, true)).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>';
+    const section = (title, list, internal) => `<div class="ops-catalog-section" data-ops-catalog-section="${internal ? 'internal' : 'external'}"><h4 class="ops-catalog-section-title">${title} <span class="ops-attention-count">${list.length}</span></h4><div class="ops-table-wrap"><table class="ops-table ops-catalog-table">${head}${list.map(c => trainingCatalogRowHtml(c, true)).join('') || '<tr><td colspan="6" class="ops-subtle">No courses yet.</td></tr>'}</table></div></div>`;
+    const externalSection = section('External Qualification', active.filter(c => !trainingIsInternalCourse(c)), false);
+    const internalSection = section('Internal Training', active.filter(c => trainingIsInternalCourse(c)), true);
     const archivedRows = archived.map(c => trainingCatalogRowHtml(c, false)).join('');
     return `<div class="ops-catalog-inner"><div class="ops-actions ops-catalog-actions"><button class="ops-btn primary" type="button" data-ops-action="openTrainingCourseEditor">+ Add course</button></div>
       ${state.trainingCourseFormOpen && !state.editingCourseId ? trainingCourseFormHtml() : ''}
-      <p class="ops-subtle">Drag a course up or down to set the order it appears in the Matrix and Register.</p>
-      <div class="ops-table-wrap"><table class="ops-table ops-catalog-table">${head}${rows}</table></div>
+      <p class="ops-subtle">Drag a course up or down within its section to set the order it appears in the Matrix and Register.</p>
+      ${externalSection}${internalSection}
       ${archived.length ? `<details class="ops-archived-list" data-ops-keep-open="archived-courses" ${opsKeepOpen('archived-courses')}><summary><h4>Archived courses <span class="ops-attention-count">${archived.length}</span></h4></summary><div class="ops-archived-body"><div class="ops-table-wrap"><table class="ops-table">${head}${archivedRows}</table></div></div></details>` : ''}
     </div>`;
   }
@@ -2754,13 +2784,14 @@
     if(!signedIn){
       cards.push(`<div class="ops-card"><h3>Sign in required</h3><p class="ops-subtle">Use the Account button to sign in, then choose the module you need.</p></div>`);
     } else {
-      if(canUseHeight()) cards.push(moduleCard('Height Equipment', '', 'openHeightModule()'));
+      // One fixed order for everyone (each person only sees the modules they can use); Admin is always last.
       if(canUseVehicleChecks()) cards.push(moduleCard('Vehicle Checks', '', 'openVehicleChecksModule()'));
+      if(canUseHeight()) cards.push(moduleCard('Height Equipment', '', 'openHeightModule()'));
       if(canUseManagement()) cards.push(moduleCard('Maintenance', '', 'openOpsManagementModule()'));
       if(canUseTraining()) cards.push(moduleCard('Training', '', 'openTrainingModule()'));
-      if(isAdmin()) cards.push(moduleCard('Admin', '', 'openAdminModule()'));
-      const hasRoleCards = cards.length > 0;
+      const hasRoleCards = cards.length > 0 || isAdmin();
       cards.push(moduleCard('My Training', '', 'openMyTrainingModule()'));
+      if(isAdmin()) cards.push(moduleCard('Admin', '', 'openAdminModule()'));
       if(!hasRoleCards) cards.push(`<div class="ops-card"><h3>No other access yet</h3><p class="ops-subtle">Your account needs an assigned role before other modules will appear. You can still check your training status above.</p></div>`);
     }
     const attention=appAttentionItems();
@@ -2773,7 +2804,7 @@
         <div class="ops-module-title"><h2>Spray &amp; Wash Operations</h2><div class="ops-subtle">Choose the area you need.</div></div>
       </div>
       <div class="ops-branch-grid">${cards.join('')}</div>
-      ${signedIn&&attentionHomeHtml({critical,soon,tasks,filtered})}`;
+      ${signedIn?attentionHomeHtml({critical,soon,tasks,filtered}):""}`;
   }
 
   function qualificationAttentionItems(){
@@ -3173,6 +3204,31 @@
       if('checked' in f) el.checked = f.checked; else el.value = f.value;
     });
   }
+  // Choosing a photo opens the phone's camera or gallery, which can make the page refresh its data when you
+  // come back. Chosen files are held and put back so the choice is not lost.
+  function opsFileFormSig(form){
+    return form.id + '|' + JSON.stringify(form.dataset) + '|' + Array.from(form.querySelectorAll('input[type=hidden]')).map(i => i.value).join(',');
+  }
+  function opsCaptureFiles(shell){
+    const out = [];
+    shell.querySelectorAll('form#opsVehicleForm, form#opsWashingForm, form[id^="opsTraining"]').forEach(form => {
+      const files = {};
+      form.querySelectorAll('input[type=file][id]').forEach(i => { if(i.files && i.files.length) files[i.id] = Array.from(i.files); });
+      if(Object.keys(files).length) out.push({ sig: opsFileFormSig(form), formId: form.id, files });
+    });
+    return out;
+  }
+  function opsRestoreFiles(shell, saved){
+    (saved || []).forEach(item => {
+      const form = shell.querySelector('form#' + item.formId);
+      if(!form || opsFileFormSig(form) !== item.sig) return;
+      Object.keys(item.files).forEach(id => {
+        const input = form.querySelector('#' + id);
+        if(!input || (input.files && input.files.length)) return;
+        try{ const dt = new DataTransfer(); item.files[id].forEach(f => dt.items.add(f)); input.files = dt.files; }catch(e){}
+      });
+    });
+  }
   // The Vehicle Check form has no field ids on its questions, so it is captured by question. Without this, coming
   // back from the phone camera (which can refresh the page data) cleared every answer and the chosen photo.
   function opsCaptureInspection(shell){
@@ -3220,8 +3276,11 @@
     const shell = byId('opsShell');
     if(!shell) return;
     updateExternalTabVisibility();
+    const savedFiles = opsCaptureFiles(shell);
     const draft = opsCaptureFormDraft(shell);
     const inspectionDraft = opsCaptureInspection(shell);
+    // Remember which keep-open sections are open right now, in case the page re-renders before their toggle event has been recorded.
+    shell.querySelectorAll('details[data-ops-keep-open]').forEach(d => { state.keepOpen = state.keepOpen || {}; if(d.open) state.keepOpen[d.dataset.opsKeepOpen] = true; });
     const viewKey = [state.currentModule, state.currentView, state.trainingViewPersonId, state.viewingContractorId, state.trainingViewCourseId].join('|');
     const keepScroll = viewKey === opsLastViewKey;
     const scrollY = window.scrollY;
@@ -3229,8 +3288,10 @@
     opsLastViewKey = viewKey;
     shell.innerHTML = headerHtml() + (state.lastError ? `<div class="ops-error">${esc(state.lastError)}</div>` : '') + bodyHtml();
     opsRestoreFormDraft(shell, draft);
+    opsRestoreFiles(shell, savedFiles);
     opsRestoreInspection(shell, inspectionDraft);
     bindRenderedEvents();
+    if(!byId('opsAssetEditorCard')) state.assetEditorDirty = false;
     if(keepScroll){
       shell.querySelectorAll('.ops-table-wrap').forEach((e, i) => { if(innerScroll[i]){ e.scrollTop = innerScroll[i][0]; e.scrollLeft = innerScroll[i][1]; } });
       if(Math.abs(window.scrollY - scrollY) > 1) window.scrollTo({top:scrollY, left:0, behavior:'auto'});
@@ -3482,6 +3543,14 @@
     }
     return common.filter(Boolean).join('') || '<div class="ops-subtle">No machinery specifications entered.</div>';
   }
+  function assetMediaViewHtml(kind, row){
+    const files = state.assetFiles.filter(f => kind === 'vehicle' ? String(f.vehicle_id) === String(row.id) : String(f.washing_equipment_id) === String(row.id));
+    if(!row.photo_path && !files.length) return '';
+    return `<div class="ops-asset-media">
+      ${row.photo_path ? `<button class="ops-asset-media-photo" type="button" data-ops-view-asset-photo="${esc(row.photo_path)}" aria-label="View photo"><img class="ops-asset-photo-thumb" alt="Asset photo" data-ops-asset-photo-thumb="${esc(row.photo_path)}"></button>` : ''}
+      ${files.length ? `<div class="ops-asset-files-view"><strong>Files</strong>${files.map(f => `<div>${esc(f.file_name)} <button class="ops-btn ghost" type="button" data-ops-view-asset-file="${f.id}">View</button></div>`).join('')}</div>` : ''}
+    </div>`;
+  }
   function machineryCardHtml(w){
     return `<div class="ops-machinery-card">
       <div class="ops-machinery-card-head">
@@ -3489,6 +3558,7 @@
         <div>${statusPill(w.status)} ${canManage()?`<button class="ops-btn ghost" type="button" data-ops-transfer-machinery="${esc(w.id)}">Transfer</button> <button class="ops-btn ghost" type="button" data-ops-edit-wash="${esc(w.id)}">Edit</button>`:''}</div>
       </div>
       <div class="ops-spec-list">${machinerySpecsHtml(w)}</div>
+      ${assetMediaViewHtml('washing_equipment', w)}
       ${w.service_notes || w.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(w.service_notes || w.notes)}</div>` : ''}
     </div>`;
   }
@@ -3513,7 +3583,8 @@
   function vehicleAssetCardHtml(v, machineryRows){
     const driver = machineryRows.filter(w=>w.mounting_side==='Driver');
     const passenger = machineryRows.filter(w=>w.mounting_side==='Passenger');
-    return `<details class="ops-vehicle-asset">
+    const noSide = machineryRows.filter(w=>w.mounting_side!=='Driver' && w.mounting_side!=='Passenger');
+    return `<details class="ops-vehicle-asset" data-ops-keep-open="vehicle-${esc(v.id)}" ${opsKeepOpen('vehicle-' + v.id)}>
       <summary class="ops-vehicle-asset-head">
         <div>
           <div class="ops-asset-id">${esc(normalizeRego(v.rego) || 'Vehicle')}</div>
@@ -3522,12 +3593,13 @@
         </div>
       </summary>
       <div class="ops-vehicle-asset-body">
-        <div class="ops-section-title"><div></div>
-        <div class="ops-spec-list">${vehicleServiceSpecsHtml(v) || '<div class="ops-subtle">No vehicle service specifications entered.</div>'}</div>
+        <div class="ops-section-title ops-vehicle-body-row">
+        <div class="ops-spec-list" style="flex:1 1 0;min-width:0;margin-top:0">${vehicleServiceSpecsHtml(v) || '<div class="ops-subtle">No vehicle service specifications entered.</div>'}</div>
           ${canManage()?`<button class="ops-btn ghost" type="button" data-ops-edit-vehicle="${esc(v.id)}">Edit vehicle</button>`:''}</div>
+        ${assetMediaViewHtml('vehicle', v)}
         ${v.service_notes || v.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(v.service_notes || v.notes)}</div>` : ''}
       </div>
-      <details class="ops-subassets"><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}</div></details>
+      <details class="ops-subassets" data-ops-keep-open="subassets-${esc(v.id)}" ${opsKeepOpen('subassets-' + v.id)}><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}${noSide.length?`<div class="ops-machinery-side"><div class="ops-machinery-side-head"><h4>No side set</h4></div><p class="ops-subtle">These records have no Driver or Passenger side. Open Edit to set one.</p>${noSide.map(machineryCardHtml).join('')}</div>`:''}</div></details>
     </details>`;
   }
   function assetEditorHtml(){
@@ -3535,7 +3607,7 @@
     const editingMachinery=Boolean(state.editingWashId);
     const selectedType=editingVehicle?'vehicle':editingMachinery?'machinery':state.assetAddType;
     const title=editingVehicle?'Edit vehicle':editingMachinery?'Edit machinery':'Add Asset';
-    return `<div class="ops-card" style="margin-top:1rem">
+    return `<div class="ops-card" id="opsAssetEditorCard" style="margin-top:1rem">
       <div class="ops-section-title"><h3>${title}</h3><button class="ops-btn ghost" type="button" data-ops-action="closeAssetEditor">Cancel</button></div>
       ${!editingVehicle&&!editingMachinery?`<label style="display:block;max-width:420px;margin-bottom:1rem"><strong>What type of asset do you want to add?</strong><select id="opsAssetAddType" style="display:block;width:100%;margin-top:.35rem"><option value=""></option><option value="vehicle" ${selectedType==='vehicle'?'selected':''}>Vehicle (asset)</option><option value="machinery" ${selectedType==='machinery'?'selected':''}>Machinery (sub-asset)</option></select></label>`:''}
       ${selectedType==='vehicle'?vehicleFormHtml():selectedType==='machinery'?washingFormHtml():'<p class="ops-subtle">Choose Vehicle or Machinery to continue.</p>'}
@@ -3549,7 +3621,7 @@
     ${canManage()&&state.transferringMachineryId?machineryTransferFormHtml():''}
     ${!canManage()?'<div class="ops-card"><p class="ops-subtle">Read-only. Ask an Admin or Maintenance manager to edit assets.</p></div>':''}
     ${vehicles.length ? vehicles.map(x=>vehicleAssetCardHtml(x.v,x.rows)).join('') : '<div class="ops-card"><p class="ops-subtle">No vehicles added yet.</p></div>'}
-    <details class="ops-card ops-unassigned"><summary><strong>Standalone machinery (${unassigned.length})</strong></summary><div style="padding-top:.8rem">
+    <details class="ops-card ops-unassigned" data-ops-keep-open="standalone-machinery" ${opsKeepOpen('standalone-machinery')}><summary><strong>Standalone machinery (${unassigned.length})</strong></summary><div style="padding-top:.8rem">
       ${unassigned.length ? unassigned.map(machineryCardHtml).join('') : '<p class="ops-subtle">No standalone machinery.</p>'}
     </div></details>`;
   }
@@ -3562,7 +3634,9 @@
   function inspectionFormHtml(templateId){
     const template = state.templates.find(t => t.id === templateId) || vehicleChecklistTemplate() || {};
     const type = template.target_type || 'vehicle';
-    return `<form id="opsInspectionForm" class="ops-form" autocomplete="off">
+    const noAccessNote = (state.dataLoadedOnce && ['vehicle','combined'].includes(type) && !state.vehicles.some(v=>v.status==='Active'))
+      ? `<div class="ops-error ops-span-2" id="opsNoVehiclesNote" role="alert"><strong>No vehicles are available to you.</strong> If you expected to see vehicles here, your account may not have access yet. Ask an Admin to check your permissions.</div>` : '';
+    return `<form id="opsInspectionForm" class="ops-form" autocomplete="off">${noAccessNote}
       <input type="hidden" id="opsInspectionTemplate" value="${esc(template.id || '')}">
       <label>Inspection date *<input id="opsInspectionDate" type="date" value="${today()}" required></label>
       <label>Inspector<input id="opsInspectorName" value="${esc(inspectorDisplayName())}" readonly></label>
@@ -3934,7 +4008,7 @@
         </div>
         ${editing?`<label class="ops-user-full-name">Full name<input type="text" data-ops-user-full-name="${esc(id)}" value="${esc(displayNameOfProfile(u))}" placeholder="First and last name"></label>
         <div class="ops-permission-grid" style="margin-top:.75rem">${roleCheckboxGridForUser(id, roles)}</div>
-        <div class="ops-actions"><button class="ops-btn primary" type="button" data-ops-save-user="${esc(id)}">Save user</button><button class="ops-btn ghost" type="button" data-ops-cancel-user-edit>Cancel</button></div>`:`<div class="ops-actions"><button class="ops-btn" type="button" data-ops-edit-user="${esc(id)}">Edit user</button>${String(id)===String(state.user?.id)?'':`<button class="ops-btn" type="button" data-ops-account-${accountAction}="${esc(id)}">${accountLabel}</button><button class="ops-btn ghost" type="button" data-ops-account-signout="${esc(id)}">Sign out everywhere</button><button class="ops-btn danger" type="button" data-ops-account-delete="${esc(id)}" data-ops-account-email="${esc(email)}">Delete</button>`}</div>`}
+        <div class="ops-actions"><button class="ops-btn primary" type="button" data-ops-save-user="${esc(id)}">Save user</button><button class="ops-btn ghost" type="button" data-ops-cancel-user-edit>Cancel</button></div>`:`<div class="ops-actions"><button class="ops-btn" type="button" data-ops-edit-user="${esc(id)}">Edit user</button>${String(id)===String(state.user?.id)?'':`<button class="ops-btn" type="button" data-ops-account-${accountAction}="${esc(id)}">${accountLabel}</button><button class="ops-btn ghost" type="button" data-ops-account-signout="${esc(id)}">Sign out everywhere</button><button class="ops-btn danger" type="button" data-ops-account-delete="${esc(id)}" data-ops-account-email="${esc(email)}">Delete</button>${accessStatus==='Blocked'?`<button class="ops-btn" type="button" data-ops-account-purge="${esc(id)}" data-ops-account-email="${esc(email)}">Purge test account…</button>`:''}`}</div>`}
       </div>`;
     }).join('');
   }
@@ -3993,7 +4067,14 @@
   async function accountAdminAction(action, payload={}){
     if(!isAdmin()) return alert('Only Admin users can manage accounts.');
     const r=await state.sb.functions.invoke('account-admin',{body:{action,...payload}});
-    if(r.error || r.data?.error) return alert(`Account action failed: ${r.data?.error||r.error.message}`);
+    if(r.error || r.data?.error){
+      // A refused request comes back as a non-2xx status; the function's own explanation is in the response body.
+      let reason = r.data?.error || '';
+      if(!reason && r.error?.context && typeof r.error.context.json === 'function'){
+        try{ const body = await r.error.context.json(); reason = body?.error || body?.message || ''; }catch(_){ /* body unreadable: fall back below */ }
+      }
+      return alert(`Account action failed: ${reason || r.error.message}`);
+    }
     return r.data;
   }
   async function createStaffAccount(e){
@@ -4009,6 +4090,19 @@
     if(result){alert(`Account created for ${email}. Give the temporary password to the person directly; they must set their own password on first sign-in.`);await loadAll();}
   }
   async function accountActionWithConfirm(action,userId,message){if(!window.confirm(message))return;const result=await accountAdminAction(action,{user_id:userId});if(result){if(action==='delete')alert('Account permanently deleted.');await loadAll();}}
+  // Admin-only, Blocked accounts only. Preview first, then two typed confirmations; the server enforces every gate again.
+  async function purgeTestAccount(userId,email){
+    if(!isAdmin()) return alert('Only Admin users can purge accounts.');
+    const typedEmail=window.prompt(`PURGE TEST ACCOUNT\n\nThis permanently deletes the login AND all history it created. Use it only for accounts made for testing.\n\nType ${email} exactly to see what would be removed.`);
+    if(typedEmail!==email) return;
+    const preview=await accountAdminAction('purge_preview',{user_id:userId,confirmation_email:typedEmail});
+    const c=preview?.preview; if(!c) return;
+    const lines=[`Maintenance tasks: ${c.maintenance_tasks}`,`Inspections (with answers and photos): ${c.inspections}`,`Maintenance readings: ${c.maintenance_readings}`,`Audit log rows by this account: ${c.audit_log_rows}`,`Other records only unlinked from this account: ${c.task_steps_completed + c.inspection_photos + c.asset_files_uploaded}`];
+    const word=window.prompt(`This will permanently remove ${c.email} and:\n\n${lines.join('\n')}\n\nThis cannot be undone. Type PURGE (capitals) to confirm.`);
+    if(word!=='PURGE') return;
+    const result=await accountAdminAction('purge',{user_id:userId,confirmation_email:typedEmail,confirmation_word:word});
+    if(result){ alert('Test account purged.'); await loadAll(); }
+  }
   async function deleteAccount(userId,email){const confirmation=window.prompt(`Type ${email} exactly to permanently delete this account. Accounts with operational history cannot be deleted.`);if(confirmation!==email)return;const result=await accountAdminAction('delete',{user_id:userId,confirmation_email:confirmation});if(result){alert('Account permanently deleted.');await loadAll();}}
   async function saveFirstPassword(e){e.preventDefault();const password=String(byId('opsFirstPassword')?.value||'');if(password.length<12||password!==String(byId('opsFirstPasswordConfirm')?.value||''))return alert('Use matching passwords of at least 12 characters.');const r=await state.sb.functions.invoke('account-admin',{body:{action:'complete_first_password',password}});if(r.error||r.data?.error)return alert(`Password could not be saved: ${r.data?.error||r.error.message}`);const refreshed=await state.sb.auth.refreshSession();if(refreshed.error){await state.sb.auth.signOut();return alert('Password saved. Please sign in again with your new password.');}await loadRoles();await loadAll();}
 
@@ -4761,15 +4855,36 @@
     // Bug fix (Sep 2026, staging review): buttons were too large and the saved
     // photo had no visual preview - now a small thumbnail sits beside compact
     // Camera/Gallery buttons, with an explicit View photo button alongside it.
-    return `<label class="ops-span-2">Asset photo<div class="ops-photo-buttons">
+    return `<div class="ops-span-2 ops-asset-photo-field" data-ops-asset-photo-field="${id}"><strong>Asset photo</strong><div class="ops-photo-buttons">
         ${path ? `<img class="ops-asset-photo-thumb" alt="Saved asset photo" data-ops-asset-photo-thumb="${esc(path)}">` : `<span class="ops-asset-photo-thumb ops-asset-photo-thumb-empty" aria-hidden="true"></span>`}
         <label class="ops-btn ghost ops-photo-button">Camera<input id="${id}Camera" class="ops-asset-photo-input" type="file" accept="image/*" capture="environment"></label>
         <label class="ops-btn ghost ops-photo-button">Gallery<input id="${id}Gallery" class="ops-asset-photo-input" type="file" accept="image/*"></label>
         ${path ? `<button class="ops-btn ghost ops-photo-button" type="button" data-ops-view-asset-photo="${esc(path)}">View photo</button>` : ''}
-      </div></label>`;
+      </div><small class="ops-subtle" data-ops-asset-photo-note></small></div>`;
   }
   function assetPhotoFile(id){
     return byId(`${id}Camera`)?.files?.[0] || byId(`${id}Gallery`)?.files?.[0] || null;
+  }
+  // Shows what was picked straight away (the photo itself is saved with the Save button) and keeps
+  // only one of Camera/Gallery selected, so the photo you chose last is the one that is saved.
+  function assetPhotoPreview(input){
+    const field = input.closest('[data-ops-asset-photo-field]');
+    if(!field) return;
+    const base = field.dataset.opsAssetPhotoField;
+    const other = byId(input.id === base + 'Camera' ? base + 'Gallery' : base + 'Camera');
+    if(input.files?.length && other) other.value = '';
+    const file = assetPhotoFile(base);
+    const note = field.querySelector('[data-ops-asset-photo-note]');
+    let thumb = field.querySelector('.ops-asset-photo-thumb');
+    if(file){
+      if(thumb){
+        const img = document.createElement('img');
+        img.className = 'ops-asset-photo-thumb'; img.alt = 'Chosen photo';
+        img.src = URL.createObjectURL(file);
+        thumb.replaceWith(img);
+      }
+      if(note) note.textContent = `Photo chosen: ${file.name}. It is saved when you press Save.`;
+    } else if(note) note.textContent = '';
   }
   function vehicleFormHtml(){
     const v = state.vehicles.find(x=>x.id===state.editingVehicleId) || {};
@@ -5216,7 +5331,8 @@
     const photos=state.photos.filter(p=>String(p.inspection_id)===String(i.id));
     return `<div class="ops-grid two"><div><strong>Inspector</strong><br>${esc(i.inspector_name||i.submitted_by_email||'—')}</div><div><strong>Result</strong><br>${statusPill(i.overall_result)}</div><div><strong>Odometer</strong><br>${esc(i.odometer??'—')}</div><div><strong>General notes</strong><br>${esc(i.notes||'—')}</div></div>
       <h4>Checklist answers</h4>${answers.length?`<div class="ops-table-wrap"><table class="ops-table"><tr><th>Question</th><th>Answer</th><th>Issue?</th><th>Notes</th></tr>${answers.map(a=>`<tr><td>${esc(a.question_text)}</td><td>${esc(displayStatusLabel(a.answer_value))}</td><td>${a.is_problem?statusPill('Issue to report'):statusPill('Completed OK')}</td><td>${esc(a.notes||'')}</td></tr>`).join('')}</table></div>`:'<p class="ops-subtle">No answers recorded.</p>'}
-      <p class="ops-subtle">${photos.length} photo${photos.length===1?'':'s'} recorded.</p>`;
+      <p class="ops-subtle">${photos.length} photo${photos.length===1?'':'s'} recorded.</p>
+      ${photos.length?`<div class="ops-inspection-photos">${photos.map(p=>{const q=state.checklistItems.find(x=>String(x.id)===String(p.checklist_item_id));const label=q?.question_text||p.caption||p.file_name||'Photo';return `<div class="ops-inspection-photo"><button class="ops-asset-media-photo" type="button" data-ops-view-asset-photo="${esc(p.storage_path)}" aria-label="View photo: ${esc(label)}"><img class="ops-asset-photo-thumb" alt="${esc(label)}" data-ops-asset-photo-thumb="${esc(p.storage_path)}"></button><span class="ops-subtle">${esc(label)}</span><button class="ops-btn ghost" type="button" data-ops-view-asset-photo="${esc(p.storage_path)}">View photo</button></div>`;}).join('')}</div>`:''}`;
   }
   function manualLogDetails(row){
     const items=maintenanceItemsForRecord(row.id);
@@ -5744,7 +5860,7 @@
     byId('opsPlannedMaintenanceForm')?.addEventListener('submit', savePlannedMaintenanceItem);
     byId('opsStandardMaintenanceItemForm')?.addEventListener('submit', saveStandardMaintenanceItem);
     byId('opsPlannedMaintenanceVehicle')?.addEventListener('change', updatePlannedMaintenanceTargetOptions);
-    document.querySelectorAll('[data-ops-maintenance-item]').forEach(row=>{ const open=()=>{state.editingMaintenanceItemKey=row.dataset.opsMaintenanceItem;state.addingMaintenanceItem=false;render();}; row.addEventListener('click',open);row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}}); });
+    document.querySelectorAll('[data-ops-maintenance-item]').forEach(row=>{ const open=()=>{state.editingMaintenanceItemKey=row.dataset.opsMaintenanceItem;state.addingMaintenanceItem=false;render();opsScrollBelowHeader(byId('opsPlannedMaintenanceForm')?.closest('.ops-card'));}; row.addEventListener('click',open);row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}}); });
     byId('opsServiceItemForm')?.addEventListener('submit', saveServiceItem);
     byId('opsServiceRunForm')?.addEventListener('submit', saveServiceRun);
     byId('opsServiceRunAsset')?.addEventListener('change', e => { state.serviceRunAssetId = e.target.value; state.pmView='service'; render(); });
@@ -5757,6 +5873,7 @@
     document.querySelectorAll('[data-ops-account-block]').forEach(b=>b.addEventListener('click',()=>accountActionWithConfirm('block',b.dataset.opsAccountBlock,'Block this account and sign it out everywhere?')));
     document.querySelectorAll('[data-ops-account-unblock]').forEach(b=>b.addEventListener('click',()=>accountActionWithConfirm('unblock',b.dataset.opsAccountUnblock,'Unblock this account? The person must sign in again.')));
     document.querySelectorAll('[data-ops-account-signout]').forEach(b=>b.addEventListener('click',()=>accountActionWithConfirm('sign_out_all',b.dataset.opsAccountSignout,'Sign this user out of all sessions?')));
+    document.querySelectorAll('[data-ops-account-purge]').forEach(b=>b.addEventListener('click',()=>purgeTestAccount(b.dataset.opsAccountPurge,b.dataset.opsAccountEmail)));
     document.querySelectorAll('[data-ops-account-delete]').forEach(b=>b.addEventListener('click',()=>deleteAccount(b.dataset.opsAccountDelete,b.dataset.opsAccountEmail)));
     document.querySelectorAll('[data-ops-edit-preload-user]').forEach(b => b.addEventListener('click', () => { state.editingPreloadedUserId=b.dataset.opsEditPreloadUser; render(); }));
     document.querySelectorAll('[data-ops-delete-preload-user]').forEach(b => b.addEventListener('click', () => deletePreloadedUser(b.dataset.opsDeletePreloadUser)));
@@ -5803,7 +5920,29 @@
         });
       });
     })();
-    document.querySelectorAll('details[data-ops-keep-open]').forEach(d => d.addEventListener('toggle', () => { state.keepOpen = state.keepOpen || {}; state.keepOpen[d.dataset.opsKeepOpen] = d.open; }));
+    document.querySelectorAll('details[data-ops-keep-open]').forEach(d => d.addEventListener('toggle', () => {
+      state.keepOpen = state.keepOpen || {}; state.keepOpen[d.dataset.opsKeepOpen] = d.open;
+      // Only one vehicle is open at a time, so it is obvious which one is being worked on.
+      if(d.open && d.classList.contains('ops-vehicle-asset')){
+        document.querySelectorAll('details.ops-vehicle-asset[open]').forEach(o => { if(o !== d){ o.open = false; state.keepOpen[o.dataset.opsKeepOpen] = false; } });
+      }
+    }));
+    if(!window.__opsAssetDirtyGuard){
+      window.__opsAssetDirtyGuard = true;
+      const inEditor = el => Boolean(el && el.closest && el.closest('#opsAssetEditorCard'));
+      const markDirty = e => { if(inEditor(e.target)) state.assetEditorDirty = true; };
+      document.addEventListener('input', markDirty, true);
+      document.addEventListener('change', markDirty, true);
+      // Leaving a half-edited asset form (by Cancel, another tab, Home, or opening another record) asks first.
+      document.addEventListener('click', e => {
+        if(!state.assetEditorDirty || !byId('opsAssetEditorCard')) return;
+        const t = e.target && e.target.closest ? e.target.closest('[data-ops-view], [data-ops-action="closeAssetEditor"], [data-ops-action="openAssetEditor"], [data-ops-edit-vehicle], [data-ops-edit-wash], [data-ops-add-machinery], [data-ops-transfer-machinery], .ops-branch-card, header .logo, [data-ops-home]') : null;
+        if(!t) return;
+        if(inEditor(t) && !t.matches('[data-ops-action="closeAssetEditor"]')) return;
+        if(!confirm('You have unsaved changes on this form. Leave without saving them?')){ e.preventDefault(); e.stopImmediatePropagation(); }
+        else state.assetEditorDirty = false;
+      }, true);
+    }
     document.querySelectorAll('details.ops-training-course').forEach(d => d.addEventListener('toggle', () => {
       const courseId = String(d.dataset.opsCourseId);
       if(d.open){
@@ -5934,6 +6073,7 @@
     updateMachineryFormVisibility();
     ['opsTransferVehicle','opsTransferSide'].forEach(id=>byId(id)?.addEventListener('change',updateMachineryTransferPreview));
     updateMachineryTransferPreview();
+    document.querySelectorAll('.ops-asset-photo-input').forEach(i=>{ i.addEventListener('change',()=>assetPhotoPreview(i)); if(i.files&&i.files.length) assetPhotoPreview(i); });
     document.querySelectorAll('[data-ops-view-asset-photo]').forEach(b=>b.addEventListener('click',()=>openAssetPhoto(b.dataset.opsViewAssetPhoto)));
     document.querySelectorAll('[data-ops-asset-photo-thumb]').forEach(img=>{
       const path = img.dataset.opsAssetPhotoThumb;
@@ -5955,8 +6095,8 @@
     document.querySelectorAll('[data-ops-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=b.dataset.opsDeleteWash; render(); }));
     document.querySelectorAll('[data-ops-confirm-delete-wash]').forEach(b=>b.addEventListener('click',()=>deleteWashing(b.dataset.opsConfirmDeleteWash)));
     document.querySelectorAll('[data-ops-cancel-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=''; render(); }));
-    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
-    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
+    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }));
+    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }));
     document.querySelectorAll('[data-ops-transfer-machinery]').forEach(b=>b.addEventListener('click',()=>{state.transferringMachineryId=b.dataset.opsTransferMachinery;state.editingWashId='';state.editingVehicleId='';state.assetEditorOpen=false;render();}));
     document.querySelectorAll('[data-ops-add-machinery]').forEach(b => b.addEventListener('click', () => {
       state.editingWashId='';
@@ -5966,13 +6106,14 @@
       state.prefillMachineryVehicleId=b.dataset.opsAddMachinery||'';
       state.prefillMachinerySide=b.dataset.opsMachinerySide||'';
       render();
+      const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed);
     }));
     document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = b.dataset.opsOpenTask; render(); }));
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 
   async function handleAction(action){
-    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
+    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }
     if(action === 'closeAssetEditor'||action === 'clearVehicle'||action === 'clearWash'){ clearAssetDraft('vehicle');clearAssetDraft('machinery');state.assetEditorOpen=false;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
     if(action === 'openMaintenanceEditor'){ state.maintenanceEditorOpen=true;render(); }
     if(action === 'openMaintenanceRecord'){ state.currentView='history';state.maintenanceEditorOpen=true;render(); }
@@ -5988,7 +6129,7 @@
     if(action === 'uploadCompanyLogo'){ await window.uploadCompanyLogo?.(byId('opsCompanyLogoFile')?.files?.[0]); }
     if(action === 'clearMaintenanceLogFilters'){ state.logAssetId='';state.logMachineryId='';state.logType='';state.logDateFrom='';state.logDateTo='';state.logKeyword='';render(); }
     if(action === 'clearPreventiveMaintenanceSearch'){ state.preventiveMaintenanceSearch='';state.preventiveMaintenanceAsset='';state.preventiveMaintenanceFrequency='';render(); }
-    if(action === 'addMaintenanceItem'){ state.addingMaintenanceItem=true;state.editingMaintenanceItemKey='';render(); }
+    if(action === 'addMaintenanceItem'){ state.addingMaintenanceItem=true;state.editingMaintenanceItemKey='';render();opsScrollBelowHeader(byId('opsPlannedMaintenanceForm')?.closest('.ops-card')); }
     if(action === 'closeMaintenanceItemEditor'){ state.addingMaintenanceItem=false;state.editingMaintenanceItemKey='';render(); }
     if(action === 'clearTaskFilter'){ state.taskQuickFilter=''; render(); }
     if(action === 'clearScheduleFilter'){ state.scheduleQuickFilter=''; render(); }

@@ -1,0 +1,107 @@
+name: Mobile harness on pull requests
+
+# Runs the whole-app mobile harness (tests/e2e/staging/mobile-harness.spec.cjs) against Staging for every
+# pull request from this repository that touches app or test code, at 360px (Android) and 390px (iPhone) phone
+# sizes, as an Admin and as an employee. Read-only: it never submits a form and dismisses every confirm().
+# Confirmed by Brendan, 9 Nov 2026: automatic over the whole app on every change, Staging only.
+# Pull requests from forks are skipped because they cannot read the staging secrets.
+
+on:
+  pull_request:
+    paths:
+      - 'operations-v4.js'
+      - 'operations-rules.js'
+      - 'app.js'
+      - 'index.html'
+      - 'config.js'
+      - 'tests/e2e/**'
+      - 'playwright.staging.mobile-harness.config.cjs'
+      - '.github/workflows/staging-mobile-harness-on-pr.yml'
+      - '.github/workflows/build-staging-app.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: Build this pull request as an isolated Staging bundle
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/build-staging-app.yml
+    with:
+      artifact_name: spray-wash-staging-app-harness
+    secrets: inherit
+
+  mobile-harness:
+    name: Run the mobile harness against Staging
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: staging
+    concurrency:
+      group: staging-mobile-harness
+      cancel-in-progress: false
+    env:
+      E2E_STAGING_ADMIN_EMAIL: ${{ secrets.E2E_STAGING_ADMIN_EMAIL }}
+      E2E_STAGING_ADMIN_PASSWORD: ${{ secrets.E2E_STAGING_ADMIN_PASSWORD }}
+      E2E_STAGING_HEIGHT_READONLY_EMAIL: ${{ secrets.E2E_STAGING_HEIGHT_READONLY_EMAIL }}
+      E2E_STAGING_HEIGHT_READONLY_PASSWORD: ${{ secrets.E2E_STAGING_HEIGHT_READONLY_PASSWORD }}
+      E2E_STAGING_HARNESS_EMPLOYEE_EMAIL: ${{ secrets.E2E_STAGING_HARNESS_EMPLOYEE_EMAIL }}
+      E2E_STAGING_HARNESS_EMPLOYEE_PASSWORD: ${{ secrets.E2E_STAGING_HARNESS_EMPLOYEE_PASSWORD }}
+    steps:
+      - name: Check the dedicated staging credentials exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in E2E_STAGING_ADMIN_EMAIL E2E_STAGING_ADMIN_PASSWORD; do
+            test -n "${!v:-}" || { echo "Missing $v in the staging environment." >&2; exit 1; }
+          done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked test tooling
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Download this pull request's Staging bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spray-wash-staging-app-harness
+          path: staging-app
+      - name: Safety checks on the bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f staging-app/index.html
+          test -f staging-app/config.js
+          ref="$(sed -n 's/^Supabase project ref: //p' staging-app/STAGING-README.txt | head -n 1)"
+          test -n "$ref" || { echo 'Staging bundle has no project ref.' >&2; exit 1; }
+          test "$ref" != 'twkgfmctuffmkvkmdkct' || { echo 'SAFETY STOP: bundle identifies production.' >&2; exit 1; }
+          ! grep -F 'twkgfmctuffmkvkmdkct' staging-app/config.js >/dev/null || { echo 'SAFETY STOP: bundle config references production.' >&2; exit 1; }
+          echo "E2E_STAGING_PROJECT_REF=$ref" >> "$GITHUB_ENV"
+      - name: Serve the bundle and run the mobile harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install http-server staging-app -p 4174 -c-1 > staging-http-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4174/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4174/ >/dev/null
+          E2E_STAGING_BASE_URL=http://127.0.0.1:4174 npm run test:staging:mobile-harness
+      - name: Upload harness evidence (screens, findings, inventory)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-harness-evidence
+          path: |
+            playwright-report/
+            test-results/
+            staging-http-server.log
+          if-no-files-found: warn
+          retention-days: 14

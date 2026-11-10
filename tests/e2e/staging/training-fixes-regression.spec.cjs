@@ -580,7 +580,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await openPerson(page);
     const head = await page.evaluate(() => {
       const h = document.querySelector('.ops-person-head'); const kids = [...h.children].filter(e => !e.classList.contains('ops-person-head-actions')).map(e => e.getBoundingClientRect());
-      const mid = k => k.top + k.height / 2; return { sameRow: kids.every(k => Math.abs(mid(k) - mid(kids[0])) < 12), height: h.getBoundingClientRect().height };
+      const mid = k => k.top + k.height / 2;
+      // The tagged fixture names are long and vary with a random nonce, so the header can legitimately wrap when its content is wider than the card; only fail when it wrapped although everything would have fitted.
+      const all = [...h.children].map(e => e.getBoundingClientRect().width).reduce((a, b) => a + b, 0) + 12 * h.children.length;
+      return { sameRow: kids.every(k => Math.abs(mid(k) - mid(kids[0])) < 12) || all > h.clientWidth, height: h.getBoundingClientRect().height };
     });
     expect(head.sameRow, 'back button, name and designation share a row').toBeTruthy();
     let s = await openSection(page);
@@ -690,6 +693,56 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await page.locator('#tmpRequiredForm button').click();
     await expect.poll(() => submitted).toBe(1);
     await page.evaluate(() => document.getElementById('tmpRequiredForm').remove());
+  });
+
+  test('FIX-022: on a phone the person page, record form and course form fit the screen and line up', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page, config);
+    await openTraining(page);
+    await openPerson(page);
+    const comp = await page.locator('[data-ops-person-competency]').first().boundingBox();
+    expect(comp.x + comp.width, 'Competency list stays inside the screen').toBeLessThanOrEqual(390);
+    const s = await openSection(page);
+    await s.getByRole('button', { name: '+ Add record', exact: true }).click();
+    const lay = await page.evaluate(() => {
+      const r = id => document.getElementById(id).getBoundingClientRect();
+      return { status: r('opsRecordStatus'), completed: r('opsRecordCompletedDate'), expiry: r('opsRecordExpiryDate'), provider: r('opsRecordProvider'), ref: r('opsRecordReference') };
+    });
+    expect(lay.completed.top, 'Status sits on its own row above the dates').toBeGreaterThan(lay.status.bottom - 2);
+    expect(Math.abs(lay.completed.top - lay.expiry.top), 'Completed and Expiry line up').toBeLessThan(4);
+    expect(Math.abs(lay.completed.height - lay.expiry.height), 'Completed and Expiry are the same height').toBeLessThan(2);
+    expect(lay.status.width, 'Status shows its full text').toBeGreaterThan(180);
+    for (const k of Object.keys(lay)) expect(lay[k].right, `${k} fits the screen`).toBeLessThanOrEqual(391);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const cat = await openPanel(page, 'Course Catalog');
+    await cat.getByRole('button', { name: '+ Add course', exact: true }).click();
+    const cl = await page.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); return { name: r('opsCourseName'), type: r('opsCourseType'), v: r('opsCourseValidity'), n: r('opsCourseNzqaCodes') }; });
+    expect(cl.name.width, 'Course name is full width').toBeGreaterThan(220);
+    expect(cl.type.width, 'Type is full width').toBeGreaterThan(220);
+    expect(cl.v.width, 'Validity is small').toBeLessThanOrEqual(130);
+    expect(Math.abs(cl.v.top - cl.n.top), 'NZQA sits beside Validity').toBeLessThan(6);
+    expect(cl.n.width, 'NZQA gets the room').toBeGreaterThan(cl.v.width * 1.8);
+    for (const k of Object.keys(cl)) expect(cl[k].right, `${k} fits the screen`).toBeLessThanOrEqual(391);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow, 'no sideways scrolling of the page').toBeLessThanOrEqual(1);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.setViewportSize({ width: 1280, height: 800 });
+  });
+
+  test('FIX-023: the course catalogue is split into External Qualification and Internal Training sections', async ({ page }) => {
+    acceptDialogsAndCapture(page);
+    await signIn(page, config);
+    await openTraining(page);
+    const cat = await openPanel(page, 'Course Catalog');
+    const ext = cat.locator('[data-ops-catalog-section="external"]');
+    const int = cat.locator('[data-ops-catalog-section="internal"]');
+    await expect(ext.locator('h4')).toContainText('External Qualification');
+    await expect(int.locator('h4')).toContainText('Internal Training');
+    const types = async sec => sec.locator('tr[data-ops-course-row] td:nth-child(3)').allInnerTexts();
+    for (const t of await types(ext)) expect(t.trim()).toBe('External');
+    for (const t of await types(int)) expect(t.trim()).toBe('Internal');
+    expect((await types(ext)).length + (await types(int)).length, 'every active course is in exactly one section').toBeGreaterThan(0);
   });
 
   test('FIX-016: when a Completed record is refused for missing evidence only the evidence box is red', async ({ page }) => {

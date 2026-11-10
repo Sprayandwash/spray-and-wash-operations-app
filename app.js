@@ -417,7 +417,7 @@ function bindRecentInspectionLimit(){
 }
 function renderDashboard(){
   const active=equipment.filter(e=>!isArchived(e)); const due=active.filter(isDue); const failed=active.filter(isFailed); const attention=getHeightAttentionSummary();
-  document.getElementById("dashInService").textContent=active.filter(e=>e.status==="In Service").length; document.getElementById("dashDue").textContent=attention.overdue.length; document.getElementById("dashFailed").textContent=failed.length;
+  const setDash=(id,v)=>{const n=document.getElementById(id); if(n) n.textContent=v;}; setDash("dashInService",active.filter(e=>e.status==="In Service").length); setDash("dashDue",attention.overdue.length); setDash("dashFailed",failed.length);
   if(document.getElementById("dashDueSoon"))document.getElementById("dashDueSoon").textContent=attention.dueSoon.length;
   const nextDue=document.getElementById("dashNextDue"); if(nextDue) nextDue.innerHTML=due.slice(0,7).map(e=>`<div class="lineItem" onclick="openItem('${e.id}')"><b>${esc(e.serial)}</b><span class="hideMobile">${esc(e.type)}</span><span>${esc(latest(e.serial)?.next_due||"No inspection")}</span></div>`).join("") || `<p class="muted">No active equipment due.</p>`;
   bindRecentInspectionLimit();
