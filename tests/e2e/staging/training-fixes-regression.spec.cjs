@@ -546,10 +546,10 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await row.locator('input').check();
     await expect(panel.locator('#opsEvidenceSummary')).toContainText(/1 person selected · \d+ files?/);
     await panel.locator('[data-ops-evidence-quick="clear"]').click();
-    await expect(panel.locator('#opsEvidenceSummary')).toContainText('0 people selected');
+    await expect(panel.locator('#opsEvidenceSummary')).toHaveText(/^0 people selected/);
     await expect(panel.locator('#opsEvidencePickLabel')).toContainText('Select people');
     await panel.locator('[data-ops-evidence-quick="employees"]').click();
-    await expect(panel.locator('#opsEvidenceSummary')).not.toContainText('0 people selected');
+    await expect(panel.locator('#opsEvidenceSummary')).not.toHaveText(/^0 people selected/);
     await panel.locator('[data-ops-evidence-quick="clear"]').click();
     await row.locator('input').check();
     // Dropdown closes on an outside click and on Esc.
