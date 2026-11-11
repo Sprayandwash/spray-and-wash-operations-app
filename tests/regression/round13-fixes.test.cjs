@@ -27,9 +27,12 @@ test('REG-190: the Notifications card is compact and lists enrolled users and de
 });
 
 test('REG-191: a task opens directly under its line and shows its description',()=>{
-  assert.match(ops,/<tr class=\\?"ops-task-detail-row\\?"><td colspan=\\?"8\\?">\$\{taskDetailHtml\(t\.id\)\}<\/td><\/tr>/);
+  assert.match(ops,/<tr class=\\?"ops-task-detail-row\\?"><td colspan=\\?"8\\?">\$\{taskDetailHtml\(t\.id,true\)\}<\/td><\/tr>/);
   assert.match(ops,/!taskDetailInlineRendered \? taskDetailHtml/);
   assert.match(ops,/What needs doing:<\/strong><br>\$\{esc\(t\.description\)\}/);
+  assert.match(ops,/taskDetailHtml\(t\.id,true\)/);
+  assert.match(ops,/const header = inline \? ''/);
+  assert.match(ops,/ops-task-row-open/);
   assert.match(ops,/opsScrollBelowHeader\(d\)/);
 });
 
