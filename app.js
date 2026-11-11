@@ -515,6 +515,11 @@ function renderEquipmentResults(){
     el.list.innerHTML=`<p class="warning" role="alert">Equipment could not be loaded. Please try again.</p>`;
     return;
   }
+  if(!equipment.length&&!hasAnyRoles(["Height equipment manager","Height equipment user"])){
+    if(el.count) el.count.textContent="No access to Height Equipment.";
+    el.list.innerHTML=`<p class="warning" role="alert" data-no-access="height">You don't have access to the Height Equipment register. Contact an admin to be given access.</p>`;
+    return;
+  }
   const rows=filteredEquipment();
   if(el.count) el.count.textContent=`${rows.length} item${rows.length===1?"":"s"} shown.`;
   el.list.innerHTML=rows.map(e=>{let l=latest(e.serial), count=photos.filter(p=>p.equipment_id===e.id).length;return `<div class="listItem" onclick="openItem('${e.id}')"><div class="listItemTop"><div><b>${esc(e.serial)}</b> ${pill(isArchived(e)?"Archived":e.status)}<div class="muted">${esc(e.type)} • ${esc(e.manufacturer||"")} ${esc(e.model||"")}</div></div><span class="badge">${count} photos</span></div><div class="muted">Last: ${l?esc(l.inspection_date+" - "+l.result):"None"} ${l?.next_due?"• Next due: "+esc(l.next_due):""}</div></div>`;}).join("") || `<p class="muted">No equipment found.</p>`;

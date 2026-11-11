@@ -4079,10 +4079,24 @@
     if(String(userId) === String(state.user?.id)) await loadRoles();
   }
 
-  async function accountAdminAction(action, payload={}){
+  async function accountAdminAction(action, payload={}, retried=false){
     if(!isAdmin()) return alert('Only Admin users can manage accounts.');
     const r=await state.sb.functions.invoke('account-admin',{body:{action,...payload}});
     if(r.error || r.data?.error){
+      // A long-open tab can hold a token the server no longer accepts while the app still looks signed in.
+      // Refresh it once and retry; if that fails, ask for a fresh sign-in instead of showing a raw error.
+      const rawText = String(r.data?.error || r.error?.message || '');
+      let statusCode = r.error?.context?.status;
+      if(statusCode === 401 || /unauthenticated|jwt|token.*expired|invalid.*token/i.test(rawText)){
+        if(!retried){
+          const refreshed = await state.sb.auth.refreshSession().catch(() => ({ error:true }));
+          if(!refreshed?.error) return accountAdminAction(action, payload, true);
+        }
+        alert('Your sign-in has expired. Please sign in again, then repeat this action.');
+        try{ await state.sb.auth.signOut(); }catch(_){ /* already signed out */ }
+        window.signOut?.();
+        return;
+      }
       // A refused request comes back as a non-2xx status; the function's own explanation is in the response body.
       let reason = r.data?.error || '';
       if(!reason && r.error?.context && typeof r.error.context.json === 'function'){
