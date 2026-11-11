@@ -38,3 +38,15 @@ test('REG-192: a filtered Home attention list shows every item, not just 12',()=
   assert.match(ops,/filtered\.slice\(0,limitRows\)/);
   assert.match(ops,/Showing the first \$\{limitRows\} of \$\{filtered\.length\}/);
 });
+
+test('REG-193: the Maintenance task list shows a total task count',()=>{
+  assert.match(ops,/id="opsTaskTotalCount">\$\{state\.tasks\.length\}/);
+  assert.match(ops,/total · \$\{active\.length\} active · \$\{completed\.length\} completed/);
+});
+
+test('REG-194: the Notifications card shows whether push keys are set up, without exposing them',()=>{
+  const fn=read('supabase/functions/notification-control/index.ts');
+  assert.match(fn,/vapid_configured:Boolean\(/);
+  assert.match(read('push-notifications.js'),/Push keys: \$\{backend\.vapid_configured\?'configured':'not set up'\}/);
+  assert.doesNotMatch(fn,/vapid_private[^\n]*json|privateKey/i);
+});

@@ -3721,7 +3721,7 @@
     const completed=state.tasks.filter(t=>t.status==='Completed');
     return `${canMaintain()?`<div class="ops-actions ops-assets-actions"><button class="ops-btn primary" type="button" data-ops-action="openManualTaskEditor">Add Manual Task</button></div>`:''}<div class="ops-primary-action-content">
       ${state.manualTaskEditorOpen?manualTaskFormHtml():''}
-      <div class="ops-card"><div class="ops-section-title"><h3>Tasks</h3><div>${label}</div></div>${taskTableHtml(active)}</div>
+      <div class="ops-card"><div class="ops-section-title"><h3>Tasks <span class="ops-attention-count" id="opsTaskTotalCount">${state.tasks.length}</span></h3><div><span class="ops-subtle">${state.tasks.length} total · ${active.length} active · ${completed.length} completed</span> ${label}</div></div>${taskTableHtml(active)}</div>
       <details class="ops-card" ${completed.some(t=>String(t.id)===String(state.openTaskId))?'open':''}><summary><strong>Completed tasks (${completed.length})</strong></summary><div style="padding-top:.8rem">${taskTableHtml(completed,true)}</div></details>
       ${state.openTaskId && !taskDetailInlineRendered ? taskDetailHtml(state.openTaskId) : ''}</div>`;
   }
