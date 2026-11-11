@@ -25,3 +25,10 @@ test('REG-190: the Notifications card is compact and lists enrolled users and de
   assert.match(read('.github/workflows/deploy-production-notification-functions.yml'),/DEPLOY PRODUCTION NOTIFICATION FUNCTIONS/);
   assert.match(read('.github/workflows/deploy-staging-notification-functions.yml'),/PRODUCTION_PROJECT_REF/);
 });
+
+test('REG-191: a task opens directly under its line and shows its description',()=>{
+  assert.match(ops,/<tr class=\\?"ops-task-detail-row\\?"><td colspan=\\?"8\\?">\$\{taskDetailHtml\(t\.id\)\}<\/td><\/tr>/);
+  assert.match(ops,/!taskDetailInlineRendered \? taskDetailHtml/);
+  assert.match(ops,/What needs doing:<\/strong><br>\$\{esc\(t\.description\)\}/);
+  assert.match(ops,/opsScrollBelowHeader\(d\)/);
+});

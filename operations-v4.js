@@ -487,7 +487,7 @@
       #users .roleGrid { grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); }
       #usersTabButton,#adminTabButton,.legacyAdminOnly { display:none !important; }
       #users details.ops-legacy-roles { margin-top:.5rem; }
-      .ops-permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-top:.5rem}
+      .ops-task-description{white-space:pre-wrap}.ops-task-detail-row>td{padding:0!important;border-top:0}.ops-permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-top:.5rem}
       .ops-permission-check{display:flex;gap:.45rem;align-items:center;border:1px solid #dbe3ec;border-radius:.75rem;background:#f8fafc;padding:.55rem .65rem;font-weight:800}
       .ops-permission-check input{width:auto}
       .ops-permission-check small{display:block;color:#64748b;font-size:.76rem;font-weight:600;margin-top:.12rem}
@@ -3711,15 +3711,17 @@
     if(label) label.textContent = count ? `${count} photo${count===1?'':'s'} selected.` : 'No photos selected.';
   }
 
+  let taskDetailInlineRendered = false;
   function tasksHtml(){
+    taskDetailInlineRendered = false;
     const label = state.taskQuickFilter ? `<span class="badge">Filtered: ${esc(taskQuickFilterLabel())}</span> <button class="ops-btn ghost" type="button" data-ops-action="clearTaskFilter">Clear filter</button>` : '';
     const active=state.tasks.filter(t=>t.status!=='Completed');
     const completed=state.tasks.filter(t=>t.status==='Completed');
     return `${canMaintain()?`<div class="ops-actions ops-assets-actions"><button class="ops-btn primary" type="button" data-ops-action="openManualTaskEditor">Add Manual Task</button></div>`:''}<div class="ops-primary-action-content">
       ${state.manualTaskEditorOpen?manualTaskFormHtml():''}
       <div class="ops-card"><div class="ops-section-title"><h3>Tasks</h3><div>${label}</div></div>${taskTableHtml(active)}</div>
-      <details class="ops-card"><summary><strong>Completed tasks (${completed.length})</strong></summary><div style="padding-top:.8rem">${taskTableHtml(completed,true)}</div></details>
-      ${state.openTaskId ? taskDetailHtml(state.openTaskId) : ''}</div>`;
+      <details class="ops-card" ${completed.some(t=>String(t.id)===String(state.openTaskId))?'open':''}><summary><strong>Completed tasks (${completed.length})</strong></summary><div style="padding-top:.8rem">${taskTableHtml(completed,true)}</div></details>
+      ${state.openTaskId && !taskDetailInlineRendered ? taskDetailHtml(state.openTaskId) : ''}</div>`;
   }
   function taskQuickFilterLabel(){ return ({open:'Open tasks', waiting:'Waiting on parts/someone', due:'Tasks due within 14 days or overdue'}[state.taskQuickFilter] || state.taskQuickFilter || 'Filtered'); }
   function manualTaskFormHtml(){
@@ -3748,7 +3750,7 @@
     }
     rows = rows.sort((a,b)=>completedList?String(b.completed_at||b.updated_at||b.created_at||'').localeCompare(String(a.completed_at||a.updated_at||a.created_at||'')):statusRank(a.status)-statusRank(b.status) || String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));
     if(!rows.length) return `<p class="ops-subtle">${completedList?'No completed tasks.':'No tasks yet.'}</p>`;
-    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table"><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">Open</button></td></tr>`).join('')}</table></div>`;
+    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table"><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Opened':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id)}</td></tr>`):''}`).join('')}</table></div>`;
   }
   function taskSourceLabel(task){
     const module=String(task?.source_module||'').replace(/_/g,' ');
@@ -3761,8 +3763,9 @@
     const t = state.tasks.find(x=>x.id===taskId); if(!t) return '';
     const proc = state.procedures.find(p=>p.id===t.procedure_id);
     const steps = state.procedureSteps.filter(s=>s.procedure_id===t.procedure_id).sort((a,b)=>a.step_number-b.step_number);
-    return `<div class="ops-card" style="margin-top:1rem"><h3>${esc(t.title)}</h3>
+    return `<div class="ops-card" id="opsTaskDetailCard" style="margin-top:1rem"><h3>${esc(t.title)}</h3>
       <p>${statusPill(t.status)} ${statusPill(t.priority)} <span class="ops-subtle">${esc(targetName(t))} · ${esc(t.assigned_role||'Maintenance manager')}</span></p>
+      ${t.description ? `<p class="ops-task-description"><strong>What needs doing:</strong><br>${esc(t.description)}</p>` : ''}
       ${proc ? `<h3>Guide: ${esc(proc.name)}</h3><p>${esc(proc.description||'')}</p><p><strong>Safety:</strong> ${esc(proc.safety_summary||'')}</p><p><strong>Tools:</strong> ${esc(proc.tools_required||'')}</p><p><strong>Parts:</strong> ${esc(proc.parts_required||'')}</p>` : ''}
       ${!canUpdateTask(t)?`<p class="ops-subtle">This task is view-only for your role.</p><div class="ops-actions"><button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`:steps.length ? `<form id="opsTaskCompleteForm" class="ops-form"><div class="ops-span-2">${steps.map(s=>`<div class="ops-step"><label><input type="checkbox" class="ops-task-step" value="${s.id}"> <strong>${s.step_number}. ${esc(s.title)}</strong></label><p>${esc(s.instruction)}</p>${s.safety_note?`<p class="ops-subtle"><strong>Safety:</strong> ${esc(s.safety_note)}</p>`:''}</div>`).join('')}</div>
         <label>New status<select id="opsTaskStatus">${optionList(TASK_STATUSES,t.status)}</select></label>
@@ -6137,7 +6140,7 @@
       render();
       const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed);
     }));
-    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = b.dataset.opsOpenTask; render(); }));
+    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; render(); const d=byId('opsTaskDetailCard'); if(d) opsScrollBelowHeader(d); }));
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 
