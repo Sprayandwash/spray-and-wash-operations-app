@@ -32,3 +32,9 @@ test('REG-191: a task opens directly under its line and shows its description',(
   assert.match(ops,/What needs doing:<\/strong><br>\$\{esc\(t\.description\)\}/);
   assert.match(ops,/opsScrollBelowHeader\(d\)/);
 });
+
+test('REG-192: a filtered Home attention list shows every item, not just 12',()=>{
+  assert.match(ops,/const limitRows=state\.homeAttentionFilter==='all'\?12:filtered\.length/);
+  assert.match(ops,/filtered\.slice\(0,limitRows\)/);
+  assert.match(ops,/Showing the first \$\{limitRows\} of \$\{filtered\.length\}/);
+});
