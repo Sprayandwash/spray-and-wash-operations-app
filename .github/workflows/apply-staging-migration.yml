@@ -1,0 +1,47 @@
+name: Apply a migration to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type APPLY MIGRATION TO STAGING to confirm
+        required: true
+      source_branch:
+        description: Branch holding the migration file
+        required: true
+        default: main
+      migration_file:
+        description: File name inside supabase/migrations (for example 20261111_auto_close_training_tasks.sql)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    environment: staging
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_STAGING_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
+      PRODUCTION_PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_branch }}
+      - name: Validate staging-only inputs
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          MIGRATION_FILE: ${{ inputs.migration_file }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "APPLY MIGRATION TO STAGING"
+          printf '%s' "$MIGRATION_FILE" | grep -Eq '^[A-Za-z0-9_.-]+\.sql$'
+          test -f "supabase/migrations/$MIGRATION_FILE"
+          test -n "$SUPABASE_STAGING_DB_URL"
+          if printf '%s' "$SUPABASE_STAGING_DB_URL" | grep -q "$PRODUCTION_PROJECT_REF"; then echo 'SAFETY STOP: production database target.' >&2; exit 1; fi
+      - name: Apply the migration (staging database only)
+        env:
+          MIGRATION_FILE: ${{ inputs.migration_file }}
+        run: |
+          set -euo pipefail
+          psql --set ON_ERROR_STOP=1 --single-transaction --dbname "$SUPABASE_STAGING_DB_URL" --file "supabase/migrations/$MIGRATION_FILE"
