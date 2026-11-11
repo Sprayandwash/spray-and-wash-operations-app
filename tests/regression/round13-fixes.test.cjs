@@ -13,3 +13,15 @@ test('REG-189: an expired sign-in on an Admin account action is refreshed once, 
   assert.match(ops,/auth\.refreshSession\(\)/);
   assert.match(ops,/Your sign-in has expired\. Please sign in again/);
 });
+
+test('REG-190: the Notifications card is compact and lists enrolled users and devices',()=>{
+  const push=read('push-notifications.js');
+  assert.match(push,/class="ops-notify-row"/);
+  assert.match(push,/function deviceTable\(devices,users\)/);
+  assert.match(push,/Push enabled for:/);
+  const fn=read('supabase/functions/notification-control/index.ts');
+  assert.match(fn,/async function enrolmentLists/);
+  assert.doesNotMatch(fn.match(/async function enrolmentLists[^\n]*/)[0],/endpoint|subscription_json/);
+  assert.match(read('.github/workflows/deploy-production-notification-functions.yml'),/DEPLOY PRODUCTION NOTIFICATION FUNCTIONS/);
+  assert.match(read('.github/workflows/deploy-staging-notification-functions.yml'),/PRODUCTION_PROJECT_REF/);
+});

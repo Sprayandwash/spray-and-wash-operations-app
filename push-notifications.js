@@ -53,6 +53,20 @@
   function checkbox(id,label,checked){return `<label class="ops-permission-check"><input type="checkbox" id="${id}" ${checked?'checked':''}> <span><strong>${esc(label)}</strong></span></label>`;}
   function timeInput(id,label,value){return `<label>${esc(label)}<input id="${id}" type="time" value="${esc(shortTime(value))}"></label>`;}
   function selectDay(id,label,value){return `<label>${esc(label)}<select id="${id}">${days.map((d,i)=>`<option value="${i+1}" ${Number(value)===i+1?'selected':''}>${d}</option>`).join('')}</select></label>`;}
+  function fmtWhen(v){if(!v)return '—';const d=new Date(v);return isNaN(d)?'—':d.toLocaleString('en-NZ',{timeZone:'Pacific/Auckland',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});}
+  function deviceTable(devices,users){
+    const names=new Map((users||[]).map(u=>[u.user_id,u.display_name||u.email||'Unknown user']));
+    const rows=(devices||[]).map(d=>`<tr><td>${esc(names.get(d.user_id)||'Unknown user')}</td><td>${esc(d.device_label||'Device')}</td><td>${esc(d.permission_state)}</td><td>${fmtWhen(d.created_at)}</td><td>${fmtWhen(d.last_success_at)}</td><td>${d.last_failure_at?esc(d.last_failure_code||'failed')+' '+fmtWhen(d.last_failure_at):'—'}</td></tr>`).join('');
+    const weekly=(users||[]).filter(u=>u.weekly_email_enabled).map(u=>esc(u.display_name||u.email)).join(', ');
+    const pushUsers=(users||[]).filter(u=>u.push_enabled).map(u=>esc(u.display_name||u.email)).join(', ');
+    return `<p><strong>Push enabled for:</strong> ${pushUsers||'nobody yet'}${weekly?` · <strong>Weekly email opted in:</strong> ${weekly}`:''}</p>`+(rows?`<div class="ops-notify-table"><table class="ops-table"><thead><tr><th>User</th><th>Device</th><th>Permission</th><th>Enrolled</th><th>Last sent OK</th><th>Last failure</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="ops-subtle">No devices enrolled yet.</p>');
+  }
+  function injectNotifyStyle(){
+    if(document.getElementById('opsNotifyStyle'))return;
+    const st=document.createElement('style');st.id='opsNotifyStyle';
+    st.textContent='#opsNotificationAdminForm{gap:.35rem .7rem}.ops-notify-row{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:.35rem .7rem;padding:.3rem 0;border-top:1px solid #e3ebf5}.ops-notify-row:first-child{border-top:0}.ops-notify-row>strong{flex:0 0 9.5rem;align-self:center}.ops-notify-row label{flex:0 1 9rem}.ops-notify-row label.ops-permission-check{flex:0 0 auto;flex-direction:row;align-items:center;padding:.3rem .6rem;gap:.4rem;margin:0}.ops-notify-row label.ops-permission-check input{width:auto}.ops-notify-days{display:flex;flex-wrap:wrap;gap:.25rem}.ops-notify-days label.ops-permission-check{padding:.2rem .45rem}.ops-notify-status p{margin:.3rem 0}.ops-notify-table{overflow-x:auto;margin-top:.3rem}.ops-notify-table table{font-size:.85rem;width:100%}@media(max-width:640px){.ops-notify-row>strong{flex-basis:100%}}';
+    document.head.appendChild(st);
+  }
   function renderAdminCard(){
     const host=document.getElementById('opsAppSettingsForm')?.closest('.ops-card');
     if(!host||document.getElementById('opsNotificationAdminCard'))return;
@@ -63,21 +77,19 @@
     const card=document.getElementById('opsNotificationAdminCard');if(!card)return;
     try{latestAdminStatus=await adminCall('admin_notification_status');}catch(e){card.innerHTML=`<h3>Notifications</h3><p class="dangerBox">Notification controls are unavailable: ${esc(e.message||'Unknown error')}</p>`;return;}
     const s=latestAdminStatus.settings||{}; const backend=latestAdminStatus.backend||{}; const enrolled=latestAdminStatus.enrolment||{};
+    injectNotifyStyle();
     card.innerHTML=`<div class="ops-section-title"><div><h3>Notifications</h3><p class="ops-subtle">Operational settings in Pacific/Auckland. Backend delivery switches remain an independent emergency kill switch.</p></div><span class="ops-pill ${s.notifications_enabled?'ops-ok':'ops-warn'}">${s.notifications_enabled?'Master ON':'Master OFF'}</span></div>
-    <form id="opsNotificationAdminForm" class="ops-form">
-      <div class="ops-span-2"><strong>Master controls</strong><div class="ops-permission-grid">${checkbox('opsNotifyMaster','Automatic notifications',s.notifications_enabled)}${checkbox('opsNotifyPush','Task push notifications',s.task_push_enabled)}</div></div>
-      <div class="ops-span-2"><strong>New task assigned</strong><div class="ops-permission-grid">${checkbox('opsNotifyAssignment','Send assignment push',s.assignment_push_enabled)}</div></div>
-      <label>Assignment delay (minutes)<input id="opsNotifyAssignmentDelay" type="number" min="0" max="1440" step="1" value="${Number(s.assignment_delay_minutes||0)}"></label>
-      <div></div>
-      <div class="ops-span-2"><strong>Due soon</strong><div class="ops-permission-grid">${checkbox('opsNotifyDueSoon','Due-soon push',s.due_soon_enabled)}</div></div>
-      <label>How long before due (hours)<input id="opsNotifyDueHours" type="number" min="1" max="720" step="1" value="${Number(s.due_soon_hours_before||48)}"></label>${timeInput('opsNotifyDueTime','Due-soon send time',s.due_soon_send_time)}
-      <div class="ops-span-2"><strong>Overdue</strong><div class="ops-permission-grid">${checkbox('opsNotifyOverdue','Overdue push',s.overdue_enabled)}</div></div>
-      <label>Repeat every (days)<input id="opsNotifyOverdueRepeat" type="number" min="1" max="30" step="1" value="${Number(s.overdue_repeat_days||1)}"></label>${timeInput('opsNotifyOverdueTime','Overdue send time',s.overdue_send_time)}
-      <div class="ops-span-2"><strong>Push delivery window</strong></div>${timeInput('opsNotifyPushStart','Start',s.push_start_time)}${timeInput('opsNotifyPushEnd','End',s.push_end_time)}
-      <div class="ops-span-2"><div class="ops-permission-grid">${days.map((d,i)=>checkbox('opsNotifyDay'+(i+1),d,(s.push_days||[]).includes(i+1))).join('')}</div></div>
-      <div class="ops-span-2"><strong>Admin weekly email</strong><div class="ops-permission-grid">${checkbox('opsNotifyAdminWeekly','Admin weekly email',s.admin_weekly_email_enabled)}</div></div>${selectDay('opsNotifyAdminDay','Day',s.admin_weekly_day)}${timeInput('opsNotifyAdminTime','Time',s.admin_weekly_time)}
-      <div class="ops-span-2"><strong>Employee weekly email</strong><div class="ops-permission-grid">${checkbox('opsNotifyEmployeeWeekly','Allow employee opt-in',s.employee_weekly_email_allowed)}</div></div>${selectDay('opsNotifyEmployeeDay','Day',s.employee_weekly_day)}${timeInput('opsNotifyEmployeeTime','Time',s.employee_weekly_time)}
-      <div class="ops-span-2 securityBox"><strong>System status</strong><p>Push-enabled users: ${Number(enrolled.push_enabled_users||0)} · Granted devices: ${Number(enrolled.granted_devices||0)} · Recent delivery failures: ${Number(latestAdminStatus.recent_failures||0)}</p><p>Push backend: ${backend.task_push_delivery_enabled?'enabled':'disabled'} · Weekly email backend: ${backend.weekly_delivery_enabled?'enabled':'disabled'} · Last scheduler run: ${esc(s.last_scheduler_run_at||'Not yet')}</p></div>
+    <form id="opsNotificationAdminForm" class="ops-form ops-notify-form">
+      <div class="ops-notify-row"><strong>Master</strong>${checkbox('opsNotifyMaster','Automatic notifications',s.notifications_enabled)}${checkbox('opsNotifyPush','Task push notifications',s.task_push_enabled)}</div>
+      <div class="ops-notify-row"><strong>New task assigned</strong>${checkbox('opsNotifyAssignment','Send assignment push',s.assignment_push_enabled)}<label>Assignment delay (minutes)<input id="opsNotifyAssignmentDelay" type="number" min="0" max="1440" step="1" value="${Number(s.assignment_delay_minutes||0)}"></label></div>
+      <div class="ops-notify-row"><strong>Due soon</strong>${checkbox('opsNotifyDueSoon','Due-soon push',s.due_soon_enabled)}<label>How long before due (hours)<input id="opsNotifyDueHours" type="number" min="1" max="720" step="1" value="${Number(s.due_soon_hours_before||48)}"></label>${timeInput('opsNotifyDueTime','Due-soon send time',s.due_soon_send_time)}</div>
+      <div class="ops-notify-row"><strong>Overdue</strong>${checkbox('opsNotifyOverdue','Overdue push',s.overdue_enabled)}<label>Repeat every (days)<input id="opsNotifyOverdueRepeat" type="number" min="1" max="30" step="1" value="${Number(s.overdue_repeat_days||1)}"></label>${timeInput('opsNotifyOverdueTime','Overdue send time',s.overdue_send_time)}</div>
+      <div class="ops-notify-row"><strong>Push delivery window</strong>${timeInput('opsNotifyPushStart','Start',s.push_start_time)}${timeInput('opsNotifyPushEnd','End',s.push_end_time)}<div class="ops-notify-days">${days.map((d,i)=>checkbox('opsNotifyDay'+(i+1),d,(s.push_days||[]).includes(i+1))).join('')}</div></div>
+      <div class="ops-notify-row"><strong>Admin weekly email</strong>${checkbox('opsNotifyAdminWeekly','Send',s.admin_weekly_email_enabled)}${selectDay('opsNotifyAdminDay','Day',s.admin_weekly_day)}${timeInput('opsNotifyAdminTime','Time',s.admin_weekly_time)}</div>
+      <div class="ops-notify-row"><strong>Employee weekly email</strong>${checkbox('opsNotifyEmployeeWeekly','Allow employee opt-in',s.employee_weekly_email_allowed)}${selectDay('opsNotifyEmployeeDay','Day',s.employee_weekly_day)}${timeInput('opsNotifyEmployeeTime','Time',s.employee_weekly_time)}</div>
+      <div class="ops-span-2 securityBox ops-notify-status"><strong>System status</strong>
+        <p>Push-enabled users: ${Number(enrolled.push_enabled_users||0)} · Granted devices: ${Number(enrolled.granted_devices||0)} · Recent delivery failures: ${Number(latestAdminStatus.recent_failures||0)} · Push backend: ${backend.task_push_delivery_enabled?'enabled':'disabled'} · Weekly email backend: ${backend.weekly_delivery_enabled?'enabled':'disabled'} · Last scheduler run: ${esc(s.last_scheduler_run_at||'Not yet')}</p>
+        ${deviceTable(latestAdminStatus.devices,latestAdminStatus.users)}</div>
       <div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save notification settings</button></div>
     </form>`;
     document.getElementById('opsNotificationAdminForm')?.addEventListener('submit',saveAdminNotifications);

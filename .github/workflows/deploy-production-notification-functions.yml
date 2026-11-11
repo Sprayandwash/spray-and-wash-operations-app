@@ -1,0 +1,38 @@
+name: Deploy production notification functions
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY PRODUCTION NOTIFICATION FUNCTIONS
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Validate
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "DEPLOY PRODUCTION NOTIFICATION FUNCTIONS"
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Deploy notification-control and employee-notifications to production only
+        run: |
+          set -euo pipefail
+          supabase functions deploy notification-control --project-ref "$PROJECT_REF" --yes
+          supabase functions deploy employee-notifications --project-ref "$PROJECT_REF" --yes
