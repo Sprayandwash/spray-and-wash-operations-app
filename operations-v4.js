@@ -2781,7 +2781,12 @@
     if(!shell) return;
     const signedIn = !!state.user;
     const cards = [];
-    if(!signedIn){
+    // Until the first sign-in check has finished, while a sign-in is in progress, and until this user's roles
+    // have loaded, show a plain loading card. Otherwise Home flashed "Sign in required" or a partial set of tiles.
+    const homeLoading = !state.authSettled || state.signingIn || (signedIn && state.homeReadyFor !== state.user.id);
+    if(homeLoading){
+      cards.push(`<div class="ops-card ops-home-loading"><p class="ops-subtle">Loading...</p></div>`);
+    } else if(!signedIn){
       cards.push(`<div class="ops-card"><h3>Sign in required</h3><p class="ops-subtle">Use the Account button to sign in, then choose the module you need.</p></div>`);
     } else {
       // One fixed order for everyone (each person only sees the modules they can use); Admin is always last.
@@ -2988,6 +2993,12 @@
     }
     // Lets the phone test suite rebuild the page the way a data refresh does, to prove nothing typed is lost.
     document.addEventListener('sw:operations-force-refresh', () => render());
+    // The sign-in form belongs to the older app script, which has its own sign-in client. It announces the start
+    // (and any failure) so Home shows "Loading..." in the gap before this client hears about the new session.
+    let signingInTimer = null;
+    const endSigningIn = () => { clearTimeout(signingInTimer); if(state.signingIn){ state.signingIn = false; refreshTopUserSummary(); if(state.currentModule === 'home') renderModuleHome(); } };
+    document.addEventListener('sw:signing-in', () => { state.signingIn = true; clearTimeout(signingInTimer); signingInTimer = setTimeout(endSigningIn, 20000); refreshTopUserSummary(); if(state.currentModule === 'home') renderModuleHome(); });
+    document.addEventListener('sw:signin-failed', endSigningIn);
     state.sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
     state.sb.auth.onAuthStateChange(async (_event, eventSession) => {
       // A separate Supabase client is used by the Operations module. During a
@@ -3013,6 +3024,8 @@
     const userChanged = Boolean(nextUserId) && nextUserId !== state.activeUserId;
     state.activeUserId = nextUserId;
     await refreshAuthAndData(revision, {resetNavigation: userChanged});
+    state.authSettled = true; state.signingIn = false;
+    if(state.currentModule === 'home') renderModuleHome();
   }
 
   async function refreshAuthAndData(revision=state.authRevision,{resetNavigation=false}={}){
@@ -3021,6 +3034,7 @@
     if(!state.user){ state.roles = []; render(); return; }
     await loadRoles(revision, resetNavigation);
     if(revision!==state.authRevision) return;
+    state.homeReadyFor = state.user?.id || ''; state.signingIn = false;
     // Account gates must take precedence over the module landing screen.  A
     // first-password user otherwise remains on Home and the required form is
     // rendered into a hidden Operations pane.
@@ -3091,6 +3105,7 @@
     const access = await state.sb.from('app_user_access').select('status,must_change_password').eq('user_id', userId).maybeSingle();
     if(revision!==state.authRevision) return;
     state.accountAccess = access.error ? null : access.data;
+    state.homeReadyFor = userId; state.signingIn = false;
     renderModuleHome();
     refreshTopUserSummary();
   }
@@ -4556,7 +4571,7 @@
       el.textContent = `Signed in: ${state.user.email}${roles ? ' | ' + roles : ''}`;
       el.classList.remove('hidden');
     } else {
-      el.textContent = 'Not signed in';
+      el.textContent = state.signingIn ? 'Signing in...' : 'Not signed in';
     }
   }
 
