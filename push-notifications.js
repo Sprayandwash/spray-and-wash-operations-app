@@ -78,7 +78,7 @@
     try{latestAdminStatus=await adminCall('admin_notification_status');}catch(e){card.innerHTML=`<h3>Notifications</h3><p class="dangerBox">Notification controls are unavailable: ${esc(e.message||'Unknown error')}</p>`;return;}
     const s=latestAdminStatus.settings||{}; const backend=latestAdminStatus.backend||{}; const enrolled=latestAdminStatus.enrolment||{};
     injectNotifyStyle();
-    card.innerHTML=`<div class="ops-section-title"><div><h3>Notifications</h3><p class="ops-subtle">Operational settings in Pacific/Auckland. Backend delivery switches remain an independent emergency kill switch.</p></div><span class="ops-pill ${s.notifications_enabled?'ops-ok':'ops-warn'}">${s.notifications_enabled?'Master ON':'Master OFF'}</span></div>
+    card.innerHTML=`<div class="ops-section-title"><div><h3>Notifications</h3></div><span class="ops-pill ${s.notifications_enabled?'ops-ok':'ops-warn'}">${s.notifications_enabled?'Master ON':'Master OFF'}</span></div>
     <form id="opsNotificationAdminForm" class="ops-form ops-notify-form">
       <div class="ops-notify-row"><strong>Master</strong>${checkbox('opsNotifyMaster','Automatic notifications',s.notifications_enabled)}${checkbox('opsNotifyPush','Task push notifications',s.task_push_enabled)}</div>
       <div class="ops-notify-row"><strong>New task assigned</strong>${checkbox('opsNotifyAssignment','Send assignment push',s.assignment_push_enabled)}<label>Assignment delay (minutes)<input id="opsNotifyAssignmentDelay" type="number" min="0" max="1440" step="1" value="${Number(s.assignment_delay_minutes||0)}"></label></div>

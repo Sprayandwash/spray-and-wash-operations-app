@@ -6143,7 +6143,7 @@
       render();
       const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed);
     }));
-    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; render(); const d=byId('opsTaskDetailCard'); if(d) opsScrollBelowHeader(d); }));
+    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; render(); if(state.openTaskId){ const d=document.querySelector('tr.ops-task-row-open')||byId('opsTaskDetailCard'); if(d) opsScrollBelowHeader(d); } }));
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 
