@@ -202,6 +202,7 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await openTraining(page);
     await openPerson(page);
     const s = await openSection(page);
+    const yBeforeEdit = await page.evaluate(() => window.scrollY);
     await s.locator(`[data-ops-edit-record="${fx.recordId}"]`).click();
 
     await expect(page.locator('#opsTrainingRecordForm')).toHaveCount(1);
@@ -209,14 +210,9 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     // Saved values are filled in, not blank.
     await expect(page.locator('#opsRecordProvider')).toHaveValue('Typed provider');
     await expect(page.locator('#opsRecordStatus')).toHaveValue('Completed');
-    // The editing card sits at the top of the screen.
-    const top = await s.locator('[data-ops-editing-card]').evaluate(el => Math.round(el.getBoundingClientRect().top));
-    const atBottom = await page.evaluate(() => window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 2);
-    expect(top < 160 || atBottom, `the record being edited should be scrolled to the top of the page (top=${top}px)`).toBeTruthy();
-    // ...and is not hidden behind the sticky banner/header bars.
-    const hidden = await s.locator('[data-ops-editing-card]').evaluate(el => { let b = 0; document.querySelectorAll('header, #stagingEnvironmentBanner').forEach(h => { const pos = getComputedStyle(h).position; if(pos === 'sticky' || pos === 'fixed') b = Math.max(b, h.getBoundingClientRect().bottom); }); const t = el.getBoundingClientRect().top; return {t, b}; });
-    const atBottom2 = await page.evaluate(() => window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 2);
-    expect(hidden.t >= hidden.b - 1 || atBottom2, `the edited record starts at ${hidden.t}px but the bars cover the top ${hidden.b}px`).toBeTruthy();
+    // The record opens in place: the page does not move (everything that opens, opens in place; REG-198).
+    const yAfterEdit = await page.evaluate(() => window.scrollY);
+    expect(Math.abs(yAfterEdit - yBeforeEdit), `the page moved ${yBeforeEdit} -> ${yAfterEdit} when the record opened`).toBeLessThanOrEqual(2);
     // Other course sections are collapsed.
     await expect(page.locator('details.ops-training-course[open]')).toHaveCount(1);
 
