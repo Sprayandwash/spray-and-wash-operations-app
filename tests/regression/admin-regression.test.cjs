@@ -30,7 +30,7 @@ test('REG-043: editing a signed-in user remains in the Admin user-management vie
   const actualUsers=functionSource('actualUsersHtml');
   const events=functionSource('bindRenderedEvents');
   assert.match(users, /<h3>Current signed-in users<\/h3>/);
-  assert.match(users, /<details \$\{state\.editingActualUserId\|\|editingPreload\?'open':''\}><summary>Current Users<\/summary>/);
+  assert.match(users, /<details data-ops-keep-open="admin-current-users" \$\{state\.editingActualUserId\|\|editingPreload\?'open':opsKeepOpen\('admin-current-users'\)\}><summary>Current Users<\/summary>/);
   assert.match(actualUsers, /data-ops-edit-user=/);
   assert.match(actualUsers, /data-ops-save-user=/);
   assert.match(events, /state\.editingActualUserId=b\.dataset\.opsEditUser; render\(\);/);
