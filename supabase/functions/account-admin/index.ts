@@ -32,8 +32,8 @@ Deno.serve(async req=>{
     const {error:roleError}=await service.from('user_roles').insert(roles.map((role:string)=>({user_id:id,role,assigned_by:user.id}))); if(roleError){await service.auth.admin.deleteUser(id);return json({error:roleError.message},400);} return json({ok:true});
   }
   if(action==='sign_out_all'){const {error}=await service.auth.admin.signOut(target,'global');return error?json({error:error.message},400):json({ok:true});}
-  if(action==='block'){const {error}=await service.auth.admin.updateUserById(target,{ban_duration:'876000h'});if(error)return json({error:error.message},400);await service.from('app_user_access').update({status:'Blocked',updated_at:new Date().toISOString(),updated_by:user.id}).eq('user_id',target);await service.auth.admin.signOut(target,'global');return json({ok:true});}
-  if(action==='unblock'){const {error}=await service.auth.admin.updateUserById(target,{ban_duration:'none'});if(error)return json({error:error.message},400);await service.from('app_user_access').update({status:'Active',updated_at:new Date().toISOString(),updated_by:user.id}).eq('user_id',target);return json({ok:true});}
+  if(action==='block'){const {error}=await service.auth.admin.updateUserById(target,{ban_duration:'876000h'});if(error)return json({error:error.message},400);await service.from('app_user_access').update({status:'Blocked',updated_at:new Date().toISOString(),updated_by:user.id}).eq('user_id',target);await service.from('operations_training_people').update({active:false}).eq('user_id',target);await service.auth.admin.signOut(target,'global');return json({ok:true});}
+  if(action==='unblock'){const {error}=await service.auth.admin.updateUserById(target,{ban_duration:'none'});if(error)return json({error:error.message},400);await service.from('app_user_access').update({status:'Active',updated_at:new Date().toISOString(),updated_by:user.id}).eq('user_id',target);await service.from('operations_training_people').update({active:true}).eq('user_id',target);return json({ok:true});}
   if(action==='purge_preview'||action==='purge'){
     const {data:targetProfile}=await service.from('profiles').select('email').eq('user_id',target).maybeSingle();
     if(!targetProfile||String(body.confirmation_email||'').toLowerCase()!==String(targetProfile.email||'').toLowerCase())return json({error:'Email confirmation did not match.'},400);
@@ -41,7 +41,10 @@ Deno.serve(async req=>{
     if(!dry&&String(body.confirmation_word||'')!=='PURGE')return json({error:'Type PURGE in capitals to confirm.'},400);
     const {data:counts,error:purgeError}=await service.rpc('purge_test_account',{target,caller:user.id,dry_run:dry});
     if(purgeError)return json({error:purgeError.message},400);
+    const evidencePaths:string[]=Array.isArray(counts?.evidence_paths)?counts.evidence_paths:[];
+    if(counts)delete counts.evidence_paths;
     if(dry)return json({ok:true,preview:counts});
+    if(evidencePaths.length)await service.storage.from('training-evidence').remove(evidencePaths);
     const {error:deleteError}=await service.auth.admin.deleteUser(target);
     return deleteError?json({error:'Records were removed but the login could not be deleted: '+deleteError.message},400):json({ok:true,purged:counts});
   }

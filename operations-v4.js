@@ -4145,7 +4145,7 @@
     if(typedEmail!==email) return;
     const preview=await accountAdminAction('purge_preview',{user_id:userId,confirmation_email:typedEmail});
     const c=preview?.preview; if(!c) return;
-    const lines=[`Maintenance tasks: ${c.maintenance_tasks}`,`Inspections (with answers and photos): ${c.inspections}`,`Maintenance readings: ${c.maintenance_readings}`,`Audit log rows by this account: ${c.audit_log_rows}`,`Other records only unlinked from this account: ${c.task_steps_completed + c.inspection_photos + c.asset_files_uploaded}`];
+    const lines=[`Maintenance tasks: ${c.maintenance_tasks}`,`Inspections (with answers and photos): ${c.inspections}`,`Maintenance readings: ${c.maintenance_readings}`,`Audit log rows by this account: ${c.audit_log_rows}`,`Training person: ${c.training_people||0} (with ${c.training_records||0} training records and ${c.training_files||0} certificate files)`,`Other records only unlinked from this account: ${c.task_steps_completed + c.inspection_photos + c.asset_files_uploaded}`];
     const word=window.prompt(`This will permanently remove ${c.email} and:\n\n${lines.join('\n')}\n\nThis cannot be undone. Type PURGE (capitals) to confirm.`);
     if(word!=='PURGE') return;
     const result=await accountAdminAction('purge',{user_id:userId,confirmation_email:typedEmail,confirmation_word:word});
