@@ -31,4 +31,7 @@ test('REG-200: editors open inside the item being edited',()=>{
   assert.match(ops,/const topEditor = editorOpen && !assetEditorInlineRendered \? assetEditorHtml\(\) : ''/);
   assert.match(ops,/<tr class="ops-task-detail-row"><td colspan="3">\$\{maintenanceItemEditorHtml\(selected\)\}<\/td><\/tr>/);
   assert.match(ops,/data-ops-editing-card/);
+  // The Add form opens right under its own button, so it is on screen without any scrolling.
+  assert.match(ops,/preventiveMaintenanceFilterHtml\(catalog, !selected&&state\.addingMaintenanceItem\?maintenanceItemEditorHtml\(null\):''\)/);
+  assert.match(ops,/<\/div>\$\{addFormHtml\}<div class="registerFilterGrid">/);
 });
