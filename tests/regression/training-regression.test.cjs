@@ -52,9 +52,8 @@ test('REG-149: a sole trader has one person and a contractor has administrators 
   assert.ok(fs.existsSync(path.join(root, 'supabase/migrations/20261102_contractor_directory_and_admins.sql')));
 });
 
-test('REG-150: a person page starts with every course closed and the Edit scroll clears the header', () => {
-  assert.match(ops, /function opsScrollBelowHeader\(/);
-  assert.match(ops, /#stagingEnvironmentBanner/);
+test('REG-150: a person page starts with every course closed; Edit opens in place without scrolling (REG-198)', () => {
+  assert.doesNotMatch(ops, /opsScrollBelowHeader/);
   assert.match(ops, /state\.trainingExpandedCourseIds = new Set\(\[courseId\]\)/); // opening one closes the others
 });
 

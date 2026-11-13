@@ -21,9 +21,10 @@ test('REG-167: a refused account action shows the server\'s own message, not "no
   assert.match(app,/Account action failed: \$\{reason \|\| r\.error\.message\}/);
 });
 
-test('REG-168: opening or editing an asset scrolls the form into view below the header bars',()=>{
+test('REG-168: opening or editing an asset opens the form in place (superseded 13 Nov: no scrolling, see REG-198/REG-200)',()=>{
   assert.match(app,/id="opsAssetEditorCard"/);
-  assert.ok((app.match(/opsScrollBelowHeader\(ed\)/g)||[]).length>=4,'add, edit vehicle, edit machinery and add machinery all scroll');
+  assert.doesNotMatch(app,/opsScrollBelowHeader/);
+  assert.match(app,/editingThisVehicle \? assetEditorHtml\(true\)/);
 });
 
 test('REG-169: only one vehicle card is open at a time',()=>{

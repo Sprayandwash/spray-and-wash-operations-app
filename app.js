@@ -515,6 +515,11 @@ function renderEquipmentResults(){
     el.list.innerHTML=`<p class="warning" role="alert">Equipment could not be loaded. Please try again.</p>`;
     return;
   }
+  if(!equipment.length&&!hasAnyRoles(["Height equipment manager","Height equipment user"])){
+    if(el.count) el.count.textContent="No access to Height Equipment.";
+    el.list.innerHTML=`<p class="warning" role="alert" data-no-access="height">You don't have access to the Height Equipment register. Contact an admin to be given access.</p>`;
+    return;
+  }
   const rows=filteredEquipment();
   if(el.count) el.count.textContent=`${rows.length} item${rows.length===1?"":"s"} shown.`;
   el.list.innerHTML=rows.map(e=>{let l=latest(e.serial), count=photos.filter(p=>p.equipment_id===e.id).length;return `<div class="listItem" onclick="openItem('${e.id}')"><div class="listItemTop"><div><b>${esc(e.serial)}</b> ${pill(isArchived(e)?"Archived":e.status)}<div class="muted">${esc(e.type)} • ${esc(e.manufacturer||"")} ${esc(e.model||"")}</div></div><span class="badge">${count} photos</span></div><div class="muted">Last: ${l?esc(l.inspection_date+" - "+l.result):"None"} ${l?.next_due?"• Next due: "+esc(l.next_due):""}</div></div>`;}).join("") || `<p class="muted">No equipment found.</p>`;
@@ -669,7 +674,7 @@ async function saveEquipment(){
 }
 function renderSuggestions(){let makers=[...new Set(equipment.map(e=>e.manufacturer).filter(Boolean))].sort();let models=[...new Set(equipment.map(e=>e.model).filter(Boolean))].sort();manufacturerSuggestions.innerHTML=makers.map(x=>`<option value="${esc(x)}"></option>`).join("");modelSuggestions.innerHTML=models.map(x=>`<option value="${esc(x)}"></option>`).join("");}
 function renderChecklist(){let items=CHECKLISTS[inType.value]||CHECKLISTS.Other;checklist.innerHTML=items.map(i=>`<label><input class="chk" type="checkbox" value="${esc(i)}"> ${esc(i)}</label>`).join("");}
-function startInspection(id,title="New Inspection"){if(!requirePerm(canInspect(),"Only Admin or Height equipment manager users can start inspections."))return;let e=equipment.find(x=>x.id===id);if(!e)return;inspectTitle.textContent=title;inSerial.value=e.serial;inType.value=e.type;inDate.value=today();inNextDue.value=addMonths(today(),6);inResult.value="Pass";renderChecklist();showTab("inspect");setTimeout(()=>inDate.focus(),250);}
+function startInspection(id,title="New Inspection"){if(!requirePerm(canInspect(),"Only Admin or Height equipment manager users can start inspections."))return;let e=equipment.find(x=>x.id===id);if(!e)return;inspectTitle.textContent=title;inSerial.value=e.serial;inType.value=e.type;inDate.value=today();inNextDue.value=addMonths(today(),6);inResult.value="Pass";renderChecklist();window.__inspectionTargetId=String(id);window.__inspectionTargetFresh=true;showTab("inspect");setTimeout(()=>inDate.focus(),250);}
 function loadEquipmentForInspection(){let e=equipment.find(x=>x.serial.toLowerCase()===inSerial.value.trim().toLowerCase());if(e){inType.value=e.type;renderChecklist();}}
 async function saveInspection(){
   if(!requirePerm(canInspect(),"Only Admin or Height equipment manager users can save inspections."))return;
@@ -689,7 +694,7 @@ async function saveInspection(){
   await logAudit("inspection_created","inspection",savedInspection.id,`Inspection ${inResult.value} for ${serial}`,{equipment_id:e.id,result:inResult.value,next_due:inNextDue.value||null});
   clearInspectionForm();await loadData();openItem(e.id);
 }
-function clearInspectionForm(){inspectTitle.textContent="New Inspection";inSerial.value="";inDate.value=today();inNextDue.value=addMonths(today(),6);inResult.value="Pass";inNotes.value="";inType.value="Harness";pendingInspectionPhotos=[];if(window.inspectionPhotoPreview) inspectionPhotoPreview.innerHTML="";renderChecklist();}
+function clearInspectionForm(){window.__inspectionTargetId="";window.applyInspectionTargetV419?.();inspectTitle.textContent="New Inspection";inSerial.value="";inDate.value=today();inNextDue.value=addMonths(today(),6);inResult.value="Pass";inNotes.value="";inType.value="Harness";pendingInspectionPhotos=[];if(window.inspectionPhotoPreview) inspectionPhotoPreview.innerHTML="";renderChecklist();}
 function renderInspections(){inspectionList.innerHTML=inspections.slice(0,10).map(i=>{let pc=inspectionPhotos.filter(p=>p.inspection_id===i.id).length;return `<div class="listItem" onclick="openInspectionDetail('${i.id}')"><b>${esc(i.inspection_date)}</b> ${pill(i.result)}<div>${esc(i.serial)} • ${esc(i.equipment_type)} • ${pc} photos</div><div class="muted">${esc(i.notes||"")}</div></div>`}).join("") || `<p class="muted">No inspections yet.</p>`;}
 async function archiveItem(id){if(!requirePerm(canArchive(),"Only Admin or Height equipment manager users can archive equipment."))return;let e=equipment.find(x=>x.id===id);let reason=prompt("Reason for archive/disposal?",""); if(reason===null)return; let method=prompt("Disposal method / notes?",""); let r=await sb.from("equipment").update({archived:true,archived_at:nowIso(),disposed_at:nowIso(),disposal_reason:reason,disposal_method:method,status:"Retired"}).eq("id",id); if(r.error)return alert(r.error.message); await logAudit("equipment_archived","equipment",id,`Archived/disposed ${e?.serial||id}`,{reason,method}); await loadData(); openItem(id);}
 async function restoreItem(id){if(!requirePerm(canArchive(),"Only Admin or Height equipment manager users can restore equipment."))return;if(!confirm("Restore this item to the active register?"))return; let e=equipment.find(x=>x.id===id); let r=await sb.from("equipment").update({archived:false,archived_at:null,disposed_at:null,disposal_reason:null,disposal_method:null,status:"In Service"}).eq("id",id); if(r.error)return alert(r.error.message); await logAudit("equipment_restored","equipment",id,`Restored ${e?.serial||id}`,{}); await loadData(); openItem(id);}
