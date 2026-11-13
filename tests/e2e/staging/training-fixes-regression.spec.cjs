@@ -202,6 +202,8 @@ test.describe('Training fixes (Nov 2026) — regression suite', () => {
     await openTraining(page);
     await openPerson(page);
     const s = await openSection(page);
+    // Bring the Edit button into view first, so Playwright's own scrolling before the click is not counted as page movement.
+    await s.locator(`[data-ops-edit-record="${fx.recordId}"]`).scrollIntoViewIfNeeded();
     const yBeforeEdit = await page.evaluate(() => window.scrollY);
     await s.locator(`[data-ops-edit-record="${fx.recordId}"]`).click();
 
