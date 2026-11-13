@@ -240,9 +240,13 @@ shares the `staging-training-full-ui-suite` concurrency group with the manual wo
 Staging together, and it never uses production. The manual `workflow_dispatch` workflow remains for ad-hoc runs.
 Other modules should get the same on-PR workflow when their full UI suites are built.
 
-## Update, 13 Nov 2026 — no page movement when a line item opens (REG-198)
+## Update, 13 Nov 2026 — everything that opens, opens in place (REG-198, REG-200)
 
-Every module suite also checks that opening and closing a line item (a task, asset, record, user,
-or any expandable row) leaves the page scroll position unchanged and shows the open item as a
-clearly bordered box. Record `window.scrollY` before the click and after the redraw; they must
-match. This is the app-wide UI convention in `CLAUDE.md` ("opening line items never move the page").
+Every item that opens or edits must open in place with no page movement (see `CLAUDE.md`, "everything
+that opens, opens in place"). Each module suite checks this for its lists: record `window.scrollY`
+before the click and after the redraw (they must match), check the open item is a clearly bordered
+box, and check an edit form appears inside the item, not elsewhere on the page. The unit test
+`tests/regression/open-in-place.test.cjs` also searches all app code for scroll calls on every round,
+so a new scroll-on-open cannot be added unnoticed. Known screens that replace the whole view
+(a Height equipment detail screen, a training person page) are navigation, not expanders, and start
+at the top; any new one should be raised with Brendan.

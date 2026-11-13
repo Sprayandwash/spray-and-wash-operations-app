@@ -170,17 +170,6 @@
     }
     d.textContent = msg;
   }
-  // Scroll an element to just below the sticky banner/header bars so it is not hidden behind them.
-  function opsScrollBelowHeader(el){
-    if(!el) return;
-    let top = 0;
-    document.querySelectorAll('header, #stagingEnvironmentBanner').forEach(h => {
-      const pos = getComputedStyle(h).position;
-      if(pos === 'sticky' || pos === 'fixed') top = Math.max(top, h.getBoundingClientRect().bottom);
-    });
-    const y = el.getBoundingClientRect().top + window.scrollY - top - 12;
-    window.scrollTo({top: Math.max(0, y), left: 0, behavior: 'auto'});
-  }
   // Flag exactly one missing/invalid field in red with a message beside it and bring it into view.
   // Falls back to a plain alert when the field cannot be found, so a form never fails silently.
   // Returns undefined so handlers can `return opsFlagField(...)`.
@@ -487,7 +476,7 @@
       #users .roleGrid { grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); }
       #usersTabButton,#adminTabButton,.legacyAdminOnly { display:none !important; }
       #users details.ops-legacy-roles { margin-top:.5rem; }
-      .ops-task-description{white-space:pre-wrap}.ops-task-row-open>td{background:#e8f1fb;border-top:2px solid #1f5f9f;border-bottom:0!important}.ops-task-row-open>td:first-child{border-left:2px solid #1f5f9f}.ops-task-row-open>td:last-child{border-right:2px solid #1f5f9f}.ops-task-detail-row>td{padding:0 .8rem .8rem!important;border:2px solid #1f5f9f;border-top:0;background:#e8f1fb}.ops-task-inline{padding:.2rem 0 0;border-top:1px dashed #c5d8ee}.ops-permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-top:.5rem}
+      .ops-task-description{white-space:pre-wrap}.ops-task-row-open>td{background:#e8f1fb;border-top:2px solid #1f5f9f;border-bottom:0!important}.ops-task-row-open>td:first-child{border-left:2px solid #1f5f9f}.ops-task-row-open>td:last-child{border-right:2px solid #1f5f9f}.ops-task-detail-row>td{padding:0 .8rem .8rem!important;border:2px solid #1f5f9f;border-top:0;background:#e8f1fb}.ops-task-detail-row .ops-card{border:0;box-shadow:none;margin:0;padding:.4rem 0}.ops-editing-inline,.ops-vehicle-asset-body>#opsAssetEditorCard{border:2px solid #1f5f9f;background:#e8f1fb;border-radius:12px}.ops-task-inline{padding:.2rem 0 0;border-top:1px dashed #c5d8ee}.ops-permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-top:.5rem}
       .ops-permission-check{display:flex;gap:.45rem;align-items:center;border:1px solid #dbe3ec;border-radius:.75rem;background:#f8fafc;padding:.55rem .65rem;font-weight:800}
       .ops-permission-check input{width:auto}
       .ops-permission-check small{display:block;color:#64748b;font-size:.76rem;font-weight:600;margin-top:.12rem}
@@ -3569,6 +3558,7 @@
     </div>`;
   }
   function machineryCardHtml(w){
+    if(canManage()&&state.editingWashId&&String(state.editingWashId)===String(w.id)) return `<div class="ops-machinery-card ops-editing-inline">${assetEditorHtml(true)}</div>`;
     return `<div class="ops-machinery-card">
       <div class="ops-machinery-card-head">
         <div><div class="ops-asset-id">${esc(machineryIdentifier(w))}</div><strong>${esc(machineryTypeLabel(w))}</strong></div>
@@ -3579,8 +3569,14 @@
       ${w.service_notes || w.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(w.service_notes || w.notes)}</div>` : ''}
     </div>`;
   }
+  function addMachineryHereHtml(vehicle, side){
+    if(!canManage()||state.editingVehicleId||state.editingWashId) return '';
+    if(!state.assetEditorOpen||state.assetAddType!=='machinery') return '';
+    if(String(state.prefillMachineryVehicleId)!==String(vehicle.id)||String(state.prefillMachinerySide)!==String(side)) return '';
+    return assetEditorHtml(true);
+  }
   function sideMachineryHtml(vehicle, side, rows){
-    return `<div class="ops-machinery-side">
+    return `<div class="ops-machinery-side">${addMachineryHereHtml(vehicle, side)}
       <div class="ops-machinery-side-head"><h4>${esc(side)} side</h4>${canManage()?`<button class="ops-btn ghost" type="button" data-ops-add-machinery="${esc(vehicle.id)}" data-ops-machinery-side="${esc(side)}">+ Add machinery</button>`:''}</div>
       ${rows.length ? rows.map(machineryCardHtml).join('') : '<p class="ops-subtle">No machinery installed on this side.</p>'}
     </div>`;
@@ -3601,7 +3597,12 @@
     const driver = machineryRows.filter(w=>w.mounting_side==='Driver');
     const passenger = machineryRows.filter(w=>w.mounting_side==='Passenger');
     const noSide = machineryRows.filter(w=>w.mounting_side!=='Driver' && w.mounting_side!=='Passenger');
-    return `<details class="ops-vehicle-asset" data-ops-keep-open="vehicle-${esc(v.id)}" ${opsKeepOpen('vehicle-' + v.id)}>
+    const editingThisVehicle = canManage() && state.editingVehicleId && String(state.editingVehicleId)===String(v.id);
+    const editingItsMachinery = canManage() && state.editingWashId && machineryRows.some(w=>String(w.id)===String(state.editingWashId));
+    const addingItsMachinery = canManage() && !state.editingVehicleId && !state.editingWashId && state.assetEditorOpen && state.assetAddType==='machinery' && String(state.prefillMachineryVehicleId)===String(v.id);
+    const forceOpen = (editingThisVehicle||editingItsMachinery||addingItsMachinery) ? 'open' : '';
+    const forceOpenSub = (editingItsMachinery||addingItsMachinery) ? 'open' : '';
+    return `<details class="ops-vehicle-asset" data-ops-keep-open="vehicle-${esc(v.id)}" ${opsKeepOpen('vehicle-' + v.id)} ${forceOpen}>
       <summary class="ops-vehicle-asset-head">
         <div>
           <div class="ops-asset-id">${esc(normalizeRego(v.rego) || 'Vehicle')}</div>
@@ -3610,21 +3611,23 @@
         </div>
       </summary>
       <div class="ops-vehicle-asset-body">
-        <div class="ops-section-title ops-vehicle-body-row">
+        ${editingThisVehicle ? assetEditorHtml(true) : `<div class="ops-section-title ops-vehicle-body-row">
         <div class="ops-spec-list" style="flex:1 1 0;min-width:0;margin-top:0">${vehicleServiceSpecsHtml(v) || '<div class="ops-subtle">No vehicle service specifications entered.</div>'}</div>
           ${canManage()?`<button class="ops-btn ghost" type="button" data-ops-edit-vehicle="${esc(v.id)}">Edit vehicle</button>`:''}</div>
         ${assetMediaViewHtml('vehicle', v)}
-        ${v.service_notes || v.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(v.service_notes || v.notes)}</div>` : ''}
+        ${v.service_notes || v.notes ? `<div class="ops-service-note"><strong>Current service state / notes</strong><br>${esc(v.service_notes || v.notes)}</div>` : ''}`}
       </div>
-      <details class="ops-subassets" data-ops-keep-open="subassets-${esc(v.id)}" ${opsKeepOpen('subassets-' + v.id)}><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}${noSide.length?`<div class="ops-machinery-side"><div class="ops-machinery-side-head"><h4>No side set</h4></div><p class="ops-subtle">These records have no Driver or Passenger side. Open Edit to set one.</p>${noSide.map(machineryCardHtml).join('')}</div>`:''}</div></details>
+      <details class="ops-subassets" data-ops-keep-open="subassets-${esc(v.id)}" ${opsKeepOpen('subassets-' + v.id)} ${forceOpenSub}><summary>Installed Machinery (${machineryRows.length})</summary><div class="ops-machinery-sides">${sideMachineryHtml(v,'Passenger',passenger)}${sideMachineryHtml(v,'Driver',driver)}${noSide.length?`<div class="ops-machinery-side"><div class="ops-machinery-side-head"><h4>No side set</h4></div><p class="ops-subtle">These records have no Driver or Passenger side. Open Edit to set one.</p>${noSide.map(machineryCardHtml).join('')}</div>`:''}</div></details>
     </details>`;
   }
-  function assetEditorHtml(){
+  let assetEditorInlineRendered=false;
+  function assetEditorHtml(inline=false){
+    if(inline) assetEditorInlineRendered=true;
     const editingVehicle=Boolean(state.editingVehicleId);
     const editingMachinery=Boolean(state.editingWashId);
     const selectedType=editingVehicle?'vehicle':editingMachinery?'machinery':state.assetAddType;
     const title=editingVehicle?'Edit vehicle':editingMachinery?'Edit machinery':'Add Asset';
-    return `<div class="ops-card" id="opsAssetEditorCard" style="margin-top:1rem">
+    return `<div class="ops-card" id="opsAssetEditorCard" ${inline?'':'style="margin-top:1rem"'}>
       <div class="ops-section-title"><h3>${title}</h3><button class="ops-btn ghost" type="button" data-ops-action="closeAssetEditor">Cancel</button></div>
       ${!editingVehicle&&!editingMachinery?`<label style="display:block;max-width:420px;margin-bottom:1rem"><strong>What type of asset do you want to add?</strong><select id="opsAssetAddType" style="display:block;width:100%;margin-top:.35rem"><option value=""></option><option value="vehicle" ${selectedType==='vehicle'?'selected':''}>Vehicle (asset)</option><option value="machinery" ${selectedType==='machinery'?'selected':''}>Machinery (sub-asset)</option></select></label>`:''}
       ${selectedType==='vehicle'?vehicleFormHtml():selectedType==='machinery'?washingFormHtml():'<p class="ops-subtle">Choose Vehicle or Machinery to continue.</p>'}
@@ -3633,13 +3636,21 @@
   function assetsHtml(){
     const vehicles = state.vehicles.map(v=>({v,rows:vehicleMachinery(v.id)}));
     const unassigned = state.washEquipment.filter(w=>!w.assigned_vehicle_id);
+    assetEditorInlineRendered = false;
+    // Items open in place: an edit form is drawn inside the vehicle or machinery card being edited.
+    const vehiclesHtml = vehicles.length ? vehicles.map(x=>vehicleAssetCardHtml(x.v,x.rows)).join('') : '<div class="ops-card"><p class="ops-subtle">No vehicles added yet.</p></div>';
+    const unassignedHtml = unassigned.length ? unassigned.map(machineryCardHtml).join('') : '<p class="ops-subtle">No standalone machinery.</p>';
+    const editingExisting = Boolean(state.editingVehicleId||state.editingWashId);
+    const editorOpen = canManage()&&(state.assetEditorOpen||state.editingVehicleId||state.editingWashId||state.prefillMachineryVehicleId);
+    const topEditor = editorOpen && !assetEditorInlineRendered ? assetEditorHtml() : '';
+    const standaloneOpen = canManage() && state.editingWashId && unassigned.some(w=>String(w.id)===String(state.editingWashId)) ? 'open' : '';
     return `${canManage()?'<div class="ops-actions ops-assets-actions"><button class="ops-btn primary" type="button" data-ops-action="openAssetEditor">Add Asset</button></div>':''}
-    ${canManage()&&(state.assetEditorOpen||state.editingVehicleId||state.editingWashId||state.prefillMachineryVehicleId)?assetEditorHtml():''}
+    ${topEditor}
     ${canManage()&&state.transferringMachineryId?machineryTransferFormHtml():''}
     ${!canManage()?'<div class="ops-card"><p class="ops-subtle">Read-only. Ask an Admin or Maintenance manager to edit assets.</p></div>':''}
-    ${vehicles.length ? vehicles.map(x=>vehicleAssetCardHtml(x.v,x.rows)).join('') : '<div class="ops-card"><p class="ops-subtle">No vehicles added yet.</p></div>'}
-    <details class="ops-card ops-unassigned" data-ops-keep-open="standalone-machinery" ${opsKeepOpen('standalone-machinery')}><summary><strong>Standalone machinery (${unassigned.length})</strong></summary><div style="padding-top:.8rem">
-      ${unassigned.length ? unassigned.map(machineryCardHtml).join('') : '<p class="ops-subtle">No standalone machinery.</p>'}
+    ${vehiclesHtml}
+    <details class="ops-card ops-unassigned" data-ops-keep-open="standalone-machinery" ${opsKeepOpen('standalone-machinery')} ${standaloneOpen}><summary><strong>Standalone machinery (${unassigned.length})</strong></summary><div style="padding-top:.8rem">
+      ${unassignedHtml}
     </div></details>`;
   }
 
@@ -5618,7 +5629,7 @@
     const rows=catalog.filter(maintenanceItemMatches);
     const dashboardFilter=['upcoming','overdue'].includes(state.scheduleQuickFilter)?state.scheduleQuickFilter:'';
     const selected=catalog.find(row=>row.key===state.editingMaintenanceItemKey)||null;
-    return `${maintenanceDashboardFilterHtml(dashboardFilter)}${preventiveMaintenanceFilterHtml(catalog)}${selected||state.addingMaintenanceItem?maintenanceItemEditorHtml(selected):`<div class="ops-card"><div class="ops-table-wrap"><table class="ops-table"><tr><th>Asset</th><th>Maintenance item</th><th>Frequency</th></tr>${rows.length?rows.map(row=>`<tr class="ops-clickable-row" tabindex="0" role="button" data-ops-maintenance-item="${esc(row.key)}"><td>${esc(row.asset)}</td><td><strong>${esc(row.name)}</strong>${row.kind==='planned'&&row.procedure?.description?`<br><span class="ops-subtle">${esc(row.procedure.description)}</span>`:''}</td><td>${esc(row.frequency)}</td></tr>`).join(''):'<tr><td colspan="3" class="ops-subtle">No maintenance items match these filters.</td></tr>'}</table></div></div>`}`;
+    return `${maintenanceDashboardFilterHtml(dashboardFilter)}${preventiveMaintenanceFilterHtml(catalog)}${(selected&&!rows.some(r=>r.key===selected.key))||(!selected&&state.addingMaintenanceItem)?maintenanceItemEditorHtml(selected):`<div class="ops-card"><div class="ops-table-wrap"><table class="ops-table"><tr><th>Asset</th><th>Maintenance item</th><th>Frequency</th></tr>${rows.length?rows.map(row=>`<tr class="ops-clickable-row${selected&&selected.key===row.key?' ops-task-row-open':''}" tabindex="0" role="button" data-ops-maintenance-item="${esc(row.key)}"><td>${esc(row.asset)}</td><td><strong>${esc(row.name)}</strong>${row.kind==='planned'&&row.procedure?.description?`<br><span class="ops-subtle">${esc(row.procedure.description)}</span>`:''}</td><td>${esc(row.frequency)}</td></tr>${selected&&selected.key===row.key?`<tr class="ops-task-detail-row"><td colspan="3">${maintenanceItemEditorHtml(selected)}</td></tr>`:''}`).join(''):'<tr><td colspan="3" class="ops-subtle">No maintenance items match these filters.</td></tr>'}</table></div></div>`}`;
   }
   function maintenanceItemEditorHtml(row){
     if(row?.kind==='standard') return `<div class="ops-card"><div class="ops-section-title"><h3>${esc(row.name)}</h3><button class="ops-btn ghost" type="button" data-ops-action="closeMaintenanceItemEditor">Back to list</button></div><form id="opsStandardMaintenanceItemForm" class="ops-form"><label>Asset<input value="${esc(row.asset)}" readonly></label><label>Maintenance item<input value="${esc(row.name)}" readonly></label><label>Frequency<input id="opsStandardMaintenanceFrequency" type="number" min="1" step="1" value="${esc(row.frequency)}" placeholder="Leave blank for on-demand"></label><label class="ops-span-2">Notes<textarea id="opsStandardMaintenanceNotes">${esc(row.procedure?.description||'')}</textarea></label><div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Save changes</button></div></form></div>`;
@@ -5895,7 +5906,7 @@
     byId('opsPlannedMaintenanceForm')?.addEventListener('submit', savePlannedMaintenanceItem);
     byId('opsStandardMaintenanceItemForm')?.addEventListener('submit', saveStandardMaintenanceItem);
     byId('opsPlannedMaintenanceVehicle')?.addEventListener('change', updatePlannedMaintenanceTargetOptions);
-    document.querySelectorAll('[data-ops-maintenance-item]').forEach(row=>{ const open=()=>{state.editingMaintenanceItemKey=row.dataset.opsMaintenanceItem;state.addingMaintenanceItem=false;render();opsScrollBelowHeader(byId('opsPlannedMaintenanceForm')?.closest('.ops-card'));}; row.addEventListener('click',open);row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}}); });
+    document.querySelectorAll('[data-ops-maintenance-item]').forEach(row=>{ const open=()=>{state.editingMaintenanceItemKey=state.editingMaintenanceItemKey===row.dataset.opsMaintenanceItem?'':row.dataset.opsMaintenanceItem;state.addingMaintenanceItem=false;render();}; row.addEventListener('click',open);row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}}); });
     byId('opsServiceItemForm')?.addEventListener('submit', saveServiceItem);
     byId('opsServiceRunForm')?.addEventListener('submit', saveServiceRun);
     byId('opsServiceRunAsset')?.addEventListener('change', e => { state.serviceRunAssetId = e.target.value; state.pmView='service'; render(); });
@@ -5993,8 +6004,6 @@
       // Only the course being edited stays open, so it is obvious which record is being changed.
       state.trainingExpandedCourseIds = new Set([String(rec.course_id)]);
       render();
-      const card = document.querySelector('[data-ops-editing-card]');
-      if(card) opsScrollBelowHeader(card);
     }));
     document.querySelectorAll('[data-ops-download-record]').forEach(b => b.addEventListener('click', () => downloadTrainingRecordFiles(b.dataset.opsDownloadRecord)));
     document.querySelectorAll('[data-ops-download-register-evidence]').forEach(b => b.addEventListener('click', () => downloadRegisterEvidence(b)));
@@ -6130,8 +6139,8 @@
     document.querySelectorAll('[data-ops-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=b.dataset.opsDeleteWash; render(); }));
     document.querySelectorAll('[data-ops-confirm-delete-wash]').forEach(b=>b.addEventListener('click',()=>deleteWashing(b.dataset.opsConfirmDeleteWash)));
     document.querySelectorAll('[data-ops-cancel-delete-wash]').forEach(b=>b.addEventListener('click',()=>{ state.confirmDeleteWashId=''; render(); }));
-    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }));
-    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }));
+    document.querySelectorAll('[data-ops-edit-vehicle]').forEach(b => b.addEventListener('click', () => { state.editingVehicleId = b.dataset.opsEditVehicle;state.editingWashId='';state.assetEditorOpen=true;state.assetAddType='vehicle';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
+    document.querySelectorAll('[data-ops-edit-wash]').forEach(b => b.addEventListener('click', () => { state.editingWashId = b.dataset.opsEditWash;state.editingVehicleId='';state.assetEditorOpen=true;state.assetAddType='machinery'; state.prefillMachineryVehicleId=''; state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId=''; render(); }));
     document.querySelectorAll('[data-ops-transfer-machinery]').forEach(b=>b.addEventListener('click',()=>{state.transferringMachineryId=b.dataset.opsTransferMachinery;state.editingWashId='';state.editingVehicleId='';state.assetEditorOpen=false;render();}));
     document.querySelectorAll('[data-ops-add-machinery]').forEach(b => b.addEventListener('click', () => {
       state.editingWashId='';
@@ -6141,14 +6150,13 @@
       state.prefillMachineryVehicleId=b.dataset.opsAddMachinery||'';
       state.prefillMachinerySide=b.dataset.opsMachinerySide||'';
       render();
-      const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed);
     }));
     document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; const keepY=window.scrollY; render(); window.scrollTo({top:keepY,left:0,behavior:'auto'}); }));
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 
   async function handleAction(action){
-    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed); }
+    if(action === 'openAssetEditor'){ state.assetEditorOpen=true;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.transferringMachineryId='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
     if(action === 'closeAssetEditor'||action === 'clearVehicle'||action === 'clearWash'){ clearAssetDraft('vehicle');clearAssetDraft('machinery');state.assetEditorOpen=false;state.assetAddType='';state.editingVehicleId='';state.editingWashId='';state.prefillMachineryVehicleId='';state.prefillMachinerySide='';state.confirmDeleteVehicleId='';state.confirmDeleteWashId='';render(); }
     if(action === 'openMaintenanceEditor'){ state.maintenanceEditorOpen=true;render(); }
     if(action === 'openMaintenanceRecord'){ state.currentView='history';state.maintenanceEditorOpen=true;render(); }
@@ -6164,7 +6172,7 @@
     if(action === 'uploadCompanyLogo'){ await window.uploadCompanyLogo?.(byId('opsCompanyLogoFile')?.files?.[0]); }
     if(action === 'clearMaintenanceLogFilters'){ state.logAssetId='';state.logMachineryId='';state.logType='';state.logDateFrom='';state.logDateTo='';state.logKeyword='';render(); }
     if(action === 'clearPreventiveMaintenanceSearch'){ state.preventiveMaintenanceSearch='';state.preventiveMaintenanceAsset='';state.preventiveMaintenanceFrequency='';render(); }
-    if(action === 'addMaintenanceItem'){ state.addingMaintenanceItem=true;state.editingMaintenanceItemKey='';render();opsScrollBelowHeader(byId('opsPlannedMaintenanceForm')?.closest('.ops-card')); }
+    if(action === 'addMaintenanceItem'){ state.addingMaintenanceItem=true;state.editingMaintenanceItemKey='';render(); }
     if(action === 'closeMaintenanceItemEditor'){ state.addingMaintenanceItem=false;state.editingMaintenanceItemKey='';render(); }
     if(action === 'clearTaskFilter'){ state.taskQuickFilter=''; render(); }
     if(action === 'clearScheduleFilter'){ state.scheduleQuickFilter=''; render(); }

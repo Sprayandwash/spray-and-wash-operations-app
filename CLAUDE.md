@@ -106,12 +106,20 @@ field follows this rule. Confirmed directly by Brendan on 11 Nov 2026, after the
 Equipment form was found using typed Day and Year boxes while every other date field already
 used the picker.
 
-## UI convention — opening line items never move the page
+## UI convention — everything that opens, opens in place (no page movement)
 
-Opening or closing a line item (a task, asset, record, user, or any row or card that expands) never
-scrolls or moves the page. The item expands or collapses in place and the content below moves down
-or up. The open item is shown as a clearly bordered box so it is easy to see. Any new expandable
-item follows this rule, and any code that opens an item must not call a scroll helper such as
-`opsScrollBelowHeader`. Confirmed directly by Brendan on 13 Nov 2026, after the task list jumped
-around when tasks were opened and closed. The check for this lives in `docs/regression-catalogue.md`
-(REG-198) and in `docs/testing/MODULE-UI-TESTING-STANDARD.md`.
+Every item that opens (a task, asset, vehicle, machinery, maintenance item, training record, user,
+or any row or card that expands, edits or shows a form) opens in place: the item itself expands
+downwards where it is, the content below moves down, and the page does not scroll or jump, on open
+or on close. An edit form opens inside the item being edited, never in a separate card elsewhere on
+the page. The open item is shown as a clearly bordered box so it is easy to see. Any new openable
+item follows this rule, and no code that opens an item may scroll the page (no `scrollTo`,
+`scrollIntoView` or scroll helper on open). Confirmed directly by Brendan on 13 Nov 2026, after the
+task list jumped around when tasks were opened and closed, and extended to all items the same day.
+
+The check is automatic: `tests/regression/open-in-place.test.cjs` (REG-198, REG-200) searches all app
+code for scroll calls and fails on any that is not on its approved list (putting the page back
+where it was, starting a new screen at the top, flagging an invalid field, the Home tile list, and
+Start vehicle check, which goes to a form that is a separate part of the page). Adding a new scroll
+call means changing that list, which needs Brendan's say-so. Also tick every list on the laptop
+checklist each round (see `docs/testing/MODULE-UI-TESTING-STANDARD.md`).
