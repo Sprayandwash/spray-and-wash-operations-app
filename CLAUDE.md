@@ -105,3 +105,13 @@ which is month and year only (a month picker; stored as the first of that month)
 field follows this rule. Confirmed directly by Brendan on 11 Nov 2026, after the Height
 Equipment form was found using typed Day and Year boxes while every other date field already
 used the picker.
+
+## UI convention — opening line items never move the page
+
+Opening or closing a line item (a task, asset, record, user, or any row or card that expands) never
+scrolls or moves the page. The item expands or collapses in place and the content below moves down
+or up. The open item is shown as a clearly bordered box so it is easy to see. Any new expandable
+item follows this rule, and any code that opens an item must not call a scroll helper such as
+`opsScrollBelowHeader`. Confirmed directly by Brendan on 13 Nov 2026, after the task list jumped
+around when tasks were opened and closed. The check for this lives in `docs/regression-catalogue.md`
+(REG-198) and in `docs/testing/MODULE-UI-TESTING-STANDARD.md`.

@@ -239,3 +239,10 @@ then runs the same Playwright config as the manual workflow. It only triggers wh
 shares the `staging-training-full-ui-suite` concurrency group with the manual workflow so two runs never write to
 Staging together, and it never uses production. The manual `workflow_dispatch` workflow remains for ad-hoc runs.
 Other modules should get the same on-PR workflow when their full UI suites are built.
+
+## Update, 13 Nov 2026 — no page movement when a line item opens (REG-198)
+
+Every module suite also checks that opening and closing a line item (a task, asset, record, user,
+or any expandable row) leaves the page scroll position unchanged and shows the open item as a
+clearly bordered box. Record `window.scrollY` before the click and after the redraw; they must
+match. This is the app-wide UI convention in `CLAUDE.md` ("opening line items never move the page").

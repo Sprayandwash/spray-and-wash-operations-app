@@ -33,7 +33,6 @@ test('REG-191: a task opens directly under its line and shows its description',(
   assert.match(ops,/taskDetailHtml\(t\.id,true\)/);
   assert.match(ops,/const header = inline \? ''/);
   assert.match(ops,/ops-task-row-open/);
-  assert.match(ops,/opsScrollBelowHeader\(d\)/);
 });
 
 test('REG-192: a filtered Home attention list shows every item, not just 12',()=>{

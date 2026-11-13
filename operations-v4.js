@@ -487,7 +487,7 @@
       #users .roleGrid { grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); }
       #usersTabButton,#adminTabButton,.legacyAdminOnly { display:none !important; }
       #users details.ops-legacy-roles { margin-top:.5rem; }
-      .ops-task-description{white-space:pre-wrap}.ops-task-row-open>td{background:#f1f7fd;border-bottom:0!important}.ops-task-detail-row>td{padding:0 .8rem .8rem!important;border-top:0;background:#f1f7fd}.ops-task-inline{padding:.2rem 0 0;border-top:1px dashed #c5d8ee}.ops-permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-top:.5rem}
+      .ops-task-description{white-space:pre-wrap}.ops-task-row-open>td{background:#e8f1fb;border-top:2px solid #1f5f9f;border-bottom:0!important}.ops-task-row-open>td:first-child{border-left:2px solid #1f5f9f}.ops-task-row-open>td:last-child{border-right:2px solid #1f5f9f}.ops-task-detail-row>td{padding:0 .8rem .8rem!important;border:2px solid #1f5f9f;border-top:0;background:#e8f1fb}.ops-task-inline{padding:.2rem 0 0;border-top:1px dashed #c5d8ee}.ops-permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-top:.5rem}
       .ops-permission-check{display:flex;gap:.45rem;align-items:center;border:1px solid #dbe3ec;border-radius:.75rem;background:#f8fafc;padding:.55rem .65rem;font-weight:800}
       .ops-permission-check input{width:auto}
       .ops-permission-check small{display:block;color:#64748b;font-size:.76rem;font-weight:600;margin-top:.12rem}
@@ -6143,7 +6143,7 @@
       render();
       const ed=byId('opsAssetEditorCard'); if(ed) opsScrollBelowHeader(ed);
     }));
-    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; render(); if(state.openTaskId){ const d=document.querySelector('tr.ops-task-row-open')||byId('opsTaskDetailCard'); if(d) opsScrollBelowHeader(d); } }));
+    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; const keepY=window.scrollY; render(); window.scrollTo({top:keepY,left:0,behavior:'auto'}); }));
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 
