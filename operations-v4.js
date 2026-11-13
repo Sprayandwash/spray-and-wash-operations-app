@@ -6214,8 +6214,9 @@
   function openNewHeightInspectionV415(){
     state.currentModule = 'height';
     setTopTabsMode('height');
+    window.__inspectionTargetId = '';
     if(originalShowTab) originalShowTab('inspect');
-    setTimeout(()=>postHeightEnhancementsV415('inspect'), 80);
+    setTimeout(()=>{ postHeightEnhancementsV415('inspect'); window.applyInspectionTargetV419?.(); }, 80);
   }
 
   function enhanceHeightDashboardV415(){
@@ -6983,6 +6984,7 @@
     ['inspectFilterType','inspectFilterStatus','inspectFilterDue','inspectFilterSearch'].forEach(id=>{ const el=$(id); if(el) el.addEventListener(id==='inspectFilterSearch'?'input':'change', renderInspectionEquipmentPicker); });
     $('inspectFilterClear')?.addEventListener('click',()=>{ ['inspectFilterType','inspectFilterStatus','inspectFilterDue','inspectFilterSearch'].forEach(id=>{const el=$(id); if(el) el.value='';}); renderInspectionEquipmentPicker(); });
     renderInspectionEquipmentPicker();
+    applyInspectionTarget();
   }
 
   function certFilterValues(){ return { type:$('certFilterType')?.value||'', status:$('certFilterStatus')?.value||'', result:$('certFilterResult')?.value||'', due:$('certFilterDue')?.value||'', q:$('certFilterSearch')?.value||'' }; }
@@ -7086,7 +7088,37 @@
     Array.from(document.querySelectorAll('.card')).forEach(card=>{ const t=(card.textContent||'').trim(); if(/^Inspection Certificates/.test(t)) card.remove(); });
   }
 
+  /* Starting an inspection for one specific item (e.g. right after adding it) must show that item, not the generic picker. */
+  function applyInspectionTarget(){
+    const pane = $('inspect'); if(!pane) return;
+    const panel = $('heightInspectionPicker'); let banner = $('heightInspectionTargetBanner');
+    const id = window.__inspectionTargetId || '';
+    if(!id){ if(banner) banner.remove(); if(panel) panel.style.display=''; return; }
+    if(panel) panel.style.display='none';
+    const first = pane.querySelector('.card'); if(!first) return;
+    if(!banner){
+      banner = document.createElement('div'); banner.id='heightInspectionTargetBanner';
+      banner.style.cssText='border:2px solid #1f5f9f;background:#e8f1fb;border-radius:12px;padding:.8rem 1rem;margin:.5rem 0 1rem;display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap';
+      const h = first.querySelector('h2'); first.insertBefore(banner, h ? h.nextSibling : first.firstChild);
+    }
+    banner.innerHTML = `<div><strong>Inspecting ${esc($('inSerial')?.value||'')}</strong><br><span class="muted">${esc($('inType')?.value||'')}</span></div><button type="button" class="ghost" id="heightInspectionChangeBtn">Choose a different item</button>`;
+    $('heightInspectionChangeBtn').addEventListener('click',()=>{ window.__inspectionTargetId=''; if(typeof window.clearInspectionForm==='function') window.clearInspectionForm(); applyInspectionTarget(); });
+  }
+  window.applyInspectionTargetV419 = applyInspectionTarget;
+  function installInspectionTargetHook(){
+    const prev = window.showTab;
+    if(typeof prev !== 'function' || prev.__swInspectTarget) return;
+    const wrapped = function(id){
+      if(id === 'inspect'){ if(window.__inspectionTargetFresh) window.__inspectionTargetFresh = false; else window.__inspectionTargetId = ''; }
+      const r = prev.apply(this, arguments);
+      if(id === 'inspect') setTimeout(applyInspectionTarget, 150);
+      return r;
+    };
+    wrapped.__swInspectTarget = true; window.showTab = wrapped;
+  }
+
   function install(){
+    installInspectionTargetHook();
     injectCss(); cleanStaticUi(); installRecentHistoryFix();
     /* equipment register is owned by app.js in V4.0.30 */
     if($('inspect')) installInspectionPicker();
