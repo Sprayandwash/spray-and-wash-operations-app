@@ -6,7 +6,7 @@ test('REG-207: list tables no longer break words anywhere; only cells with a ver
   assert.match(ops,/\.ops-wrap-any\{overflow-wrap:anywhere !important;\}/);
   assert.match(ops,/const LONG=\/\\S\{25,\}\/;/);
   assert.match(ops,/\.ops-pill,\.ops-role-chip,\.ops-toggle-on,\.ops-toggle-off\{white-space:nowrap;\}/);
-  assert.match(ops,/<col style="width:110px"><col style="width:85px"><col>/);
+  assert.match(ops,/<col style="width:120px"><col style="width:85px"><col>/);
 });
 test('REG-208: a long photo or file name stays inside its box',()=>{
   assert.match(idx,/\.photoCard\{[^}]*overflow:hidden;overflow-wrap:anywhere\}/);
@@ -18,6 +18,6 @@ test('REG-207: the Download evidence person list is wide enough that a long surn
   assert.match(ops,/\.ops-evidence-person \.ops-subtle \{[^}]*max-width:30%/);
 });
 test('REG-209: the Tasks table fits a normal laptop screen without scrolling sideways',()=>{
-  assert.match(ops,/table\.ops-table\.ops-table-fixed\{min-width:980px;\}/);
+  assert.match(ops,/table\.ops-table\.ops-table-fixed\{min-width:1000px;\}/);
   assert.match(ops,/\.ops-table-fixed th,\.ops-table-fixed td\{padding:\.55rem \.5rem;\}/);
 });
