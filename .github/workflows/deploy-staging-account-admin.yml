@@ -1,0 +1,38 @@
+name: Deploy account-admin to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY ACCOUNT ADMIN TO STAGING to confirm
+        required: true
+      source_branch:
+        description: Branch holding the account-admin code
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    environment: staging
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_branch }}
+      - name: Validate confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = "DEPLOY ACCOUNT ADMIN TO STAGING"
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Deploy account-admin to staging only
+        run: |
+          set -euo pipefail
+          ref="$(supabase projects list --output json | jq -r '.[] | select(.name=="Spray and Wash Staging") | (.id // .ref)')"
+          test -n "$ref" && test "$ref" != "$PRODUCTION_PROJECT_REF"
+          supabase functions deploy account-admin --project-ref "$ref" --yes

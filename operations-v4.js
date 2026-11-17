@@ -357,7 +357,17 @@
       .ops-table th, .ops-table td { text-align:left; padding:.65rem .75rem; border-bottom:1px solid #edf1f5; vertical-align:top; }
       .ops-table th { background:#f8fafc; font-size:.85rem; color:#475569; }
       table.ops-table.ops-table-fixed { table-layout:fixed; }
-      .ops-table-fixed th,.ops-table-fixed td{overflow-wrap:anywhere}
+      /* Long names wrap instead of stretching the columns; tall lists scroll inside their own box so the horizontal scroll bar is always on screen. */
+      .ops-table th,.ops-table td,.sw417-table th,.sw417-table td,.sw419-table th,.sw419-table td,.sw421-table th,.sw421-table td,.sw422-rowlist th,.sw422-rowlist td,.sw422-scroll th,.sw422-scroll td,.sw424-table th,.sw424-table td { overflow-wrap:break-word; }
+      .ops-wrap-any{overflow-wrap:anywhere !important;}
+      .ops-asset-files-view div,.ops-asset-files div{overflow-wrap:anywhere;min-width:0}
+      .ops-pill,.ops-role-chip,.ops-toggle-on,.ops-toggle-off{white-space:nowrap;}
+      table.ops-table.ops-table-fixed{min-width:1000px;}
+      .ops-table-fixed th,.ops-table-fixed td{padding:.55rem .5rem;}
+      .ops-table-wrap:not(.ops-matrix-wrap) { max-height:75vh; overflow:auto; }
+      .ops-table-wrap:has(.ops-task-detail-row) { max-height:none; }
+      .ops-table-wrap:not(.ops-matrix-wrap) .ops-table th { position:sticky; top:0; z-index:1; }
+      .ops-table-fixed th,.ops-table-fixed td{overflow-wrap:break-word}
       .ops-pill { display:inline-flex; align-items:center; border-radius:999px; padding:.18rem .55rem; font-size:.78rem; font-weight:800; }
       .ops-ok { background:#dcfce7; color:#166534; }
       .ops-warn { background:#fef3c7; color:#92400e; }
@@ -721,7 +731,7 @@
       .ops-evidence-pick { position:relative; }
       .ops-evidence-pick > summary { list-style:none; display:inline-block; cursor:pointer; }
       .ops-evidence-pick > summary::-webkit-details-marker { display:none; }
-      .ops-evidence-pop { position:absolute; z-index:20; left:0; top:100%; margin-top:.3rem; width:340px; max-width:90vw; background:#fff; border:1px solid #bdd6f0; border-radius:.8rem; box-shadow:0 8px 24px rgba(0,59,115,.18); padding:.6rem; }
+      .ops-evidence-pop { position:absolute; z-index:20; left:0; top:100%; margin-top:.3rem; width:420px; max-width:90vw; background:#fff; border:1px solid #bdd6f0; border-radius:.8rem; box-shadow:0 8px 24px rgba(0,59,115,.18); padding:.6rem; }
       .ops-evidence-pop input[type=search] { width:100%; box-sizing:border-box; border:1px solid #c5d8ee; border-radius:.6rem; padding:.4rem .6rem; font:inherit; }
       .ops-evidence-quick { display:flex; flex-wrap:wrap; gap:.2rem .9rem; margin:.45rem 0 .2rem; }
       .ops-link-btn { background:none; border:0; padding:0; color:#2f7fb8; font:inherit; font-size:.85rem; font-weight:700; cursor:pointer; text-decoration:underline; }
@@ -730,7 +740,7 @@
       .ops-evidence-person[hidden] { display:none; }
       .ops-evidence-person:hover { background:#edf6fc; }
       .ops-evidence-person input { width:auto; margin:0; }
-      .ops-evidence-person .ops-subtle { margin-left:auto; font-size:.75rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:45%; }
+      .ops-evidence-person .ops-subtle { margin-left:auto; font-size:.75rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:30%; }
       .ops-evidence-footer { justify-content:space-between; align-items:center; }
       .ops-evidence-summary { font-weight:700; color:#003b73; }
       .ops-register-badges { display:flex !important; flex-wrap:wrap; gap:.3rem; }
@@ -3765,7 +3775,7 @@
     }
     rows = rows.sort((a,b)=>completedList?String(b.completed_at||b.updated_at||b.created_at||'').localeCompare(String(a.completed_at||a.updated_at||a.created_at||'')):statusRank(a.status)-statusRank(b.status) || String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));
     if(!rows.length) return `<p class="ops-subtle">${completedList?'No completed tasks.':'No tasks yet.'}</p>`;
-    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:9%"><col style="width:9%"><col style="width:25%"><col style="width:14%"><col style="width:11%"><col style="width:12%"><col style="width:9%"><col style="width:11%"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
+    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:120px"><col style="width:85px"><col><col style="width:130px"><col style="width:120px"><col style="width:125px"><col style="width:125px"><col style="width:90px"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
   }
   function taskSourceLabel(task){
     const module=String(task?.source_module||'').replace(/_/g,' ');
@@ -4145,7 +4155,7 @@
     if(typedEmail!==email) return;
     const preview=await accountAdminAction('purge_preview',{user_id:userId,confirmation_email:typedEmail});
     const c=preview?.preview; if(!c) return;
-    const lines=[`Maintenance tasks: ${c.maintenance_tasks}`,`Inspections (with answers and photos): ${c.inspections}`,`Maintenance readings: ${c.maintenance_readings}`,`Audit log rows by this account: ${c.audit_log_rows}`,`Other records only unlinked from this account: ${c.task_steps_completed + c.inspection_photos + c.asset_files_uploaded}`];
+    const lines=[`Maintenance tasks: ${c.maintenance_tasks}`,`Inspections (with answers and photos): ${c.inspections}`,`Maintenance readings: ${c.maintenance_readings}`,`Audit log rows by this account: ${c.audit_log_rows}`,`Training person: ${c.training_people||0} (with ${c.training_records||0} training records and ${c.training_files||0} certificate files)`,`Other records only unlinked from this account: ${c.task_steps_completed + c.inspection_photos + c.asset_files_uploaded}`];
     const word=window.prompt(`This will permanently remove ${c.email} and:\n\n${lines.join('\n')}\n\nThis cannot be undone. Type PURGE (capitals) to confirm.`);
     if(word!=='PURGE') return;
     const result=await accountAdminAction('purge',{user_id:userId,confirmation_email:typedEmail,confirmation_word:word});
@@ -8847,4 +8857,12 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
   else install();
+})();
+
+(function(){
+  // Cells that hold a very long unbroken string (an email address, a file name) may break anywhere; every other cell keeps its words whole.
+  const LONG=/\S{25,}/;
+  function mark(root){ root.querySelectorAll('td,th,dd,li,.ops-evidence-person').forEach(c=>{ c.classList.toggle('ops-wrap-any', LONG.test(c.textContent)); }); }
+  function start(){ const shell=document.getElementById('opsShell'); if(!shell||shell.__opsLongWords) return; shell.__opsLongWords=true; let q=false; const run=()=>{ q=false; mark(shell); }; new MutationObserver(()=>{ if(!q){ q=true; requestAnimationFrame(run); } }).observe(shell,{childList:true,subtree:true}); run(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
 })();

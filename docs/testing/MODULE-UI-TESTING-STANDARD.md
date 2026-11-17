@@ -250,3 +250,6 @@ box, and check an edit form appears inside the item, not elsewhere on the page. 
 so a new scroll-on-open cannot be added unnoticed. Known screens that replace the whole view
 (a Height equipment detail screen, a training person page) are navigation, not expanders, and start
 at the top; any new one should be raised with Brendan.
+
+## Update, 17 Nov 2026 — list tables (REG-205, REG-206)
+Every list table wraps long text (a long name must never widen a column) and a long list scrolls inside its own box so the horizontal scroll bar is always on screen. When testing a module, add a very long name to a list and check the columns and the scroll bar (REG-205, REG-206).
