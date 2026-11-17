@@ -59,7 +59,7 @@ jobs:
             printf 'VAPID_PRIVATE_KEY=%s\n' "$private"
             printf 'VAPID_SUBJECT=mailto:brendan@sprayandwash.co.nz\n'
           } > .vapid-secrets
-          supabase secrets set --project-ref "$PROJECT_REF" --env-file .vapid-secrets
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file .vapid-secrets --yes
           rm .vapid-secrets vapid.json
 
       - name: Verify secret names only
