@@ -13,3 +13,7 @@ test('REG-208: a long photo or file name stays inside its box',()=>{
   assert.match(idx,/minmax\(min\(140px,100%\),1fr\)/);
   assert.match(ops,/\.ops-asset-files-view div,\.ops-asset-files div\{overflow-wrap:anywhere;min-width:0\}/);
 });
+test('REG-207: the Download evidence person list is wide enough that a long surname stays whole',()=>{
+  assert.match(ops,/\.ops-evidence-pop \{[^}]*width:420px/);
+  assert.match(ops,/\.ops-evidence-person \.ops-subtle \{[^}]*max-width:30%/);
+});
