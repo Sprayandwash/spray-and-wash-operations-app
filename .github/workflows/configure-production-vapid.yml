@@ -1,0 +1,72 @@
+name: Configure production VAPID keys
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type SET PRODUCTION VAPID KEYS to create the production Web Push keys
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    name: Create production Web Push credentials
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - name: Validate
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "SET PRODUCTION VAPID KEYS"
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+
+      - name: Refuse to replace existing keys
+        run: |
+          set -euo pipefail
+          supabase secrets list --project-ref "$PROJECT_REF" --output json > secrets.json
+          if jq -e 'map(.name // .key // "") | index("VAPID_PRIVATE_KEY") != null' secrets.json >/dev/null; then
+            echo 'SAFETY STOP: production VAPID keys already exist; this workflow will not replace them.' >&2
+            exit 1
+          fi
+
+      - name: Generate and store production VAPID keys (values are never printed)
+        run: |
+          set -euo pipefail
+          npm install --global web-push@3.6.7 --no-audit --no-fund
+          web-push generate-vapid-keys --json > vapid.json
+          public="$(jq -r '.publicKey // empty' vapid.json)"
+          private="$(jq -r '.privateKey // empty' vapid.json)"
+          test "${#public}" -ge 80
+          test "${#private}" -ge 40
+          printf '%s' "$public" | grep -Eq '^[A-Za-z0-9_-]+$'
+          printf '%s' "$private" | grep -Eq '^[A-Za-z0-9_-]+$'
+          echo "::add-mask::$public"
+          echo "::add-mask::$private"
+          umask 077
+          {
+            printf 'VAPID_PUBLIC_KEY=%s\n' "$public"
+            printf 'VAPID_PRIVATE_KEY=%s\n' "$private"
+            printf 'VAPID_SUBJECT=mailto:brendan@sprayandwash.co.nz\n'
+          } > .vapid-secrets
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file .vapid-secrets
+          rm .vapid-secrets vapid.json
+
+      - name: Verify secret names only
+        run: |
+          set -euo pipefail
+          supabase secrets list --project-ref "$PROJECT_REF" --output json > secrets-after.json
+          for n in VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
+            jq -e --arg n "$n" 'map(.name // .key // "") | index($n) != null' secrets-after.json >/dev/null
+          done
+          echo 'Production VAPID secret names verified. Push delivery stays off and no message was sent.'
