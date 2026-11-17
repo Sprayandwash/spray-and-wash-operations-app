@@ -357,6 +357,11 @@
       .ops-table th, .ops-table td { text-align:left; padding:.65rem .75rem; border-bottom:1px solid #edf1f5; vertical-align:top; }
       .ops-table th { background:#f8fafc; font-size:.85rem; color:#475569; }
       table.ops-table.ops-table-fixed { table-layout:fixed; }
+      /* Long names wrap instead of stretching the columns; tall lists scroll inside their own box so the horizontal scroll bar is always on screen. */
+      .ops-table th,.ops-table td,.sw417-table th,.sw417-table td,.sw419-table th,.sw419-table td,.sw421-table th,.sw421-table td,.sw422-rowlist th,.sw422-rowlist td,.sw422-scroll th,.sw422-scroll td,.sw424-table th,.sw424-table td { overflow-wrap:anywhere; }
+      .ops-table-wrap:not(.ops-matrix-wrap) { max-height:75vh; overflow:auto; }
+      .ops-table-wrap:has(.ops-task-detail-row) { max-height:none; }
+      .ops-table-wrap:not(.ops-matrix-wrap) .ops-table th { position:sticky; top:0; z-index:1; }
       .ops-table-fixed th,.ops-table-fixed td{overflow-wrap:anywhere}
       .ops-pill { display:inline-flex; align-items:center; border-radius:999px; padding:.18rem .55rem; font-size:.78rem; font-weight:800; }
       .ops-ok { background:#dcfce7; color:#166534; }
