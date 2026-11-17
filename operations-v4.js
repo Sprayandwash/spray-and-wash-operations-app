@@ -362,7 +362,8 @@
       .ops-wrap-any{overflow-wrap:anywhere !important;}
       .ops-asset-files-view div,.ops-asset-files div{overflow-wrap:anywhere;min-width:0}
       .ops-pill,.ops-role-chip,.ops-toggle-on,.ops-toggle-off{white-space:nowrap;}
-      table.ops-table.ops-table-fixed{min-width:1085px;}
+      table.ops-table.ops-table-fixed{min-width:980px;}
+      .ops-table-fixed th,.ops-table-fixed td{padding:.55rem .5rem;}
       .ops-table-wrap:not(.ops-matrix-wrap) { max-height:75vh; overflow:auto; }
       .ops-table-wrap:has(.ops-task-detail-row) { max-height:none; }
       .ops-table-wrap:not(.ops-matrix-wrap) .ops-table th { position:sticky; top:0; z-index:1; }
@@ -3774,7 +3775,7 @@
     }
     rows = rows.sort((a,b)=>completedList?String(b.completed_at||b.updated_at||b.created_at||'').localeCompare(String(a.completed_at||a.updated_at||a.created_at||'')):statusRank(a.status)-statusRank(b.status) || String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));
     if(!rows.length) return `<p class="ops-subtle">${completedList?'No completed tasks.':'No tasks yet.'}</p>`;
-    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:125px"><col style="width:105px"><col><col style="width:150px"><col style="width:135px"><col style="width:150px"><col style="width:125px"><col style="width:95px"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
+    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:110px"><col style="width:85px"><col><col style="width:130px"><col style="width:115px"><col style="width:125px"><col style="width:105px"><col style="width:90px"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
   }
   function taskSourceLabel(task){
     const module=String(task?.source_module||'').replace(/_/g,' ');
