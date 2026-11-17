@@ -1,7 +1,7 @@
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
 const ops=fs.readFileSync(path.join(__dirname,'..','..','operations-v4.js'),'utf8');
-test('REG-205: long names wrap in every list table instead of stretching the columns',()=>{
-  const m=ops.match(/\.ops-table th,\.ops-table td,[^{]*\{ overflow-wrap:anywhere; \}/);
+test('REG-205: long text wraps in every list table instead of stretching the columns (round 20: at word boundaries; see REG-207)',()=>{
+  const m=ops.match(/\.ops-table th,\.ops-table td,[^{]*\{ overflow-wrap:break-word; \}/);
   assert.ok(m,'wrapping rule present');
   for(const c of ['sw417-table','sw419-table','sw421-table','sw422-rowlist','sw422-scroll','sw424-table'])assert.ok(m[0].includes(c),c+' covered');
 });
