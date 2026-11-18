@@ -1,0 +1,53 @@
+name: Enable production task push
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type ENABLE PRODUCTION TASK PUSH to turn reminder delivery on
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  enable:
+    name: Turn on task push delivery (enrolled phones only)
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: twkgfmctuffmkvkmdkct
+    steps:
+      - name: Validate
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "ENABLE PRODUCTION TASK PUSH"
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+
+      - name: Prove the function's scheduler secret matches the stored one (no-send preview)
+        run: |
+          set -euo pipefail
+          sql="select decrypted_secret from vault.decrypted_secrets where name = 'task_push_scheduler_secret';"
+          status="$(curl --silent --show-error --output secret.json --write-out '%{http_code}' --request POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --header "Content-Type: application/json" --data "$(jq -n --arg query "$sql" '{query:$query}')")"
+          test "$status" = "201"
+          secret="$(jq -r '.[0].decrypted_secret // empty' secret.json)"
+          test -n "$secret"
+          echo "::add-mask::$secret"
+          rm -f secret.json
+          curl --silent --show-error --fail --request POST "https://$PROJECT_REF.supabase.co/functions/v1/employee-notifications" --header "Content-Type: application/json" --header "x-spray-wash-task-push-secret: $secret" --data '{"action":"run_task_push_preview"}' > preview.json
+          jq -e '.ok == true and .delivery == "disabled"' preview.json >/dev/null || { echo 'STOP: scheduler secret does not match or delivery is not currently disabled. Nothing was changed.' >&2; rm -f preview.json; exit 1; }
+          rm -f preview.json
+
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+
+      - name: Turn delivery on
+        run: |
+          set -euo pipefail
+          supabase secrets set TASK_PUSH_DELIVERY_ENABLED=true --project-ref "$PROJECT_REF" --yes
+          supabase secrets list --project-ref "$PROJECT_REF" --output json | jq -e 'map(.name // .key // "") | index("TASK_PUSH_DELIVERY_ENABLED") != null' >/dev/null
+          echo 'Production task push delivery is ON. Only phones that have enrolled can receive reminders.'
