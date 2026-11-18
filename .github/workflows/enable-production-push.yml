@@ -28,7 +28,10 @@ jobs:
           test "$CONFIRMATION" = "ENABLE PRODUCTION TASK PUSH"
           test -n "${SUPABASE_ACCESS_TOKEN:-}"
 
-      - name: Prove the function's scheduler secret matches the stored one (no-send preview)
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+
+      - name: Make the function's scheduler secret match the stored one, then prove it with the no-send preview
         run: |
           set -euo pipefail
           sql="select decrypted_secret from vault.decrypted_secrets where name = 'task_push_scheduler_secret';"
@@ -38,12 +41,14 @@ jobs:
           test -n "$secret"
           echo "::add-mask::$secret"
           rm -f secret.json
-          curl --silent --show-error --fail --request POST "https://$PROJECT_REF.supabase.co/functions/v1/employee-notifications" --header "Content-Type: application/json" --header "x-spray-wash-task-push-secret: $secret" --data '{"action":"run_task_push_preview"}' > preview.json
-          jq -e '.ok == true and .delivery == "disabled"' preview.json >/dev/null || { echo 'STOP: scheduler secret does not match or delivery is not currently disabled. Nothing was changed.' >&2; rm -f preview.json; exit 1; }
+          supabase secrets set "TASK_PUSH_SCHEDULER_SECRET=$secret" --project-ref "$PROJECT_REF" --yes
+          ok=0
+          for i in 1 2 3 4 5 6; do
+            sleep 5
+            if curl --silent --show-error --fail --request POST "https://$PROJECT_REF.supabase.co/functions/v1/employee-notifications" --header "Content-Type: application/json" --header "x-spray-wash-task-push-secret: $secret" --data '{"action":"run_task_push_preview"}' > preview.json 2>/dev/null && jq -e '.ok == true and .delivery == "disabled"' preview.json >/dev/null; then ok=1; break; fi
+          done
           rm -f preview.json
-
-      - uses: supabase/setup-cli@v1
-        with: { version: latest }
+          test "$ok" = 1 || { echo 'STOP: the no-send preview did not pass. Delivery was not turned on.' >&2; exit 1; }
 
       - name: Turn delivery on
         run: |
