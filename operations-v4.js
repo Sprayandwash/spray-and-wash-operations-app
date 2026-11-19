@@ -13,8 +13,8 @@
   const ASSET_FILE_MAX_BYTES = 20 * 1024 * 1024;
   const TASK_STATUSES = ['Open','In Progress','Waiting on Parts','Waiting on Someone','Completed','Deferred'];
   const PRIORITIES = ['Low','Medium','High','Critical'];
-  const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP' };
-  const MACHINERY_TYPE_LABELS = { Engine:'Engine', Gearbox:'Reduction gearbox', Pump:'Pump' };
+  const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP', 'Hoses & Reels':'HSR' };
+  const MACHINERY_TYPE_LABELS = { Engine:'Engine', Gearbox:'Reduction gearbox', Pump:'Pump', 'Hoses & Reels':'Hoses & Reels' };
   const MACHINERY_SIDE_CODES = { Driver:'DS', Passenger:'PS' };
   const ROLE_DEFS = ['Admin','Height equipment manager','Height equipment user','Maintenance manager','Vehicle inspector','Training manager'];
   const REGRESSION_RULES = window.SWOperationsRules || {};
@@ -223,7 +223,8 @@
     if(category === 'engine') return type === 'Engine';
     if(category === 'pump') return type === 'Pump';
     if(category === 'gearbox') return type === 'Gearbox';
-    if(category === 'hose reel') return /hose\s*reel/i.test(String(machinery?.equipment_type || machinery?.name || ''));
+    if(category === 'hoses & reels') return type === 'Hoses & Reels';
+    if(category === 'hose reel') return type === 'Hoses & Reels' || /hose\s*reel/i.test(String(machinery?.equipment_type || machinery?.name || ''));
     if(category === 'pressure system') return /pressure\s*system/i.test(String(machinery?.equipment_type || machinery?.name || ''));
     // A general procedure belongs on a whole water-blaster asset, not each engine,
     // pump, or gearbox sub-asset.
@@ -363,6 +364,22 @@
       .ops-asset-files-view div,.ops-asset-files div{overflow-wrap:anywhere;min-width:0}
       .ops-pill,.ops-role-chip,.ops-toggle-on,.ops-toggle-off{white-space:nowrap;}
       table.ops-table.ops-table-fixed{min-width:1000px;}
+      .ops-task-row{cursor:pointer}.ops-task-row:hover>td{background:#f3f8fd}
+      @media(max-width:720px){
+        table.ops-table.ops-tasks-table{min-width:0;display:block;table-layout:auto}
+        .ops-tasks-table colgroup,.ops-tasks-table .ops-task-head{display:none}
+        .ops-tasks-table tbody{display:block}
+        .ops-tasks-table tr.ops-task-row{display:block;border:1px solid #dbe3ec;border-radius:12px;margin:.6rem;padding:.35rem .7rem;background:#fff}
+        .ops-tasks-table tr.ops-task-row>td{display:block;border:0!important;padding:.2rem 0;background:transparent!important}
+        .ops-tasks-table tr.ops-task-row>td[data-label]::before{content:attr(data-label) ": ";font-weight:800;color:#475569}
+        .ops-tasks-table tr.ops-task-row>td:nth-child(1),.ops-tasks-table tr.ops-task-row>td:nth-child(2){display:inline-block;margin-right:.5rem}
+        .ops-tasks-table tr.ops-task-row>td:nth-child(1)::before,.ops-tasks-table tr.ops-task-row>td:nth-child(2)::before{content:none}
+        .ops-tasks-table tr.ops-task-row.ops-task-row-open{border:2px solid #1f5f9f;border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0;background:#e8f1fb}
+        .ops-tasks-table tr.ops-task-detail-row{display:block;border:2px solid #1f5f9f;border-top:0;border-radius:0 0 12px 12px;margin:0 .6rem .6rem;background:#e8f1fb}
+        .ops-tasks-table tr.ops-task-detail-row>td{display:block;border:0;padding:.4rem .7rem!important}
+        .ops-tasks-table .ops-form{grid-template-columns:1fr}
+        .ops-table-wrap:has(.ops-tasks-table){overflow-x:hidden;border:0;background:transparent}
+      }
       .ops-table-fixed th,.ops-table-fixed td{padding:.55rem .5rem;}
       .ops-table-wrap:not(.ops-matrix-wrap) { max-height:75vh; overflow:auto; }
       .ops-table-wrap:has(.ops-task-detail-row) { max-height:none; }
@@ -2887,6 +2904,58 @@
     const type=kind==='height-failed'?'failed':kind==='height-soon'?'dueSoon':kind==='height-no-inspection'?'noInspection':'overdue';
     setTimeout(()=>window.SWHeightAttention?.open(type),160);
   }
+  // ---- Round 22: push tap-through, vehicle holders -------------------------------------------
+  function readPushOpenFromUrl(href){
+    try{
+      const u=new URL(href||location.href, location.href); const kind=u.searchParams.get('open'); if(!kind) return null;
+      const target={kind,id:u.searchParams.get('id')||''};
+      if(!href){ u.searchParams.delete('open'); u.searchParams.delete('id'); history.replaceState(null,'',u.pathname+(u.search||'')+u.hash); }
+      return target;
+    }catch(_){ return null; }
+  }
+  // A tapped push opens the item that produced it, but only on screens the person's role can open.
+  // Anything else leaves them on the app home.
+  function applyPushOpen(){
+    const target=state.pendingPushOpen; if(!target||!state.user||state.accountAccess?.must_change_password) return;
+    state.pendingPushOpen=null;
+    if(target.kind==='task' && target.id && canAccessSharedTasks()) return openAttentionItem('task',target.id);
+    if(target.kind==='vehicle-check' && canUseVehicleChecks()) return openAttentionItem('vehicle-check-due',target.id);
+  }
+  async function loadVehicleHolders(){
+    state.vehicleHolders=[]; state.assignablePeople=state.assignablePeople||[];
+    if(!state.user||!state.sb) return;
+    try{
+      const r=await state.sb.rpc('vehicle_holder_overview');
+      if(r.error){ if(!/does not exist|Could not find/i.test(r.error.message||'')) console.warn('Vehicle holders unavailable:',r.error.message); }
+      else state.vehicleHolders=r.data||[];
+      if(isAdmin()){ const p=await state.sb.rpc('assignable_people'); if(!p.error) state.assignablePeople=p.data||[]; }
+    }catch(err){ console.warn('Vehicle holders unavailable:',err.message); }
+    renderMyVehiclePanel();
+  }
+  function renderMyVehiclePanel(){
+    const panel=document.getElementById('myVehiclePanel'); if(!panel) return;
+    if(!state.user||!(canUseVehicleChecks()||isAdmin())||!(state.vehicleHolders||[]).length){ panel.innerHTML=''; return; }
+    const mine=state.vehicleHolders.find(v=>String(v.holder_user_id)===String(state.user.id));
+    const options=state.vehicleHolders.filter(v=>v.status==='Active').map(v=>`<option value="${esc(v.vehicle_id)}" ${mine&&String(mine.vehicle_id)===String(v.vehicle_id)?'selected':''}>${esc(v.rego||v.name)}${v.holder_name&&!(mine&&String(mine.vehicle_id)===String(v.vehicle_id))?` (held by ${esc(v.holder_name)})`:''}</option>`).join('');
+    panel.innerHTML=`<div class="pushSettings"><h3>My vehicle</h3><p class="muted">Choose the vehicle you drive. You get a reminder when its two-weekly vehicle check is due.</p><select id="myVehicleSelect" onchange="chooseMyVehicle(this.value)"><option value="">No Vehicle Assigned</option>${options}</select></div>`;
+  }
+  async function chooseMyVehicle(vehicleId){
+    const r=await state.sb.rpc('claim_my_vehicle',{p_vehicle_id:vehicleId||null});
+    if(r.error) alert(r.error.message);
+    await loadVehicleHolders();
+  }
+  async function adminSetVehicleHolder(vehicleId,userId){
+    if(!isAdmin()) return alert('Admin access is required.');
+    const r=await state.sb.rpc('admin_set_vehicle_holder',{p_vehicle_id:vehicleId,p_user_id:userId||null});
+    if(r.error) alert(r.error.message);
+    await loadVehicleHolders(); render();
+  }
+  function vehicleHoldersAdminHtml(){
+    const rows=(state.vehicleHolders||[]).filter(v=>v.status==='Active');
+    const people=state.assignablePeople||[];
+    if(!rows.length) return '<p class="ops-subtle">No active vehicles.</p>';
+    return `<p class="ops-subtle">Who drives each vehicle. They receive its two-weekly vehicle-check reminder. Choosing a person who already has another vehicle moves them.</p><div class="ops-table-wrap"><table class="ops-table"><tr><th>Vehicle</th><th>Driver</th></tr>${rows.map(v=>`<tr><td>${esc(v.rego||v.name)}</td><td><select data-ops-vehicle-holder="${esc(v.vehicle_id)}"><option value="">No Vehicle Assigned</option>${people.map(p=>`<option value="${esc(p.user_id)}" ${String(p.user_id)===String(v.holder_user_id)?'selected':''}>${esc(p.display_name)}</option>`).join('')}</select></td></tr>`).join('')}</table></div>`;
+  }
   function appIcon(name, className){
     const icons={
       height:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>',
@@ -3061,6 +3130,8 @@
     if(revision!==state.authRevision) return;
     await loadAll();
     opsNavRestoreAfterReload();
+    loadVehicleHolders();
+    applyPushOpen();
   }
 
 
@@ -3556,6 +3627,9 @@
     if(type === 'Engine'){
       common.push(specValue('Spark plug',w.spark_plug_part_number),specValue('Air filter',w.air_filter_part_number));
     }
+    if(type === 'Hoses & Reels'){
+      common.push(specValue('Unloader make/model',w.unloader_make_model),specValue('Swivel make/model',w.swivel_make_model),specValue('Swivel seal kit part no.',w.swivel_seal_kit_part_number));
+    }
     if(type === 'Pump'){
       common.push(specValue('Pressure',w.pressure_psi,' PSI'),specValue('Max output',w.max_output_lpm,' L/min'));
     }
@@ -3775,7 +3849,7 @@
     }
     rows = rows.sort((a,b)=>completedList?String(b.completed_at||b.updated_at||b.created_at||'').localeCompare(String(a.completed_at||a.updated_at||a.created_at||'')):statusRank(a.status)-statusRank(b.status) || String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));
     if(!rows.length) return `<p class="ops-subtle">${completedList?'No completed tasks.':'No tasks yet.'}</p>`;
-    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:120px"><col style="width:85px"><col><col style="width:130px"><col style="width:120px"><col style="width:125px"><col style="width:125px"><col style="width:90px"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
+    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed ops-tasks-table"><colgroup><col style="width:120px"><col style="width:85px"><col><col style="width:130px"><col style="width:120px"><col style="width:125px"><col style="width:125px"></colgroup><tr class="ops-task-head"><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th></tr>${rows.map(t=>`<tr class="ops-task-row ${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}" data-ops-open-task-row="${t.id}" tabindex="0" role="button" aria-expanded="${String(state.openTaskId)===String(t.id)}"><td data-label="Status">${statusPill(t.status)}</td><td data-label="Priority">${statusPill(t.priority)}</td><td><strong>${String(state.openTaskId)===String(t.id)?'▾':'▸'} ${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td data-label="Target">${esc(targetName(t))}</td><td data-label="Source">${esc(taskSourceLabel(t))}</td><td data-label="Responsible">${esc(t.assigned_role||'Maintenance manager')}</td><td data-label="Due">${nzDate(t.due_date)}</td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="7">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
   }
   function taskSourceLabel(task){
     const module=String(task?.source_module||'').replace(/_/g,' ');
@@ -3784,6 +3858,31 @@
   }
   function statusRank(s){ return {'Open':0,'In Progress':1,'Waiting on Parts':2,'Waiting on Someone':3,'Deferred':4,'Completed':5}[s] ?? 5; }
 
+  // Automatic training tasks are information only: they close when the record is added or the requirement is removed.
+  function trainingTaskAuto(t){ return /^training_(record_expiry|matrix_missing):/.test(String(t?.automatic_key||'')); }
+  function trainingTaskInfo(t){
+    const key=String(t?.automatic_key||'');
+    if(key.startsWith('training_matrix_missing:')){ const parts=key.split(':'); return {kind:'missing',personId:parts[1]||t.target_record_id||'',courseId:parts[2]||''}; }
+    if(key.startsWith('training_record_expiry:')){ const rec=(state.trainingRecords||[]).find(r=>String(r.id)===key.split(':')[1]); return {kind:'expiry',personId:rec?.person_id||t.target_record_id||'',courseId:rec?.course_id||''}; }
+    return {kind:'other',personId:t?.target_record_id||'',courseId:''};
+  }
+  function trainingTaskPanelHtml(t){
+    const label=String(t.automatic_key||'').startsWith('training_matrix_missing:')?'Add training record':'Update training record';
+    return `<div class="ops-actions">${canUseTraining()?`<button class="ops-btn primary" type="button" data-ops-training-task="${esc(t.id)}">${label}</button>`:''}<button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`;
+  }
+  async function goToTrainingForTask(taskId){
+    const t=state.tasks.find(x=>String(x.id)===String(taskId)); if(!t||!canUseTraining()) return;
+    state.currentModule='training'; setTopTabsMode('none');
+    await loadTrainingData();
+    const info=trainingTaskInfo(t);
+    if(!info.personId){ showOperations('training-dashboard'); return; }
+    openTrainingPerson(info.personId);
+    if(info.courseId){
+      state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=info.courseId; state.trainingEvidenceError=null;
+      if(state.trainingExpandedCourseIds&&state.trainingExpandedCourseIds.add){ state.trainingExpandedCourseIds.add(info.courseId); state.trainingExpandedCourseIds.add(String(info.courseId)); }
+    }
+    render();
+  }
   function taskDetailHtml(taskId, inline=false){
     const t = state.tasks.find(x=>x.id===taskId); if(!t) return '';
     const proc = state.procedures.find(p=>p.id===t.procedure_id);
@@ -3793,7 +3892,7 @@
       ${t.description ? `<p class="ops-task-description"><strong>What needs doing:</strong><br>${esc(t.description)}</p>` : ''}`;
     return `<div class="${inline?'ops-task-inline':'ops-card'}" id="opsTaskDetailCard" ${inline?'':'style="margin-top:1rem"'}>${header}
       ${proc ? `<h3>Guide: ${esc(proc.name)}</h3><p>${esc(proc.description||'')}</p><p><strong>Safety:</strong> ${esc(proc.safety_summary||'')}</p><p><strong>Tools:</strong> ${esc(proc.tools_required||'')}</p><p><strong>Parts:</strong> ${esc(proc.parts_required||'')}</p>` : ''}
-      ${!canUpdateTask(t)?`<p class="ops-subtle">This task is view-only for your role.</p><div class="ops-actions"><button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`:steps.length ? `<form id="opsTaskCompleteForm" class="ops-form"><div class="ops-span-2">${steps.map(s=>`<div class="ops-step"><label><input type="checkbox" class="ops-task-step" value="${s.id}"> <strong>${s.step_number}. ${esc(s.title)}</strong></label><p>${esc(s.instruction)}</p>${s.safety_note?`<p class="ops-subtle"><strong>Safety:</strong> ${esc(s.safety_note)}</p>`:''}</div>`).join('')}</div>
+      ${trainingTaskAuto(t)?trainingTaskPanelHtml(t):!canUpdateTask(t)?`<p class="ops-subtle">This task is view-only for your role.</p><div class="ops-actions"><button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`:steps.length ? `<form id="opsTaskCompleteForm" class="ops-form"><div class="ops-span-2">${steps.map(s=>`<div class="ops-step"><label><input type="checkbox" class="ops-task-step" value="${s.id}"> <strong>${s.step_number}. ${esc(s.title)}</strong></label><p>${esc(s.instruction)}</p>${s.safety_note?`<p class="ops-subtle"><strong>Safety:</strong> ${esc(s.safety_note)}</p>`:''}</div>`).join('')}</div>
         <label>New status<select id="opsTaskStatus">${optionList(TASK_STATUSES,t.status)}</select></label>
         <label class="ops-span-2">Completion / status notes<textarea id="opsTaskNotes">${esc(t.completion_notes||'')}</textarea></label>
         <label class="ops-span-2">Parts used, one per line<textarea id="opsTaskParts" placeholder="Engine oil - 0.6 L\nSpark plug - 1"></textarea></label>
@@ -4347,6 +4446,7 @@
     e.preventDefault();
     const task = state.tasks.find(t=>t.id===state.openTaskId); if(!task) return;
     if(!canUpdateTask(task)) return alert('This task is assigned to a role you cannot manage.');
+    if(trainingTaskAuto(task)) return alert('Training tasks close by themselves when the training record is added.');
     const status = byId('opsTaskStatus').value;
     const update = {
       status,
@@ -4998,15 +5098,19 @@
     const identifier = w.id ? machineryIdentifier(w) : buildInstalledMachineryIdentifier(state.vehicles.find(v=>String(v.id)===String(selectedVehicle))?.rego,selectedSide,selectedType);
     return `<form id="opsWashingForm" class="ops-form">
       <input type="hidden" id="opsWashId" value="${esc(w.id||'')}">
-      <label>Machinery type *<select id="opsMachineryType" required><option value="Engine" ${selectedType==='Engine'?'selected':''}>Engine</option><option value="Gearbox" ${selectedType==='Gearbox'?'selected':''}>Reduction gearbox</option><option value="Pump" ${selectedType==='Pump'?'selected':''}>Pump</option></select></label>
+      <label>Machinery type *<select id="opsMachineryType" required><option value="Engine" ${selectedType==='Engine'?'selected':''}>Engine</option><option value="Gearbox" ${selectedType==='Gearbox'?'selected':''}>Reduction gearbox</option><option value="Pump" ${selectedType==='Pump'?'selected':''}>Pump</option><option value="Hoses & Reels" ${selectedType==='Hoses & Reels'?'selected':''}>Hoses &amp; Reels</option></select></label>
       <label>Identifier<input id="opsMachineryIdentifier" value="${esc(identifier)}" placeholder="Generated when saved" readonly></label>
       <label>Vehicle<select id="opsWashVehicle" ${w.id?'disabled':''}><option value="">Unassigned / spare</option>${state.vehicles.map(v=>`<option value="${v.id}" ${String(v.id)===String(selectedVehicle)?'selected':''}>${esc(normalizeRego(v.rego) || v.name)}</option>`).join('')}</select>${w.id?'<small class="ops-subtle">Use Transfer on the asset card to change its vehicle.</small>':''}</label>
       <label>Installation side<select id="opsMachinerySide" ${w.id?'disabled':''}><option value="">Not installed</option>${optionList(['Driver','Passenger'],selectedSide)}</select></label>
-      <label>Make/model<input id="opsMachineryMakeModel" value="${esc(w.make_model||'')}"></label>
-      <label>Serial number<input id="opsWashSerial" value="${esc(w.serial_number||'')}"></label>
+      <div class="ops-machinery-fields ops-span-2" data-machinery-types="Engine,Gearbox,Pump"><div class="ops-form">
+        <label>Make/model<input id="opsMachineryMakeModel" value="${esc(w.make_model||'')}"></label>
+        <label>Serial number<input id="opsWashSerial" value="${esc(w.serial_number||'')}"></label>
+      </div></div>
       <label>Status<select id="opsWashStatus">${optionList(['Active','Inactive','Retired','Quarantined'], w.status||'Active')}</select></label>
-      <label>Oil grade<input id="opsMachineryOilGrade" value="${selectedOilGrade}" readonly><small class="ops-subtle">Set automatically from machinery type.</small></label>
-      <label>Oil volume (L)<input id="opsMachineryOilVolume" type="number" min="0" step="0.01" value="${esc(w.oil_volume_l??'')}"></label>
+      <div class="ops-machinery-fields ops-span-2" data-machinery-types="Engine,Gearbox,Pump"><div class="ops-form">
+        <label>Oil grade<input id="opsMachineryOilGrade" value="${selectedOilGrade}" readonly><small class="ops-subtle">Set automatically from machinery type.</small></label>
+        <label>Oil volume (L)<input id="opsMachineryOilVolume" type="number" min="0" step="0.01" value="${esc(w.oil_volume_l??'')}"></label>
+      </div></div>
       <div class="ops-machinery-fields ops-span-2" data-machinery-types="Engine"><div class="ops-form">
         <label>Spark-plug part number<input id="opsMachinerySparkPlug" value="${esc(w.spark_plug_part_number||'')}"></label>
         <label>Air-filter part number<input id="opsMachineryAirFilter" value="${esc(w.air_filter_part_number||'')}"></label>
@@ -5014,6 +5118,11 @@
       <div class="ops-machinery-fields ops-span-2" data-machinery-types="Pump"><div class="ops-form">
         <label>PSI rating<input id="opsMachineryPressure" type="number" min="0" step="1" value="${esc(w.pressure_psi??'')}"></label>
         <label>Maximum volume output (L/min)<input id="opsMachineryOutput" type="number" min="0" step="0.1" value="${esc(w.max_output_lpm??'')}"></label>
+      </div></div>
+      <div class="ops-machinery-fields ops-span-2" data-machinery-types="Hoses & Reels"><div class="ops-form">
+        <label>Unloader make/model<input id="opsMachineryUnloader" value="${esc(w.unloader_make_model||'')}"></label>
+        <label>Swivel make/model<input id="opsMachinerySwivel" value="${esc(w.swivel_make_model||'')}"></label>
+        <label>Swivel seal kit part number<input id="opsMachinerySwivelSeal" value="${esc(w.swivel_seal_kit_part_number||'')}"></label>
       </div></div>
       ${assetPhotoFieldHtml('opsWashPhoto', w.photo_path)}
       ${w.id ? assetFilesListHtml('washing_equipment', w.id) : ''}
@@ -5133,13 +5242,14 @@
       asset_identifier:identifier, name:`${machineryTypeLabel(type)} - ${identifier}`, machinery_type:type,
       equipment_type:machineryTypeLabel(type), make_model:textOrNull('opsMachineryMakeModel'), serial_number:textOrNull('opsWashSerial'),
       assigned_vehicle_id:vehicleId, mounting_side:side, status:byId('opsWashStatus').value,
-      oil_grade:type==='Pump'?'15W40':'10W30',
-      oil_volume_l:numberOrNull('opsMachineryOilVolume'), spark_plug_part_number:type==='Engine'?textOrNull('opsMachinerySparkPlug'):null,
+      oil_grade:type==='Hoses & Reels'?null:(type==='Pump'?'15W40':'10W30'),
+      oil_volume_l:type==='Hoses & Reels'?null:numberOrNull('opsMachineryOilVolume'), spark_plug_part_number:type==='Engine'?textOrNull('opsMachinerySparkPlug'):null,
       air_filter_part_number:type==='Engine'?textOrNull('opsMachineryAirFilter'):null,
       pressure_psi:type==='Pump'?numberOrNull('opsMachineryPressure'):null,
       max_output_lpm:type==='Pump'?numberOrNull('opsMachineryOutput'):null,
       service_notes:textOrNull('opsMachineryServiceNotes'), created_by:state.user.id
     };
+    if(type==='Hoses & Reels') Object.assign(row,{unloader_make_model:textOrNull('opsMachineryUnloader'),swivel_make_model:textOrNull('opsMachinerySwivel'),swivel_seal_kit_part_number:textOrNull('opsMachinerySwivelSeal')});
     const file=assetPhotoFile('opsWashPhoto');
     let upload=null;
     try{
@@ -5579,7 +5689,10 @@
     { machineryType:'Gearbox', name:'Oil changed' },
     { machineryType:'Pump', name:'Oil changed' },
     { machineryType:'Pump', name:'Valves changed' },
-    { machineryType:'Pump', name:'Seals replaced' }
+    { machineryType:'Pump', name:'Seals replaced' },
+    { machineryType:'Hoses & Reels', name:'Service unloader valve' },
+    { machineryType:'Hoses & Reels', name:'Service swivel' },
+    { machineryType:'Hoses & Reels', name:'Replace hose' }
   ];
   function preventiveMaintenanceProcedureName(item){ return `PM - ${item.machineryType} - ${item.name}`; }
   function preventiveMaintenanceProcedure(item){ return state.procedures.find(p=>p.name===preventiveMaintenanceProcedureName(item)); }
@@ -5846,6 +5959,7 @@
         </form></section>`:''}
         <h3>Pre-loaded users</h3><p class="ops-subtle">Unclaimed entries can be edited or deleted. Claimed entries are an audit record; manage their permissions above.</p>${rows.length ? `<div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Email</th><th>Roles</th><th>Status</th><th>Claimed</th><th>Actions</th></tr>${rows.map(u=>{const claimed=preloadedUserIsClaimed(u);return `<tr><td>${esc(u.display_name || [u.first_name,u.last_name].filter(Boolean).join(' '))}</td><td>${esc(u.email)}</td><td>${roleChips(u.roles||[])}</td><td>${u.active ? statusPill('Active') : statusPill('Inactive')}</td><td>${u.claimed_at ? nzDate(u.claimed_at) : 'Not yet'}</td><td>${claimed?'<span class="ops-subtle">Manage under Current Users</span>':`<button class="ops-btn" type="button" data-ops-edit-preload-user="${esc(u.id)}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-preload-user="${esc(u.id)}">Delete</button>`}</td></tr>`;}).join('')}</table></div>` : '<p class="ops-subtle">No pre-loaded users yet.</p>'}
       </div></details>
+      <details data-ops-keep-open="admin-vehicle-holders" ${opsKeepOpen('admin-vehicle-holders')}><summary>Vehicle drivers</summary><div class="ops-admin-users-body">${vehicleHoldersAdminHtml()}</div></details>
     </div>`;
   }
 
@@ -5893,6 +6007,7 @@
     byId('opsMaintenanceLogForm')?.addEventListener('submit', saveMaintenanceLogEntry);
     byId('opsInspectionForm')?.addEventListener('submit', submitInspection);
     byId('opsManualTaskForm')?.addEventListener('submit', createManualTask);
+    document.querySelectorAll('[data-ops-vehicle-holder]').forEach(sel=>sel.addEventListener('change',()=>adminSetVehicleHolder(sel.dataset.opsVehicleHolder,sel.value)));
     byId('opsTaskCompleteForm')?.addEventListener('submit', saveTaskUpdate);
     byId('opsTaskSimpleForm')?.addEventListener('submit', saveTaskUpdate);
     byId('opsScheduleForm')?.addEventListener('submit', saveSchedule);
@@ -6163,7 +6278,8 @@
       state.prefillMachinerySide=b.dataset.opsMachinerySide||'';
       render();
     }));
-    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; const keepY=window.scrollY; render(); window.scrollTo({top:keepY,left:0,behavior:'auto'}); }));
+    document.querySelectorAll('[data-ops-training-task]').forEach(b => b.addEventListener('click', () => goToTrainingForTask(b.dataset.opsTrainingTask)));
+    document.querySelectorAll('[data-ops-open-task-row]').forEach(b => { const toggle = () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTaskRow) ? '' : b.dataset.opsOpenTaskRow; const keepY=window.scrollY; render(); window.scrollTo({top:keepY,left:0,behavior:'auto'}); }; b.addEventListener('click',toggle); b.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); });
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 
@@ -6536,6 +6652,9 @@
     installModulePortal();
     installShortCertificateNumberPatch();
     installCertificateV405Patch();
+    state.pendingPushOpen=readPushOpenFromUrl();
+    window.chooseMyVehicle=chooseMyVehicle;
+    if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',event=>{ if(event.data?.type!=='spray-wash-open') return; const target=readPushOpenFromUrl(event.data.url); if(!target) return; state.pendingPushOpen=target; applyPushOpen(); });
     initSupabase().catch(err => { state.lastError = err.message; render(); });
     window.SWOperationsV4 = { refresh: loadAll, show: showOperations, state, openQualificationFile, generateQualificationCertificate, handleDashboardShortcut, openNewHeightInspectionV415, openAppAttention, openAttentionItem, contractorTrainingStatus };
     setupLogoHomeClick();
