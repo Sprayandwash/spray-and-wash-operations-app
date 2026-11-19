@@ -223,6 +223,7 @@
     if(category === 'engine') return type === 'Engine';
     if(category === 'pump') return type === 'Pump';
     if(category === 'gearbox') return type === 'Gearbox';
+    if(category === 'hoses & reels') return type === 'Hoses & Reels';
     if(category === 'hose reel') return type === 'Hoses & Reels' || /hose\s*reel/i.test(String(machinery?.equipment_type || machinery?.name || ''));
     if(category === 'pressure system') return /pressure\s*system/i.test(String(machinery?.equipment_type || machinery?.name || ''));
     // A general procedure belongs on a whole water-blaster asset, not each engine,
@@ -3867,8 +3868,7 @@
   }
   function trainingTaskPanelHtml(t){
     const label=String(t.automatic_key||'').startsWith('training_matrix_missing:')?'Add training record':'Update training record';
-    return `<p class="ops-subtle">This task is for information. It closes by itself when the training record is added. If it no longer applies, archive the course or untick it in the person's matrix row.</p>
-      <div class="ops-actions">${canUseTraining()?`<button class="ops-btn primary" type="button" data-ops-training-task="${esc(t.id)}">${label}</button>`:''}<button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`;
+    return `<div class="ops-actions">${canUseTraining()?`<button class="ops-btn primary" type="button" data-ops-training-task="${esc(t.id)}">${label}</button>`:''}<button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`;
   }
   async function goToTrainingForTask(taskId){
     const t=state.tasks.find(x=>String(x.id)===String(taskId)); if(!t||!canUseTraining()) return;
@@ -5102,8 +5102,10 @@
       <label>Identifier<input id="opsMachineryIdentifier" value="${esc(identifier)}" placeholder="Generated when saved" readonly></label>
       <label>Vehicle<select id="opsWashVehicle" ${w.id?'disabled':''}><option value="">Unassigned / spare</option>${state.vehicles.map(v=>`<option value="${v.id}" ${String(v.id)===String(selectedVehicle)?'selected':''}>${esc(normalizeRego(v.rego) || v.name)}</option>`).join('')}</select>${w.id?'<small class="ops-subtle">Use Transfer on the asset card to change its vehicle.</small>':''}</label>
       <label>Installation side<select id="opsMachinerySide" ${w.id?'disabled':''}><option value="">Not installed</option>${optionList(['Driver','Passenger'],selectedSide)}</select></label>
-      <label>Make/model<input id="opsMachineryMakeModel" value="${esc(w.make_model||'')}"></label>
-      <label>Serial number<input id="opsWashSerial" value="${esc(w.serial_number||'')}"></label>
+      <div class="ops-machinery-fields ops-span-2" data-machinery-types="Engine,Gearbox,Pump"><div class="ops-form">
+        <label>Make/model<input id="opsMachineryMakeModel" value="${esc(w.make_model||'')}"></label>
+        <label>Serial number<input id="opsWashSerial" value="${esc(w.serial_number||'')}"></label>
+      </div></div>
       <label>Status<select id="opsWashStatus">${optionList(['Active','Inactive','Retired','Quarantined'], w.status||'Active')}</select></label>
       <div class="ops-machinery-fields ops-span-2" data-machinery-types="Engine,Gearbox,Pump"><div class="ops-form">
         <label>Oil grade<input id="opsMachineryOilGrade" value="${selectedOilGrade}" readonly><small class="ops-subtle">Set automatically from machinery type.</small></label>
@@ -5687,7 +5689,10 @@
     { machineryType:'Gearbox', name:'Oil changed' },
     { machineryType:'Pump', name:'Oil changed' },
     { machineryType:'Pump', name:'Valves changed' },
-    { machineryType:'Pump', name:'Seals replaced' }
+    { machineryType:'Pump', name:'Seals replaced' },
+    { machineryType:'Hoses & Reels', name:'Service unloader valve' },
+    { machineryType:'Hoses & Reels', name:'Service swivel' },
+    { machineryType:'Hoses & Reels', name:'Replace hose' }
   ];
   function preventiveMaintenanceProcedureName(item){ return `PM - ${item.machineryType} - ${item.name}`; }
   function preventiveMaintenanceProcedure(item){ return state.procedures.find(p=>p.name===preventiveMaintenanceProcedureName(item)); }

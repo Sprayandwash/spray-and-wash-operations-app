@@ -98,3 +98,17 @@ test('REG-220: Hoses & Reels records unloader make/model, swivel make/model and 
   assert.match(ops,/data-machinery-types="Hoses & Reels"/);
   assert.match(ops,/if\(type==='Hoses & Reels'\) Object\.assign\(row,/);
 });
+
+test('REG-221: Hoses & Reels hides Make/model and Serial number; the training task shows no explanatory note',()=>{
+  assert.match(ops,/data-machinery-types="Engine,Gearbox,Pump"><div class="ops-form">\s*<label>Make\/model/);
+  const panel=ops.slice(ops.indexOf('function trainingTaskPanelHtml'),ops.indexOf('async function goToTrainingForTask'));
+  assert.doesNotMatch(panel,/This task is for information/);
+});
+
+test('REG-222: Hoses & Reels has three as-required maintenance items (no interval)',()=>{
+  for(const n of ['Service unloader valve','Service swivel','Replace hose']) assert.match(ops,new RegExp("machineryType:'Hoses & Reels', name:'"+n+"'"));
+  assert.match(ops,/category === 'hoses & reels'\) return type === 'Hoses & Reels'/);
+  const m=fs.readFileSync(path.join(__dirname,'..','..','supabase','migrations','20261120c_hoses_reels_maintenance_items.sql'),'utf8');
+  assert.match(m,/null, 'Basic'/);
+  for(const n of ['Service unloader valve','Service swivel','Replace hose']) assert.match(m,new RegExp(n));
+});
