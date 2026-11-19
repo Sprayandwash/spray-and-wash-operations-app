@@ -3626,6 +3626,9 @@
     if(type === 'Engine'){
       common.push(specValue('Spark plug',w.spark_plug_part_number),specValue('Air filter',w.air_filter_part_number));
     }
+    if(type === 'Hoses & Reels'){
+      common.push(specValue('Unloader make/model',w.unloader_make_model),specValue('Swivel make/model',w.swivel_make_model),specValue('Swivel seal kit part no.',w.swivel_seal_kit_part_number));
+    }
     if(type === 'Pump'){
       common.push(specValue('Pressure',w.pressure_psi,' PSI'),specValue('Max output',w.max_output_lpm,' L/min'));
     }
@@ -3854,6 +3857,32 @@
   }
   function statusRank(s){ return {'Open':0,'In Progress':1,'Waiting on Parts':2,'Waiting on Someone':3,'Deferred':4,'Completed':5}[s] ?? 5; }
 
+  // Automatic training tasks are information only: they close when the record is added or the requirement is removed.
+  function trainingTaskAuto(t){ return /^training_(record_expiry|matrix_missing):/.test(String(t?.automatic_key||'')); }
+  function trainingTaskInfo(t){
+    const key=String(t?.automatic_key||'');
+    if(key.startsWith('training_matrix_missing:')){ const parts=key.split(':'); return {kind:'missing',personId:parts[1]||t.target_record_id||'',courseId:parts[2]||''}; }
+    if(key.startsWith('training_record_expiry:')){ const rec=(state.trainingRecords||[]).find(r=>String(r.id)===key.split(':')[1]); return {kind:'expiry',personId:rec?.person_id||t.target_record_id||'',courseId:rec?.course_id||''}; }
+    return {kind:'other',personId:t?.target_record_id||'',courseId:''};
+  }
+  function trainingTaskPanelHtml(t){
+    const label=String(t.automatic_key||'').startsWith('training_matrix_missing:')?'Add training record':'Update training record';
+    return `<p class="ops-subtle">This task is for information. It closes by itself when the training record is added. If it no longer applies, archive the course or untick it in the person's matrix row.</p>
+      <div class="ops-actions">${canUseTraining()?`<button class="ops-btn primary" type="button" data-ops-training-task="${esc(t.id)}">${label}</button>`:''}<button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`;
+  }
+  async function goToTrainingForTask(taskId){
+    const t=state.tasks.find(x=>String(x.id)===String(taskId)); if(!t||!canUseTraining()) return;
+    state.currentModule='training'; setTopTabsMode('none');
+    await loadTrainingData();
+    const info=trainingTaskInfo(t);
+    if(!info.personId){ showOperations('training-dashboard'); return; }
+    openTrainingPerson(info.personId);
+    if(info.courseId){
+      state.trainingRecordFormOpen=true; state.editingRecordId=''; state.trainingRecordFormCourseId=info.courseId; state.trainingEvidenceError=null;
+      if(state.trainingExpandedCourseIds&&state.trainingExpandedCourseIds.add){ state.trainingExpandedCourseIds.add(info.courseId); state.trainingExpandedCourseIds.add(String(info.courseId)); }
+    }
+    render();
+  }
   function taskDetailHtml(taskId, inline=false){
     const t = state.tasks.find(x=>x.id===taskId); if(!t) return '';
     const proc = state.procedures.find(p=>p.id===t.procedure_id);
@@ -3863,7 +3892,7 @@
       ${t.description ? `<p class="ops-task-description"><strong>What needs doing:</strong><br>${esc(t.description)}</p>` : ''}`;
     return `<div class="${inline?'ops-task-inline':'ops-card'}" id="opsTaskDetailCard" ${inline?'':'style="margin-top:1rem"'}>${header}
       ${proc ? `<h3>Guide: ${esc(proc.name)}</h3><p>${esc(proc.description||'')}</p><p><strong>Safety:</strong> ${esc(proc.safety_summary||'')}</p><p><strong>Tools:</strong> ${esc(proc.tools_required||'')}</p><p><strong>Parts:</strong> ${esc(proc.parts_required||'')}</p>` : ''}
-      ${!canUpdateTask(t)?`<p class="ops-subtle">This task is view-only for your role.</p><div class="ops-actions"><button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`:steps.length ? `<form id="opsTaskCompleteForm" class="ops-form"><div class="ops-span-2">${steps.map(s=>`<div class="ops-step"><label><input type="checkbox" class="ops-task-step" value="${s.id}"> <strong>${s.step_number}. ${esc(s.title)}</strong></label><p>${esc(s.instruction)}</p>${s.safety_note?`<p class="ops-subtle"><strong>Safety:</strong> ${esc(s.safety_note)}</p>`:''}</div>`).join('')}</div>
+      ${trainingTaskAuto(t)?trainingTaskPanelHtml(t):!canUpdateTask(t)?`<p class="ops-subtle">This task is view-only for your role.</p><div class="ops-actions"><button class="ops-btn ghost" type="button" data-ops-action="closeTask">Close</button></div>`:steps.length ? `<form id="opsTaskCompleteForm" class="ops-form"><div class="ops-span-2">${steps.map(s=>`<div class="ops-step"><label><input type="checkbox" class="ops-task-step" value="${s.id}"> <strong>${s.step_number}. ${esc(s.title)}</strong></label><p>${esc(s.instruction)}</p>${s.safety_note?`<p class="ops-subtle"><strong>Safety:</strong> ${esc(s.safety_note)}</p>`:''}</div>`).join('')}</div>
         <label>New status<select id="opsTaskStatus">${optionList(TASK_STATUSES,t.status)}</select></label>
         <label class="ops-span-2">Completion / status notes<textarea id="opsTaskNotes">${esc(t.completion_notes||'')}</textarea></label>
         <label class="ops-span-2">Parts used, one per line<textarea id="opsTaskParts" placeholder="Engine oil - 0.6 L\nSpark plug - 1"></textarea></label>
@@ -4417,6 +4446,7 @@
     e.preventDefault();
     const task = state.tasks.find(t=>t.id===state.openTaskId); if(!task) return;
     if(!canUpdateTask(task)) return alert('This task is assigned to a role you cannot manage.');
+    if(trainingTaskAuto(task)) return alert('Training tasks close by themselves when the training record is added.');
     const status = byId('opsTaskStatus').value;
     const update = {
       status,
@@ -5087,6 +5117,11 @@
         <label>PSI rating<input id="opsMachineryPressure" type="number" min="0" step="1" value="${esc(w.pressure_psi??'')}"></label>
         <label>Maximum volume output (L/min)<input id="opsMachineryOutput" type="number" min="0" step="0.1" value="${esc(w.max_output_lpm??'')}"></label>
       </div></div>
+      <div class="ops-machinery-fields ops-span-2" data-machinery-types="Hoses & Reels"><div class="ops-form">
+        <label>Unloader make/model<input id="opsMachineryUnloader" value="${esc(w.unloader_make_model||'')}"></label>
+        <label>Swivel make/model<input id="opsMachinerySwivel" value="${esc(w.swivel_make_model||'')}"></label>
+        <label>Swivel seal kit part number<input id="opsMachinerySwivelSeal" value="${esc(w.swivel_seal_kit_part_number||'')}"></label>
+      </div></div>
       ${assetPhotoFieldHtml('opsWashPhoto', w.photo_path)}
       ${w.id ? assetFilesListHtml('washing_equipment', w.id) : ''}
       <label class="ops-span-2">Current service state / notes<textarea id="opsMachineryServiceNotes" placeholder="Current condition, recent work and anything requiring attention">${esc(w.service_notes||w.notes||'')}</textarea></label>
@@ -5212,6 +5247,7 @@
       max_output_lpm:type==='Pump'?numberOrNull('opsMachineryOutput'):null,
       service_notes:textOrNull('opsMachineryServiceNotes'), created_by:state.user.id
     };
+    if(type==='Hoses & Reels') Object.assign(row,{unloader_make_model:textOrNull('opsMachineryUnloader'),swivel_make_model:textOrNull('opsMachinerySwivel'),swivel_seal_kit_part_number:textOrNull('opsMachinerySwivelSeal')});
     const file=assetPhotoFile('opsWashPhoto');
     let upload=null;
     try{
@@ -6237,6 +6273,7 @@
       state.prefillMachinerySide=b.dataset.opsMachinerySide||'';
       render();
     }));
+    document.querySelectorAll('[data-ops-training-task]').forEach(b => b.addEventListener('click', () => goToTrainingForTask(b.dataset.opsTrainingTask)));
     document.querySelectorAll('[data-ops-open-task-row]').forEach(b => { const toggle = () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTaskRow) ? '' : b.dataset.opsOpenTaskRow; const keepY=window.scrollY; render(); window.scrollTo({top:keepY,left:0,behavior:'auto'}); }; b.addEventListener('click',toggle); b.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); });
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }

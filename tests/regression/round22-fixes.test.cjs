@@ -80,3 +80,21 @@ test('REG-218: on phones each task is a stacked card, not a wide table',()=>{
   assert.match(ops,/@media\(max-width:720px\)\{\s*table\.ops-table\.ops-tasks-table\{min-width:0;display:block/);
   assert.match(ops,/td\[data-label\]::before\{content:attr\(data-label\)/);
 });
+
+test('REG-219: automatic training tasks are information only with a button to the training record',()=>{
+  assert.match(ops,/function trainingTaskAuto\(t\)/);
+  assert.match(ops,/trainingTaskAuto\(t\)\?trainingTaskPanelHtml\(t\)/);
+  assert.match(ops,/Add training record/);
+  assert.match(ops,/Update training record/);
+  assert.match(ops,/if\(trainingTaskAuto\(task\)\) return alert\('Training tasks close by themselves/);
+  const panel=ops.slice(ops.indexOf('function trainingTaskPanelHtml'),ops.indexOf('async function goToTrainingForTask'));
+  assert.doesNotMatch(panel,/opsTaskStatus|Save task update/);
+  assert.match(ops,/canUseTraining\(\)\?`<button[^`]*data-ops-training-task/);
+});
+
+test('REG-220: Hoses & Reels records unloader make/model, swivel make/model and swivel seal kit part number',()=>{
+  const m=fs.readFileSync(path.join(__dirname,'..','..','supabase','migrations','20261120b_hoses_reels_fields.sql'),'utf8');
+  for(const c of ['unloader_make_model','swivel_make_model','swivel_seal_kit_part_number']){ assert.match(m,new RegExp(c)); assert.match(ops,new RegExp(c)); }
+  assert.match(ops,/data-machinery-types="Hoses & Reels"/);
+  assert.match(ops,/if\(type==='Hoses & Reels'\) Object\.assign\(row,/);
+});
