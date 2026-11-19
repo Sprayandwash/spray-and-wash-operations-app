@@ -9,7 +9,7 @@ test('REG-201: any table that opens a detail row inside it keeps fixed column wi
     const body=part.split('</table>')[0];
     if(/ops-task-detail-row/.test(body)){
       found++;
-      assert.match(body.slice(0,200),/class="ops-table ops-table-fixed"><colgroup>/,'table with an in-table detail row must use ops-table-fixed and a colgroup');
+      assert.match(body.slice(0,200),/class="ops-table ops-table-fixed( ops-[a-z-]+)*"><colgroup>/,'table with an in-table detail row must use ops-table-fixed and a colgroup');
     }
   }
   assert.ok(found>=2,'expected the Tasks table and the Maintenance Items table');

@@ -13,8 +13,8 @@
   const ASSET_FILE_MAX_BYTES = 20 * 1024 * 1024;
   const TASK_STATUSES = ['Open','In Progress','Waiting on Parts','Waiting on Someone','Completed','Deferred'];
   const PRIORITIES = ['Low','Medium','High','Critical'];
-  const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP' };
-  const MACHINERY_TYPE_LABELS = { Engine:'Engine', Gearbox:'Reduction gearbox', Pump:'Pump' };
+  const MACHINERY_TYPE_CODES = { Engine:'ENG', Gearbox:'GBX', Pump:'PMP', 'Hoses & Reels':'HSR' };
+  const MACHINERY_TYPE_LABELS = { Engine:'Engine', Gearbox:'Reduction gearbox', Pump:'Pump', 'Hoses & Reels':'Hoses & Reels' };
   const MACHINERY_SIDE_CODES = { Driver:'DS', Passenger:'PS' };
   const ROLE_DEFS = ['Admin','Height equipment manager','Height equipment user','Maintenance manager','Vehicle inspector','Training manager'];
   const REGRESSION_RULES = window.SWOperationsRules || {};
@@ -223,7 +223,7 @@
     if(category === 'engine') return type === 'Engine';
     if(category === 'pump') return type === 'Pump';
     if(category === 'gearbox') return type === 'Gearbox';
-    if(category === 'hose reel') return /hose\s*reel/i.test(String(machinery?.equipment_type || machinery?.name || ''));
+    if(category === 'hose reel') return type === 'Hoses & Reels' || /hose\s*reel/i.test(String(machinery?.equipment_type || machinery?.name || ''));
     if(category === 'pressure system') return /pressure\s*system/i.test(String(machinery?.equipment_type || machinery?.name || ''));
     // A general procedure belongs on a whole water-blaster asset, not each engine,
     // pump, or gearbox sub-asset.
@@ -363,6 +363,22 @@
       .ops-asset-files-view div,.ops-asset-files div{overflow-wrap:anywhere;min-width:0}
       .ops-pill,.ops-role-chip,.ops-toggle-on,.ops-toggle-off{white-space:nowrap;}
       table.ops-table.ops-table-fixed{min-width:1000px;}
+      .ops-task-row{cursor:pointer}.ops-task-row:hover>td{background:#f3f8fd}
+      @media(max-width:720px){
+        table.ops-table.ops-tasks-table{min-width:0;display:block;table-layout:auto}
+        .ops-tasks-table colgroup,.ops-tasks-table .ops-task-head{display:none}
+        .ops-tasks-table tbody{display:block}
+        .ops-tasks-table tr.ops-task-row{display:block;border:1px solid #dbe3ec;border-radius:12px;margin:.6rem;padding:.35rem .7rem;background:#fff}
+        .ops-tasks-table tr.ops-task-row>td{display:block;border:0!important;padding:.2rem 0;background:transparent!important}
+        .ops-tasks-table tr.ops-task-row>td[data-label]::before{content:attr(data-label) ": ";font-weight:800;color:#475569}
+        .ops-tasks-table tr.ops-task-row>td:nth-child(1),.ops-tasks-table tr.ops-task-row>td:nth-child(2){display:inline-block;margin-right:.5rem}
+        .ops-tasks-table tr.ops-task-row>td:nth-child(1)::before,.ops-tasks-table tr.ops-task-row>td:nth-child(2)::before{content:none}
+        .ops-tasks-table tr.ops-task-row.ops-task-row-open{border:2px solid #1f5f9f;border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0;background:#e8f1fb}
+        .ops-tasks-table tr.ops-task-detail-row{display:block;border:2px solid #1f5f9f;border-top:0;border-radius:0 0 12px 12px;margin:0 .6rem .6rem;background:#e8f1fb}
+        .ops-tasks-table tr.ops-task-detail-row>td{display:block;border:0;padding:.4rem .7rem!important}
+        .ops-tasks-table .ops-form{grid-template-columns:1fr}
+        .ops-table-wrap:has(.ops-tasks-table){overflow-x:hidden;border:0;background:transparent}
+      }
       .ops-table-fixed th,.ops-table-fixed td{padding:.55rem .5rem;}
       .ops-table-wrap:not(.ops-matrix-wrap) { max-height:75vh; overflow:auto; }
       .ops-table-wrap:has(.ops-task-detail-row) { max-height:none; }
@@ -2911,7 +2927,7 @@
       const r=await state.sb.rpc('vehicle_holder_overview');
       if(r.error){ if(!/does not exist|Could not find/i.test(r.error.message||'')) console.warn('Vehicle holders unavailable:',r.error.message); }
       else state.vehicleHolders=r.data||[];
-      if(isAdmin()||canMaintain()){ const p=await state.sb.rpc('assignable_people'); if(!p.error) state.assignablePeople=p.data||[]; }
+      if(isAdmin()){ const p=await state.sb.rpc('assignable_people'); if(!p.error) state.assignablePeople=p.data||[]; }
     }catch(err){ console.warn('Vehicle holders unavailable:',err.message); }
     renderMyVehiclePanel();
   }
@@ -3810,7 +3826,6 @@
       <label>Vehicle<select id="opsManualVehicle"><option value="">None</option>${state.vehicles.map(v=>`<option value="${v.id}">${esc(v.rego || v.name)}</option>`).join('')}</select></label>
       <label>Title<input id="opsManualTitle" required></label>
       <label><span>Apply to matching machinery type</span><select id="opsManualApplyScope"><option value="single">Standalone/single task only</option><option value="same_type">Create one for all machinery of the same type</option></select></label>
-      <label>Assign to<select id="opsManualAssignee"><option value="">Maintenance manager (role)</option>${(state.assignablePeople||[]).map(p=>`<option value="${esc(p.user_id)}">${esc(p.display_name)}</option>`).join('')}</select></label>
       <label>Priority<select id="opsManualPriority">${optionList(PRIORITIES,'Medium')}</select></label>
       <label>Due date<input id="opsManualDue" type="date"></label>
       <label class="ops-span-2">Description<textarea id="opsManualDescription"></textarea></label>
@@ -3830,7 +3845,7 @@
     }
     rows = rows.sort((a,b)=>completedList?String(b.completed_at||b.updated_at||b.created_at||'').localeCompare(String(a.completed_at||a.updated_at||a.created_at||'')):statusRank(a.status)-statusRank(b.status) || String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));
     if(!rows.length) return `<p class="ops-subtle">${completedList?'No completed tasks.':'No tasks yet.'}</p>`;
-    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:120px"><col style="width:85px"><col><col style="width:130px"><col style="width:120px"><col style="width:125px"><col style="width:125px"><col style="width:90px"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_user_id?((state.assignablePeople||[]).find(p=>String(p.user_id)===String(t.assigned_user_id))?.display_name||'Named person'):(t.assigned_role||'Maintenance manager'))}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
+    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed ops-tasks-table"><colgroup><col style="width:120px"><col style="width:85px"><col><col style="width:130px"><col style="width:120px"><col style="width:125px"><col style="width:125px"></colgroup><tr class="ops-task-head"><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th></tr>${rows.map(t=>`<tr class="ops-task-row ${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}" data-ops-open-task-row="${t.id}" tabindex="0" role="button" aria-expanded="${String(state.openTaskId)===String(t.id)}"><td data-label="Status">${statusPill(t.status)}</td><td data-label="Priority">${statusPill(t.priority)}</td><td><strong>${String(state.openTaskId)===String(t.id)?'▾':'▸'} ${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td data-label="Target">${esc(targetName(t))}</td><td data-label="Source">${esc(taskSourceLabel(t))}</td><td data-label="Responsible">${esc(t.assigned_role||'Maintenance manager')}</td><td data-label="Due">${nzDate(t.due_date)}</td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="7">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
   }
   function taskSourceLabel(task){
     const module=String(task?.source_module||'').replace(/_/g,' ');
@@ -4383,8 +4398,6 @@
       assigned_role: 'Maintenance manager',
       created_by: state.user.id
     };
-    const assigneeId=byId('opsManualAssignee')?.value||'';
-    if(assigneeId){ row.assigned_user_id=assigneeId; row.assigned_role=null; }
     if(!row.title) return alert('Task title is required.');
     let rows = [row];
     const scope = byId('opsManualApplyScope')?.value || 'single';
@@ -5055,15 +5068,17 @@
     const identifier = w.id ? machineryIdentifier(w) : buildInstalledMachineryIdentifier(state.vehicles.find(v=>String(v.id)===String(selectedVehicle))?.rego,selectedSide,selectedType);
     return `<form id="opsWashingForm" class="ops-form">
       <input type="hidden" id="opsWashId" value="${esc(w.id||'')}">
-      <label>Machinery type *<select id="opsMachineryType" required><option value="Engine" ${selectedType==='Engine'?'selected':''}>Engine</option><option value="Gearbox" ${selectedType==='Gearbox'?'selected':''}>Reduction gearbox</option><option value="Pump" ${selectedType==='Pump'?'selected':''}>Pump</option></select></label>
+      <label>Machinery type *<select id="opsMachineryType" required><option value="Engine" ${selectedType==='Engine'?'selected':''}>Engine</option><option value="Gearbox" ${selectedType==='Gearbox'?'selected':''}>Reduction gearbox</option><option value="Pump" ${selectedType==='Pump'?'selected':''}>Pump</option><option value="Hoses & Reels" ${selectedType==='Hoses & Reels'?'selected':''}>Hoses &amp; Reels</option></select></label>
       <label>Identifier<input id="opsMachineryIdentifier" value="${esc(identifier)}" placeholder="Generated when saved" readonly></label>
       <label>Vehicle<select id="opsWashVehicle" ${w.id?'disabled':''}><option value="">Unassigned / spare</option>${state.vehicles.map(v=>`<option value="${v.id}" ${String(v.id)===String(selectedVehicle)?'selected':''}>${esc(normalizeRego(v.rego) || v.name)}</option>`).join('')}</select>${w.id?'<small class="ops-subtle">Use Transfer on the asset card to change its vehicle.</small>':''}</label>
       <label>Installation side<select id="opsMachinerySide" ${w.id?'disabled':''}><option value="">Not installed</option>${optionList(['Driver','Passenger'],selectedSide)}</select></label>
       <label>Make/model<input id="opsMachineryMakeModel" value="${esc(w.make_model||'')}"></label>
       <label>Serial number<input id="opsWashSerial" value="${esc(w.serial_number||'')}"></label>
       <label>Status<select id="opsWashStatus">${optionList(['Active','Inactive','Retired','Quarantined'], w.status||'Active')}</select></label>
-      <label>Oil grade<input id="opsMachineryOilGrade" value="${selectedOilGrade}" readonly><small class="ops-subtle">Set automatically from machinery type.</small></label>
-      <label>Oil volume (L)<input id="opsMachineryOilVolume" type="number" min="0" step="0.01" value="${esc(w.oil_volume_l??'')}"></label>
+      <div class="ops-machinery-fields ops-span-2" data-machinery-types="Engine,Gearbox,Pump"><div class="ops-form">
+        <label>Oil grade<input id="opsMachineryOilGrade" value="${selectedOilGrade}" readonly><small class="ops-subtle">Set automatically from machinery type.</small></label>
+        <label>Oil volume (L)<input id="opsMachineryOilVolume" type="number" min="0" step="0.01" value="${esc(w.oil_volume_l??'')}"></label>
+      </div></div>
       <div class="ops-machinery-fields ops-span-2" data-machinery-types="Engine"><div class="ops-form">
         <label>Spark-plug part number<input id="opsMachinerySparkPlug" value="${esc(w.spark_plug_part_number||'')}"></label>
         <label>Air-filter part number<input id="opsMachineryAirFilter" value="${esc(w.air_filter_part_number||'')}"></label>
@@ -5190,8 +5205,8 @@
       asset_identifier:identifier, name:`${machineryTypeLabel(type)} - ${identifier}`, machinery_type:type,
       equipment_type:machineryTypeLabel(type), make_model:textOrNull('opsMachineryMakeModel'), serial_number:textOrNull('opsWashSerial'),
       assigned_vehicle_id:vehicleId, mounting_side:side, status:byId('opsWashStatus').value,
-      oil_grade:type==='Pump'?'15W40':'10W30',
-      oil_volume_l:numberOrNull('opsMachineryOilVolume'), spark_plug_part_number:type==='Engine'?textOrNull('opsMachinerySparkPlug'):null,
+      oil_grade:type==='Hoses & Reels'?null:(type==='Pump'?'15W40':'10W30'),
+      oil_volume_l:type==='Hoses & Reels'?null:numberOrNull('opsMachineryOilVolume'), spark_plug_part_number:type==='Engine'?textOrNull('opsMachinerySparkPlug'):null,
       air_filter_part_number:type==='Engine'?textOrNull('opsMachineryAirFilter'):null,
       pressure_psi:type==='Pump'?numberOrNull('opsMachineryPressure'):null,
       max_output_lpm:type==='Pump'?numberOrNull('opsMachineryOutput'):null,
@@ -5888,7 +5903,6 @@
     const preloadName=editingPreload?.display_name || [editingPreload?.first_name,editingPreload?.last_name].filter(Boolean).join(' ');
     return `<div class="ops-admin-users"><h3>Users & Permissions</h3>
       <details><summary>Create staff account</summary><div class="ops-admin-users-body"><form id="opsCreateStaffAccountForm" class="ops-form"><p class="ops-subtle ops-span-2">Creates a private account without sending an email. Give the temporary password to the staff member directly; they must create their own password at first sign-in.</p><label>First name<input id="opsAccountFirst" required></label><label>Last name<input id="opsAccountLast" required></label><label>Email<input id="opsAccountEmail" type="email" required></label><label>Temporary password<input id="opsAccountTempPassword" type="password" minlength="12" required></label><div class="ops-span-2"><strong>Permissions</strong><div class="ops-permission-grid">${ROLE_DEFS.map(role=>`<label class="ops-permission-check"><input type="checkbox" data-ops-account-role value="${esc(role)}"> <span><strong>${esc(role)}</strong><small>${esc(roleHelpText(role))}</small></span></label>`).join('')}</div></div><div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Create staff account</button></div></form></div></details>
-      <details data-ops-keep-open="admin-vehicle-holders" ${opsKeepOpen('admin-vehicle-holders')}><summary>Vehicle drivers</summary><div class="ops-admin-users-body">${vehicleHoldersAdminHtml()}</div></details>
       <details data-ops-keep-open="admin-current-users" ${state.editingActualUserId||editingPreload?'open':opsKeepOpen('admin-current-users')}><summary>Current Users</summary><div class="ops-admin-users-body">
         <h3>Current signed-in users</h3><p class="ops-subtle">Edit roles directly here. These are the live permissions used by the app.</p>${actualUsersHtml()}
         ${editingPreload?`<section class="ops-preload-edit"><h3>Edit pre-loaded user</h3><p class="ops-subtle">This legacy entry has not yet been claimed. Update it here, or delete it below. New accounts are created using Create staff account.</p>
@@ -5904,6 +5918,7 @@
         </form></section>`:''}
         <h3>Pre-loaded users</h3><p class="ops-subtle">Unclaimed entries can be edited or deleted. Claimed entries are an audit record; manage their permissions above.</p>${rows.length ? `<div class="ops-table-wrap"><table class="ops-table"><tr><th>Name</th><th>Email</th><th>Roles</th><th>Status</th><th>Claimed</th><th>Actions</th></tr>${rows.map(u=>{const claimed=preloadedUserIsClaimed(u);return `<tr><td>${esc(u.display_name || [u.first_name,u.last_name].filter(Boolean).join(' '))}</td><td>${esc(u.email)}</td><td>${roleChips(u.roles||[])}</td><td>${u.active ? statusPill('Active') : statusPill('Inactive')}</td><td>${u.claimed_at ? nzDate(u.claimed_at) : 'Not yet'}</td><td>${claimed?'<span class="ops-subtle">Manage under Current Users</span>':`<button class="ops-btn" type="button" data-ops-edit-preload-user="${esc(u.id)}">Edit</button> <button class="ops-btn ghost" type="button" data-ops-delete-preload-user="${esc(u.id)}">Delete</button>`}</td></tr>`;}).join('')}</table></div>` : '<p class="ops-subtle">No pre-loaded users yet.</p>'}
       </div></details>
+      <details data-ops-keep-open="admin-vehicle-holders" ${opsKeepOpen('admin-vehicle-holders')}><summary>Vehicle drivers</summary><div class="ops-admin-users-body">${vehicleHoldersAdminHtml()}</div></details>
     </div>`;
   }
 
@@ -6222,7 +6237,7 @@
       state.prefillMachinerySide=b.dataset.opsMachinerySide||'';
       render();
     }));
-    document.querySelectorAll('[data-ops-open-task]').forEach(b => b.addEventListener('click', () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTask) ? '' : b.dataset.opsOpenTask; const keepY=window.scrollY; render(); window.scrollTo({top:keepY,left:0,behavior:'auto'}); }));
+    document.querySelectorAll('[data-ops-open-task-row]').forEach(b => { const toggle = () => { state.openTaskId = String(state.openTaskId)===String(b.dataset.opsOpenTaskRow) ? '' : b.dataset.opsOpenTaskRow; const keepY=window.scrollY; render(); window.scrollTo({top:keepY,left:0,behavior:'auto'}); }; b.addEventListener('click',toggle); b.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); });
     document.querySelectorAll('[data-ops-action]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.opsAction)));
   }
 

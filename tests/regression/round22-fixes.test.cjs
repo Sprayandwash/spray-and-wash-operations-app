@@ -48,8 +48,35 @@ test('REG-213: choosing a vehicle already held is refused with the holder named;
   assert.match(ops,/data-ops-vehicle-holder/);
 });
 
-test('REG-214: the manual task form can assign a task to a named person',()=>{
-  assert.match(ops,/id="opsManualAssignee"/);
-  assert.match(ops,/row\.assigned_user_id=assigneeId; row\.assigned_role=null/);
-  assert.match(mig,/assignable_people/);
+test('REG-214: maintenance tasks always go to the Maintenance manager; the manual task form has no person field',()=>{
+  assert.doesNotMatch(ops,/opsManualAssignee/);
+  assert.match(ops,/assigned_role: 'Maintenance manager'/);
+});
+
+test('REG-215: Vehicle drivers is the last section under Users & Permissions',()=>{
+  const users=ops.slice(ops.indexOf('<h3>Users & Permissions</h3>'),ops.indexOf('function bindRenderedEvents'));
+  const iDrivers=users.indexOf('admin-vehicle-holders'),iCurrent=users.indexOf('admin-current-users');
+  assert.ok(iCurrent>-1&&iDrivers>iCurrent,'Vehicle drivers must come after Current Users');
+  assert.ok(users.slice(iDrivers).indexOf('data-ops-keep-open')<0||users.slice(iDrivers+10).indexOf('data-ops-keep-open')<0);
+});
+
+test('REG-216: "Hoses & Reels" is a sub-asset type with no oil fields',()=>{
+  assert.match(ops,/'Hoses & Reels':'HSR'/);
+  assert.match(ops,/<option value="Hoses & Reels"/);
+  assert.match(ops,/data-machinery-types="Engine,Gearbox,Pump"/);
+  assert.match(ops,/oil_grade:type==='Hoses & Reels'\?null/);
+  const mig2=fs.readFileSync(path.join(__dirname,'..','..','supabase','migrations','20261120_machinery_type_hoses_reels.sql'),'utf8');
+  assert.match(mig2,/'Hoses & Reels'/);
+});
+
+test('REG-217: a task opens by tapping its row (no Open button) and closes by tapping it again',()=>{
+  assert.match(ops,/data-ops-open-task-row=/);
+  assert.doesNotMatch(ops,/data-ops-open-task="/);
+  assert.doesNotMatch(ops,/<th>Actions<\/th><\/tr>\$\{rows\.map\(t=>`<tr class="ops-task-row/);
+  assert.match(ops,/state\.openTaskId = String\(state\.openTaskId\)===String\(b\.dataset\.opsOpenTaskRow\) \? ''/);
+});
+
+test('REG-218: on phones each task is a stacked card, not a wide table',()=>{
+  assert.match(ops,/@media\(max-width:720px\)\{\s*table\.ops-table\.ops-tasks-table\{min-width:0;display:block/);
+  assert.match(ops,/td\[data-label\]::before\{content:attr\(data-label\)/);
 });
