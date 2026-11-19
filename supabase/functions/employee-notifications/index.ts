@@ -457,7 +457,7 @@ async function reconcileTaskNotifications(service: ReturnType<typeof createClien
         severity: task.priority || 'Medium',
         title: event.type === 'overdue' ? 'Overdue task' : 'Task due soon',
         body: `${task.title}${task.due_date ? ` — due ${task.due_date}` : ''}`,
-        deep_link: './',
+        deep_link: `./?open=task&id=${task.id}`,
         state: 'pending',
         idempotency_key: idempotencyKey,
         metadata: { source: 'routine-push', channel: 'push', task_status: task.status, due_date: task.due_date }
@@ -562,7 +562,7 @@ async function deliverRoutinePushNotifications(service: ReturnType<typeof create
       const now = new Date().toISOString();
       try {
         const response = await webpush.sendNotification(subscription.subscription_json, JSON.stringify({
-          title: notification.title, body: notification.body, url: notification.deep_link || './',
+          title: notification.title, body: notification.body, url: (notification.deep_link && notification.deep_link !== './') ? notification.deep_link : (notification.task_id ? `./?open=task&id=${notification.task_id}` : './'),
           tag: 'spray-wash-' + notification.event_type + '-' + notification.id,
           data: { notification_id: notification.id, event_type: notification.event_type }
         }), { TTL: 3600, urgency: notification.severity === 'High' ? 'high' : 'normal' });

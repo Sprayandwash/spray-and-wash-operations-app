@@ -2887,6 +2887,58 @@
     const type=kind==='height-failed'?'failed':kind==='height-soon'?'dueSoon':kind==='height-no-inspection'?'noInspection':'overdue';
     setTimeout(()=>window.SWHeightAttention?.open(type),160);
   }
+  // ---- Round 22: push tap-through, vehicle holders -------------------------------------------
+  function readPushOpenFromUrl(href){
+    try{
+      const u=new URL(href||location.href, location.href); const kind=u.searchParams.get('open'); if(!kind) return null;
+      const target={kind,id:u.searchParams.get('id')||''};
+      if(!href){ u.searchParams.delete('open'); u.searchParams.delete('id'); history.replaceState(null,'',u.pathname+(u.search||'')+u.hash); }
+      return target;
+    }catch(_){ return null; }
+  }
+  // A tapped push opens the item that produced it, but only on screens the person's role can open.
+  // Anything else leaves them on the app home.
+  function applyPushOpen(){
+    const target=state.pendingPushOpen; if(!target||!state.user||state.accountAccess?.must_change_password) return;
+    state.pendingPushOpen=null;
+    if(target.kind==='task' && target.id && canAccessSharedTasks()) return openAttentionItem('task',target.id);
+    if(target.kind==='vehicle-check' && canUseVehicleChecks()) return openAttentionItem('vehicle-check-due',target.id);
+  }
+  async function loadVehicleHolders(){
+    state.vehicleHolders=[]; state.assignablePeople=state.assignablePeople||[];
+    if(!state.user||!state.sb) return;
+    try{
+      const r=await state.sb.rpc('vehicle_holder_overview');
+      if(r.error){ if(!/does not exist|Could not find/i.test(r.error.message||'')) console.warn('Vehicle holders unavailable:',r.error.message); }
+      else state.vehicleHolders=r.data||[];
+      if(isAdmin()||canMaintain()){ const p=await state.sb.rpc('assignable_people'); if(!p.error) state.assignablePeople=p.data||[]; }
+    }catch(err){ console.warn('Vehicle holders unavailable:',err.message); }
+    renderMyVehiclePanel();
+  }
+  function renderMyVehiclePanel(){
+    const panel=document.getElementById('myVehiclePanel'); if(!panel) return;
+    if(!state.user||!(canUseVehicleChecks()||isAdmin())||!(state.vehicleHolders||[]).length){ panel.innerHTML=''; return; }
+    const mine=state.vehicleHolders.find(v=>String(v.holder_user_id)===String(state.user.id));
+    const options=state.vehicleHolders.filter(v=>v.status==='Active').map(v=>`<option value="${esc(v.vehicle_id)}" ${mine&&String(mine.vehicle_id)===String(v.vehicle_id)?'selected':''}>${esc(v.rego||v.name)}${v.holder_name&&!(mine&&String(mine.vehicle_id)===String(v.vehicle_id))?` (held by ${esc(v.holder_name)})`:''}</option>`).join('');
+    panel.innerHTML=`<div class="pushSettings"><h3>My vehicle</h3><p class="muted">Choose the vehicle you drive. You get a reminder when its two-weekly vehicle check is due.</p><select id="myVehicleSelect" onchange="chooseMyVehicle(this.value)"><option value="">No Vehicle Assigned</option>${options}</select></div>`;
+  }
+  async function chooseMyVehicle(vehicleId){
+    const r=await state.sb.rpc('claim_my_vehicle',{p_vehicle_id:vehicleId||null});
+    if(r.error) alert(r.error.message);
+    await loadVehicleHolders();
+  }
+  async function adminSetVehicleHolder(vehicleId,userId){
+    if(!isAdmin()) return alert('Admin access is required.');
+    const r=await state.sb.rpc('admin_set_vehicle_holder',{p_vehicle_id:vehicleId,p_user_id:userId||null});
+    if(r.error) alert(r.error.message);
+    await loadVehicleHolders(); render();
+  }
+  function vehicleHoldersAdminHtml(){
+    const rows=(state.vehicleHolders||[]).filter(v=>v.status==='Active');
+    const people=state.assignablePeople||[];
+    if(!rows.length) return '<p class="ops-subtle">No active vehicles.</p>';
+    return `<p class="ops-subtle">Who drives each vehicle. They receive its two-weekly vehicle-check reminder. Choosing a person who already has another vehicle moves them.</p><div class="ops-table-wrap"><table class="ops-table"><tr><th>Vehicle</th><th>Driver</th></tr>${rows.map(v=>`<tr><td>${esc(v.rego||v.name)}</td><td><select data-ops-vehicle-holder="${esc(v.vehicle_id)}"><option value="">No Vehicle Assigned</option>${people.map(p=>`<option value="${esc(p.user_id)}" ${String(p.user_id)===String(v.holder_user_id)?'selected':''}>${esc(p.display_name)}</option>`).join('')}</select></td></tr>`).join('')}</table></div>`;
+  }
   function appIcon(name, className){
     const icons={
       height:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>',
@@ -3061,6 +3113,8 @@
     if(revision!==state.authRevision) return;
     await loadAll();
     opsNavRestoreAfterReload();
+    loadVehicleHolders();
+    applyPushOpen();
   }
 
 
@@ -3756,6 +3810,7 @@
       <label>Vehicle<select id="opsManualVehicle"><option value="">None</option>${state.vehicles.map(v=>`<option value="${v.id}">${esc(v.rego || v.name)}</option>`).join('')}</select></label>
       <label>Title<input id="opsManualTitle" required></label>
       <label><span>Apply to matching machinery type</span><select id="opsManualApplyScope"><option value="single">Standalone/single task only</option><option value="same_type">Create one for all machinery of the same type</option></select></label>
+      <label>Assign to<select id="opsManualAssignee"><option value="">Maintenance manager (role)</option>${(state.assignablePeople||[]).map(p=>`<option value="${esc(p.user_id)}">${esc(p.display_name)}</option>`).join('')}</select></label>
       <label>Priority<select id="opsManualPriority">${optionList(PRIORITIES,'Medium')}</select></label>
       <label>Due date<input id="opsManualDue" type="date"></label>
       <label class="ops-span-2">Description<textarea id="opsManualDescription"></textarea></label>
@@ -3775,7 +3830,7 @@
     }
     rows = rows.sort((a,b)=>completedList?String(b.completed_at||b.updated_at||b.created_at||'').localeCompare(String(a.completed_at||a.updated_at||a.created_at||'')):statusRank(a.status)-statusRank(b.status) || String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));
     if(!rows.length) return `<p class="ops-subtle">${completedList?'No completed tasks.':'No tasks yet.'}</p>`;
-    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:120px"><col style="width:85px"><col><col style="width:130px"><col style="width:120px"><col style="width:125px"><col style="width:125px"><col style="width:90px"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_role||'Maintenance manager')}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
+    return `<div class="ops-table-wrap" style="margin-top:1rem"><table class="ops-table ops-table-fixed"><colgroup><col style="width:120px"><col style="width:85px"><col><col style="width:130px"><col style="width:120px"><col style="width:125px"><col style="width:125px"><col style="width:90px"></colgroup><tr><th>Status</th><th>Priority</th><th>Task</th><th>Target</th><th>Source</th><th>Responsible</th><th>Due</th><th>Actions</th></tr>${rows.map(t=>`<tr class="${String(state.openTaskId)===String(t.id)?'ops-task-row-open':''}"><td>${statusPill(t.status)}</td><td>${statusPill(t.priority)}</td><td><strong>${esc(t.title)}</strong><br><span class="ops-subtle">${esc(t.description||'')}</span></td><td>${esc(targetName(t))}</td><td>${esc(taskSourceLabel(t))}</td><td>${esc(t.assigned_user_id?((state.assignablePeople||[]).find(p=>String(p.user_id)===String(t.assigned_user_id))?.display_name||'Named person'):(t.assigned_role||'Maintenance manager'))}</td><td>${nzDate(t.due_date)}</td><td><button class="ops-btn ghost" data-ops-open-task="${t.id}">${String(state.openTaskId)===String(t.id)?'Close':'Open'}</button></td></tr>${String(state.openTaskId)===String(t.id)?(taskDetailInlineRendered=true,`<tr class="ops-task-detail-row"><td colspan="8">${taskDetailHtml(t.id,true)}</td></tr>`):''}`).join('')}</table></div>`;
   }
   function taskSourceLabel(task){
     const module=String(task?.source_module||'').replace(/_/g,' ');
@@ -4328,6 +4383,8 @@
       assigned_role: 'Maintenance manager',
       created_by: state.user.id
     };
+    const assigneeId=byId('opsManualAssignee')?.value||'';
+    if(assigneeId){ row.assigned_user_id=assigneeId; row.assigned_role=null; }
     if(!row.title) return alert('Task title is required.');
     let rows = [row];
     const scope = byId('opsManualApplyScope')?.value || 'single';
@@ -5831,6 +5888,7 @@
     const preloadName=editingPreload?.display_name || [editingPreload?.first_name,editingPreload?.last_name].filter(Boolean).join(' ');
     return `<div class="ops-admin-users"><h3>Users & Permissions</h3>
       <details><summary>Create staff account</summary><div class="ops-admin-users-body"><form id="opsCreateStaffAccountForm" class="ops-form"><p class="ops-subtle ops-span-2">Creates a private account without sending an email. Give the temporary password to the staff member directly; they must create their own password at first sign-in.</p><label>First name<input id="opsAccountFirst" required></label><label>Last name<input id="opsAccountLast" required></label><label>Email<input id="opsAccountEmail" type="email" required></label><label>Temporary password<input id="opsAccountTempPassword" type="password" minlength="12" required></label><div class="ops-span-2"><strong>Permissions</strong><div class="ops-permission-grid">${ROLE_DEFS.map(role=>`<label class="ops-permission-check"><input type="checkbox" data-ops-account-role value="${esc(role)}"> <span><strong>${esc(role)}</strong><small>${esc(roleHelpText(role))}</small></span></label>`).join('')}</div></div><div class="ops-actions ops-span-2"><button class="ops-btn primary" type="submit">Create staff account</button></div></form></div></details>
+      <details data-ops-keep-open="admin-vehicle-holders" ${opsKeepOpen('admin-vehicle-holders')}><summary>Vehicle drivers</summary><div class="ops-admin-users-body">${vehicleHoldersAdminHtml()}</div></details>
       <details data-ops-keep-open="admin-current-users" ${state.editingActualUserId||editingPreload?'open':opsKeepOpen('admin-current-users')}><summary>Current Users</summary><div class="ops-admin-users-body">
         <h3>Current signed-in users</h3><p class="ops-subtle">Edit roles directly here. These are the live permissions used by the app.</p>${actualUsersHtml()}
         ${editingPreload?`<section class="ops-preload-edit"><h3>Edit pre-loaded user</h3><p class="ops-subtle">This legacy entry has not yet been claimed. Update it here, or delete it below. New accounts are created using Create staff account.</p>
@@ -5893,6 +5951,7 @@
     byId('opsMaintenanceLogForm')?.addEventListener('submit', saveMaintenanceLogEntry);
     byId('opsInspectionForm')?.addEventListener('submit', submitInspection);
     byId('opsManualTaskForm')?.addEventListener('submit', createManualTask);
+    document.querySelectorAll('[data-ops-vehicle-holder]').forEach(sel=>sel.addEventListener('change',()=>adminSetVehicleHolder(sel.dataset.opsVehicleHolder,sel.value)));
     byId('opsTaskCompleteForm')?.addEventListener('submit', saveTaskUpdate);
     byId('opsTaskSimpleForm')?.addEventListener('submit', saveTaskUpdate);
     byId('opsScheduleForm')?.addEventListener('submit', saveSchedule);
@@ -6536,6 +6595,9 @@
     installModulePortal();
     installShortCertificateNumberPatch();
     installCertificateV405Patch();
+    state.pendingPushOpen=readPushOpenFromUrl();
+    window.chooseMyVehicle=chooseMyVehicle;
+    if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',event=>{ if(event.data?.type!=='spray-wash-open') return; const target=readPushOpenFromUrl(event.data.url); if(!target) return; state.pendingPushOpen=target; applyPushOpen(); });
     initSupabase().catch(err => { state.lastError = err.message; render(); });
     window.SWOperationsV4 = { refresh: loadAll, show: showOperations, state, openQualificationFile, generateQualificationCertificate, handleDashboardShortcut, openNewHeightInspectionV415, openAppAttention, openAttentionItem, contractorTrainingStatus };
     setupLogoHomeClick();

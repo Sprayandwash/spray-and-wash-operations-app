@@ -1,6 +1,6 @@
 // Spray and Wash Operations App V4.0.90 service worker
 // Network-first, clears old caches, and forces the V4.0.84 release modules.
-const CACHE_NAME = 'spray-wash-operations-v4-0-111';
+const CACHE_NAME = 'spray-wash-operations-v4-0-112';
 const BACKUP_SCRIPT = '<script src="./backup-v4.js?v=4.0.84"></script>';
 const PHOTO_SCRIPT = '<script src="./photo-storage-v4.0.84.js?v=4.0.84"></script>';
 
@@ -76,6 +76,8 @@ self.addEventListener('notificationclick', event => {
   const target = new URL(event.notification.data?.url || './', self.registration.scope).href;
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
     const existing = clients.find(client => client.url.startsWith(self.registration.scope));
-    return existing ? existing.focus() : self.clients.openWindow(target);
+    if(!existing) return self.clients.openWindow(target);
+    existing.postMessage({ type: 'spray-wash-open', url: target });
+    return existing.focus();
   }));
 });
